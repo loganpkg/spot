@@ -24,7 +24,8 @@
  * To compile simply run:
  * $ cc -ansi -g -O3 -Wall -Wextra -pedantic spot.c && mv a.out spot
  * or
- * > cl spot.c
+ * > cl /Ot /Wall /wd4820 /wd4255 /wd4242 /wd4244 /wd4310 /wd4267 /wd4710 ^
+ *   /wd4706 /wd5045 spot.c
  * and place the executable somewhere in your PATH.
  *
  * spot can optionally be compiled with a curses library by setting
@@ -34,9 +35,11 @@
  * > cd C:\Users\logan\Documents\PDCurses-3.9\PDCurses-3.9\wincon
  * > nmake -f Makefile.vc
  * > cd C:\Users\logan\Documents\spot
- * > cl spot.c pdcurses.lib User32.Lib AdvAPI32.Lib ^
+ * > cl /Ot /Wall /wd4820 /wd4668 /wd4267 /wd4242 /wd4244 /wd4710 /wd5045 ^
+     /wd4706 spot.c pdcurses.lib User32.Lib AdvAPI32.Lib ^
  *   /I C:\Users\logan\Documents\PDCurses-3.9\PDCurses-3.9 ^
  *   /link /LIBPATH:C:\Users\logan\Documents\PDCurses-3.9\PDCurses-3.9\wincon
+ * Please note that PDCurses does not handle terminal size changes.
  *
  * To use:
  * $ spot [file...]
@@ -51,13 +54,20 @@
 #define _GNU_SOURCE
 #endif
 
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#define _CRT_SECURE_NO_WARNINGS
+#define _CRT_NONSTDC_NO_DEPRECATE
+#endif
+
 #include <sys/types.h>
 #include <sys/stat.h>
 
 #ifdef _WIN32
-#if USE_CURSES
+#include <conio.h>
+#include <fcntl.h>
 #include <io.h>
-#else
+#if !USE_CURSES
 #include <windows.h>
 #endif
 #else
@@ -208,7 +218,7 @@ struct gapbuf {
 #define OK 0
 
 /* ANSI escape sequences */
-#define PHY_CLEAR_SCREEN() printf("\033[2J")
+#define PHY_CLEAR_SCREEN() printf("\033[2J\033[1;1H")
 /* Index starts at one. Top left is (1, 1) */
 #define PHY_MOVE_CURSOR(y, x) printf("\033[%lu;%luH", (unsigned long) (y), \
     (unsigned long) (x))
@@ -1542,8 +1552,8 @@ void centre_cursor(struct gapbuf *b, int text_height)
 }
 
 int draw_screen(struct gapbuf *b, struct gapbuf *cl, int cl_active,
-                char **sb, size_t * sb_s, int rv, int req_centre,
-                int req_clear)
+                char **sb, size_t * sb_s, int rv, int *req_centre,
+                int *req_clear)
 {
     /* Draws the text and command line gap buffers to the screen */
     char *q, ch;
@@ -1554,6 +1564,17 @@ int draw_screen(struct gapbuf *b, struct gapbuf *cl, int cl_active,
     int centred = 0;            /* Indicates if centreing has occurred */
     int ret = 0;                /* Macro "return value" */
 
+  draw_start:
+    if (*req_clear) {
+        if (clear() == ERR)
+            return 1;
+        *req_clear = 0;
+    } else {
+        if (erase() == ERR)
+            return 1;
+    }
+
+    /* erase() updates stdscr->h and stdscr->w, so best to call afterwards */
     GET_MAX(height, width);
 
     if (height < 1 || width < 1)
@@ -1562,19 +1583,10 @@ int draw_screen(struct gapbuf *b, struct gapbuf *cl, int cl_active,
     w = (size_t) width;
 
     /* Cursor is above the screen */
-    if (req_centre || b->c < INDEX_TO_POINTER(b, d)) {
+    if (*req_centre || b->c < INDEX_TO_POINTER(b, d)) {
         centre_cursor(b, height >= 3 ? height - 2 : height);
+        *req_centre = 0;
         centred = 1;
-    }
-
-  draw_start:
-    if (req_clear) {
-        if (clear() == ERR)
-            return 1;
-        req_clear = 0;
-    } else {
-        if (erase() == ERR)
-            return 1;
     }
 
     /* Commence from draw start */
@@ -1605,7 +1617,12 @@ int draw_screen(struct gapbuf *b, struct gapbuf *cl, int cl_active,
                 centred = 1;
                 goto draw_start;
             } else {
-                /* Draw from the cursor */
+                /*
+                 * Do no attempt to centre again, draw from the cursor instead.
+                 * This is to accommodate lines that are very long. Please note
+                 * that the screen may have changed size since it was centred,
+                 * but this is OK.
+                 */
                 b->d = CURSOR_INDEX(b);
                 goto draw_start;
             }
@@ -1859,6 +1876,15 @@ int main(int argc, char **argv)
     HELP;
     char **h;
 
+#ifdef _WIN32
+    if (_setmode(_fileno(stdin), _O_BINARY) == -1)
+        return 1;
+    if (_setmode(_fileno(stdout), _O_BINARY) == -1)
+        return 1;
+    if (_setmode(_fileno(stderr), _O_BINARY) == -1)
+        return 1;
+#endif
+
     if (argc <= 1) {
         if ((b = new_gapbuf(NULL, NULL)) == NULL) {
             ret = 1;
@@ -1891,13 +1917,10 @@ int main(int argc, char **argv)
     while (running) {
       top:
         if (draw_screen
-            (b, cl, cl_active, &sb, &sb_s, rv, req_centre, req_clear)) {
+            (b, cl, cl_active, &sb, &sb_s, rv, &req_centre, &req_clear)) {
             ret = 1;
             goto clean_up;
         }
-        /* Clear drawing options */
-        req_centre = 0;
-        req_clear = 0;
         /* Clear internal return value */
         rv = 0;
 
