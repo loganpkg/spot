@@ -747,7 +747,11 @@ struct gapbuf *init_gapbuf(void)
 
 char *memmatch(char *big, size_t big_len, char *little, size_t little_len)
 {
-    /* Quick Search algorithm */
+    /*
+     * Quick Search algorithm:
+     * Daniel M. Sunday, A Very Fast Substring Search Algorithm,
+     *     Communications of the ACM, Vol.33, No.8, August 1990.
+     */
 #define UCHAR_NUM (UCHAR_MAX + 1)
     unsigned char bad[UCHAR_NUM], *pattern, *q, *q_stop, *q_check;
     size_t to_match, j;
@@ -1551,6 +1555,15 @@ void centre_cursor(struct gapbuf *b, int text_height)
     b->d = q - b->a;
 }
 
+#define DISPLAYCH(ch) (isgraph(ch) || ch == ' ' || ch == '\t' || ch == '\n' \
+    ? ch : (ch == '\0' ? '~' : '?'))
+
+#define DRAWCH do { \
+    ch = *q; \
+    ch = DISPLAYCH(ch); \
+    PRINTCH(ch); \
+} while(0)
+
 int draw_screen(struct gapbuf *b, struct gapbuf *cl, int cl_active,
                 char **sb, size_t * sb_s, int rv, int *req_centre,
                 int *req_clear)
@@ -1603,12 +1616,7 @@ int draw_screen(struct gapbuf *b, struct gapbuf *cl, int cl_active,
             if (standout() == ERR)
                 return 1;
 
-#define DISPLAYCH(ch) (isgraph(ch) || ch == ' ' || ch == '\t' || ch == '\n' \
-    ? ch : (ch == '\0' ? '~' : '?'))
-
-        ch = *q;
-        ch = DISPLAYCH(ch);
-        PRINTCH(ch);
+        DRAWCH;
         GET_CURSOR(y, x);
         if ((height >= 3 && y >= height - 2) || ret == ERR) {
             /* Cursor out of text portion of the screen */
@@ -1652,9 +1660,7 @@ int draw_screen(struct gapbuf *b, struct gapbuf *cl, int cl_active,
         if (b->m_set && q == INDEX_TO_POINTER(b, m))
             if (standend() == ERR)
                 return 1;
-        ch = *q;
-        ch = DISPLAYCH(ch);
-        PRINTCH(ch);
+        DRAWCH;
         GET_CURSOR(y, x);
         if ((height >= 3 && y >= height - 2) || ret == ERR)
             break;
@@ -1716,9 +1722,7 @@ int draw_screen(struct gapbuf *b, struct gapbuf *cl, int cl_active,
             if (cl->m_set && q == INDEX_TO_POINTER(cl, m))
                 if (standout() == ERR)
                     return 1;
-            ch = *q;
-            ch = DISPLAYCH(ch);
-            PRINTCH(ch);
+            DRAWCH;
             if (ret == ERR) {
                 /* Draw from the cursor */
                 cl->d = cl->g - cl->a;
@@ -1749,9 +1753,7 @@ int draw_screen(struct gapbuf *b, struct gapbuf *cl, int cl_active,
             if (cl->m_set && q == INDEX_TO_POINTER(cl, m))
                 if (standend() == ERR)
                     return 1;
-            ch = *q;
-            ch = DISPLAYCH(ch);
-            PRINTCH(ch);
+            DRAWCH;
             if (ret == ERR)
                 break;
             ++q;
