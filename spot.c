@@ -1418,7 +1418,7 @@ int insert_file(struct gapbuf *b, char *fn)
     if (fs > GAPSIZE(b))
         if (grow_gap(b, fs))
             return 1;
-    if ((fp = fopen(fn, "r")) == NULL)
+    if ((fp = fopen(fn, "rb")) == NULL)
         return 1;
     /* Right of gap insert */
     if (fread(b->c - fs, 1, fs, fp) != fs) {
