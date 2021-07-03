@@ -338,7 +338,10 @@ WINDOW *stdscr = NULL;
         } else { \
             *(stdscr->ns + stdscr->v++) = IVCH('?'); \
         } \
-        ret = OK; \
+        if (stdscr->v >= stdscr->sa) \
+            ret = ERR; \
+        else \
+            ret = OK; \
     } else { \
         ret = ERR; \
     } \
@@ -1728,8 +1731,10 @@ int draw_screen(struct gapbuf *b, struct gapbuf *cl, int cl_active,
         }
         if (snprintf
             (*sb, *sb_s, "%c%c %s (%lu,%lu) %02X", rv ? '!' : ' ',
-             b->mod ? '*' : ' ', b->fn, (unsigned long) b->r,
-             (unsigned long) col_num(b), (unsigned char) *b->c) < 0)
+             b->mod ? '*' : ' ', b->fn,
+             (unsigned long) (cl_active ? cl->r : b->r),
+             (unsigned long) col_num(cl_active ? cl : b),
+             (unsigned char) (cl_active ? *cl->c : *b->c)) < 0)
             return 1;
         if (addnstr(*sb, width) == ERR)
             return 1;
@@ -1741,15 +1746,24 @@ int draw_screen(struct gapbuf *b, struct gapbuf *cl, int cl_active,
         if (ret == ERR)
             return 1;
 
+        /* Clear variable for reuse */
+        centred = 0;
+
+      cl_draw_start:
         /* Command line gap buffer */
         MOVE_CURSOR(h - 1, 0);
         if (ret == ERR)
             return 1;
 
-      cl_draw_start:
         CLEAR_DOWN();
         if (ret == ERR)
             return 1;
+
+        /* Draw from the cursor if it is before draw start */
+        if (cl->c < INDEX_TO_POINTER(cl, d)) {
+            centre_cursor(cl, 1);
+            centred = 1;
+        }
 
         /* Commence from draw start */
         q = cl->d + cl->a;
@@ -1766,9 +1780,15 @@ int draw_screen(struct gapbuf *b, struct gapbuf *cl, int cl_active,
                     return 1;
             DRAWCH;
             if (ret == ERR) {
-                /* Draw from the cursor */
-                cl->d = cl->g - cl->a;
-                goto cl_draw_start;
+                if (!centred) {
+                    centre_cursor(cl, 1);
+                    centred = 1;
+                    goto cl_draw_start;
+                } else {
+                    /* Draw from the cursor */
+                    cl->d = CURSOR_INDEX(cl);
+                    goto cl_draw_start;
+                }
             }
             ++q;
         }
