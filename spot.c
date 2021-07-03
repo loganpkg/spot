@@ -77,6 +77,7 @@
 #endif
 #include <sys/wait.h>
 #include <unistd.h>
+#include <libgen.h>
 #endif
 
 #if USE_CURSES
@@ -1425,79 +1426,120 @@ int insert_file(struct gapbuf *b, char *fn)
         fclose(fp);
         return 1;
     }
+    if (fclose(fp))
+        return 1;
+
     b->c -= fs;
     SETMOD(b);
     return 0;
 }
 
+#define QUIT do { \
+    ret = 1; \
+    goto clean_up; \
+} while (0)
+
 int write_file(struct gapbuf *b)
 {
     /* Writes a gap buffer to file */
-    char *tmp_fn;
-    FILE *fp;
-    size_t n, b_fn_len;
+    int ret = 0;
+    char *fn_tilde = NULL;
+    FILE *fp = NULL;
+    size_t n, fn_len;
 
 #ifndef _WIN32
+    char *fn_copy = NULL;
+    char *dir;
+    int fd;
+    int d_fd = -1;
     struct stat st;
 #endif
 
     /* No filename */
-    if (b->fn == NULL || !(b_fn_len = strlen(b->fn)))
-        return 1;
-    if (AOF(b_fn_len, 2))
-        return 1;
-    if ((tmp_fn = malloc(b_fn_len + 2)) == NULL)
-        return 1;
-    memcpy(tmp_fn, b->fn, b_fn_len);
-    *(tmp_fn + b_fn_len) = '~';
-    *(tmp_fn + b_fn_len + 1) = '\0';
-    if ((fp = fopen(tmp_fn, "wb")) == NULL) {
-        free(tmp_fn);
-        return 1;
-    }
+    if (b->fn == NULL || !(fn_len = strlen(b->fn)))
+        QUIT;
+    if (AOF(fn_len, 2))
+        QUIT;
+    if ((fn_tilde = malloc(fn_len + 2)) == NULL)
+        QUIT;
+    memcpy(fn_tilde, b->fn, fn_len);
+    *(fn_tilde + fn_len) = '~';
+    *(fn_tilde + fn_len + 1) = '\0';
+    if ((fp = fopen(fn_tilde, "wb")) == NULL)
+        QUIT;
+
     /* Before gap */
     n = b->g - b->a;
-    if (fwrite(b->a, 1, n, fp) != n) {
-        free(tmp_fn);
-        fclose(fp);
-        return 1;
-    }
+    if (fwrite(b->a, 1, n, fp) != n)
+        QUIT;
+
     /* After gap, excluding the last character */
     n = b->e - b->c;
-    if (fwrite(b->c, 1, n, fp) != n) {
-        free(tmp_fn);
-        fclose(fp);
-        return 1;
-    }
-    if (fclose(fp)) {
-        free(tmp_fn);
-        return 1;
-    }
+    if (fwrite(b->c, 1, n, fp) != n)
+        QUIT;
+
+    if (fflush(fp))
+        QUIT;
+
 #ifndef _WIN32
     /* If original file exists, then apply its permissions to the new file */
     if (!stat(b->fn, &st) && S_ISREG(st.st_mode)
-        && chmod(tmp_fn, st.st_mode & 0777)) {
-        free(tmp_fn);
-        return 1;
-    }
+        && chmod(fn_tilde, st.st_mode & 0777))
+        QUIT;
+    if ((fd = fileno(fp)) == -1)
+        QUIT;
+    if (fsync(fd))
+        QUIT;
+#endif
+
+    if (fclose(fp))
+        QUIT;
+    fp = NULL;
+
+#ifndef _WIN32
+    if ((fn_copy = strdup(b->fn)) == NULL)
+        QUIT;
+    if ((dir = dirname(fn_copy)) == NULL)
+        QUIT;
+    if ((d_fd = open(dir, O_RDONLY)) == -1)
+        QUIT;
+    if (fsync(d_fd))
+        QUIT;
 #endif
 
 #ifdef _WIN32
-    /* rename does not overwrite files */
+    /* rename does not overwrite an existing file */
     errno = 0;
-    if (remove(b->fn) && errno != ENOENT) {
-        free(tmp_fn);
-        return 1;
-    }
+    if (remove(b->fn) && errno != ENOENT)
+        QUIT;
 #endif
 
     /* Atomic on POSIX systems */
-    if (rename(tmp_fn, b->fn)) {
-        free(tmp_fn);
-        return 1;
-    }
+    if (rename(fn_tilde, b->fn))
+        QUIT;
 
-    free(tmp_fn);
+#ifndef _WIN32
+    if (fsync(d_fd))
+        QUIT;
+#endif
+
+  clean_up:
+    if (fn_tilde != NULL)
+        free(fn_tilde);
+    if (fp != NULL && fclose(fp))
+        ret = 1;
+#ifndef _WIN32
+    if (fn_copy != NULL)
+        free(fn_copy);
+    if (d_fd != -1 && close(d_fd))
+        ret = 1;
+#endif
+
+    /* Fail */
+    if (ret)
+        return 1;
+
+    /* Success */
     b->mod = 0;
     return 0;
 }
@@ -1888,41 +1930,29 @@ int main(int argc, char **argv)
 #endif
 
     if (argc <= 1) {
-        if ((b = new_gapbuf(NULL, NULL)) == NULL) {
-            ret = 1;
-            goto clean_up;
-        }
+        if ((b = new_gapbuf(NULL, NULL)) == NULL)
+            QUIT;
     } else {
         for (i = 1; i < argc; ++i) {
-            if ((b = new_gapbuf(b, *(argv + i))) == NULL) {
-                ret = 1;
-                goto clean_up;
-            }
+            if ((b = new_gapbuf(b, *(argv + i))) == NULL)
+                QUIT;
         }
     }
 
-    if ((cl = init_gapbuf()) == NULL) {
-        ret = 1;
-        goto clean_up;
-    }
+    if ((cl = init_gapbuf()) == NULL)
+        QUIT;
+    if ((p = init_gapbuf()) == NULL)
+        QUIT;
 
-    if ((p = init_gapbuf()) == NULL) {
-        ret = 1;
-        goto clean_up;
-    }
-
-    if (init_ncurses()) {
-        ret = 1;
-        goto clean_up;
-    }
+    if (init_ncurses())
+        QUIT;
 
     while (running) {
       top:
         if (draw_screen
-            (b, cl, cl_active, &sb, &sb_s, rv, &req_centre, &req_clear)) {
-            ret = 1;
-            goto clean_up;
-        }
+            (b, cl, cl_active, &sb, &sb_s, rv, &req_centre, &req_clear))
+            QUIT;
+
         /* Clear internal return value */
         rv = 0;
 
