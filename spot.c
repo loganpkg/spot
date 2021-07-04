@@ -263,7 +263,7 @@ WINDOW *stdscr = NULL;
 
 /* Index starts from zero. Top left is (0, 0). Sets ret. */
 #define MOVE_CURSOR(y, x) do { \
-    if ((y) < stdscr->h && (x) < stdscr->w) { \
+    if ((size_t) (y) < stdscr->h && (size_t) (x) < stdscr->w) { \
         stdscr->v = (y) * stdscr->w + (x); \
         ret = OK; \
     } else { \
@@ -1609,40 +1609,35 @@ void centre_cursor(struct gapbuf *b, int text_height)
     PRINTCH(ch); \
 } while(0)
 
-int draw_screen(struct gapbuf *b, struct gapbuf *cl, int cl_active,
-                char **sb, size_t * sb_s, int rv, int *req_centre,
-                int *req_clear)
+int draw_gapbuf(struct gapbuf *b, int *req_centre, int y_top, int y_bottom,
+                int *cy, int *cx)
 {
-    /* Draws the text and command line gap buffers to the screen */
+    /*
+     * Draws a gap buffer to a screen area bounded by y_top and y_bottom,
+     * the inclusive top and bottom y indices, respectively.
+     */
     char *q, ch;
-    int height, width;          /* Screen size */
-    size_t h, w;                /* Screen size as size_t */
-    int cy = 0, cx = 0;         /* Final cursor position */
     int y, x;                   /* Changing cursor position */
-    int centred = 0;            /* Indicates if centreing has occurred */
     int ret = 0;                /* Macro "return value" */
+    int centred = 0;            /* Indicates if centreing has occurred */
+    int skip = 1;               /* Skip clear down on first pass */
 
   draw_start:
-    if (*req_clear) {
-        if (clear() == ERR)
-            return 1;
-        *req_clear = 0;
-    } else {
-        if (erase() == ERR)
-            return 1;
-    }
-
-    /* erase() updates stdscr->h and stdscr->w, so best to call afterwards */
-    GET_MAX(height, width);
-
-    if (height < 1 || width < 1)
+    MOVE_CURSOR(y_top, 0);
+    if (ret == ERR)
         return 1;
-    h = (size_t) height;
-    w = (size_t) width;
 
-    /* Cursor is above the screen */
+    if (!skip) {
+        CLEAR_DOWN();
+        if (ret == ERR)
+            return 1;
+
+    }
+    skip = 0;
+
+    /* Cursor is above draw start */
     if (*req_centre || b->c < INDEX_TO_POINTER(b, d)) {
-        centre_cursor(b, height >= 3 ? height - 2 : height);
+        centre_cursor(b, y_bottom - y_top + 1);
         *req_centre = 0;
         centred = 1;
     }
@@ -1663,18 +1658,16 @@ int draw_screen(struct gapbuf *b, struct gapbuf *cl, int cl_active,
 
         DRAWCH;
         GET_CURSOR(y, x);
-        if ((height >= 3 && y >= height - 2) || ret == ERR) {
+        if (y > y_bottom || ret == ERR) {
             /* Cursor out of text portion of the screen */
             if (!centred) {
-                centre_cursor(b, height >= 3 ? height - 2 : height);
+                centre_cursor(b, y_bottom - y_top + 1);
                 centred = 1;
                 goto draw_start;
             } else {
                 /*
                  * Do no attempt to centre again, draw from the cursor instead.
-                 * This is to accommodate lines that are very long. Please note
-                 * that the screen may have changed size since it was centred,
-                 * but this is OK.
+                 * This is to accommodate lines that are very long.
                  */
                 b->d = CURSOR_INDEX(b);
                 goto draw_start;
@@ -1683,7 +1676,7 @@ int draw_screen(struct gapbuf *b, struct gapbuf *cl, int cl_active,
         ++q;
     }
 
-    /* Don't highlight the cursor itself */
+    /* Do not highlight the cursor itself */
     if (b->m_set) {
         if (INDEX_TO_POINTER(b, m) > b->c) {
             if (standout() == ERR)
@@ -1696,8 +1689,7 @@ int draw_screen(struct gapbuf *b, struct gapbuf *cl, int cl_active,
     }
 
     /* Record cursor position */
-    if (!cl_active)
-        GET_CURSOR(cy, cx);
+    GET_CURSOR(*cy, *cx);
     /* After gap */
     q = b->c;
     while (q <= b->e) {
@@ -1707,27 +1699,63 @@ int draw_screen(struct gapbuf *b, struct gapbuf *cl, int cl_active,
                 return 1;
         DRAWCH;
         GET_CURSOR(y, x);
-        if ((height >= 3 && y >= height - 2) || ret == ERR)
+        if (y > y_bottom || ret == ERR)
             break;
         ++q;
     }
 
-    if (height >= 3) {
+    return 0;
+}
+
+int draw_screen(struct gapbuf *b, struct gapbuf *cl, int cl_active,
+                char **sb, size_t * sb_s, int rv, int *req_centre,
+                int *req_clear)
+{
+    /* Draws the text and command line gap buffers to the screen */
+    int h, w;                   /* Screen size */
+    size_t width;               /* Screen width as size_t */
+    int cl_cy, cl_cx;           /* Cursor position in command line */
+    int cy = 0, cx = 0;         /* Final cursor position */
+    int dummy = 0;              /* Dummy variable */
+    int ret = 0;                /* Macro "return value" */
+
+    if (*req_clear) {
+        if (clear() == ERR)
+            return 1;
+        *req_clear = 0;
+    } else {
+        if (erase() == ERR)
+            return 1;
+    }
+
+    /* erase() updates stdscr->h and stdscr->w, so best to call afterwards */
+    GET_MAX(h, w);
+
+    if (h < 1 || w < 1)
+        return 1;
+    width = (size_t) w;
+
+    /* Draw the text portion of the screen */
+    if (draw_gapbuf
+        (b, req_centre, 0, h >= 3 ? h - 1 - 2 : h - 1, &cy, &cx))
+        return 1;
+
+    if (h >= 3) {
         /* Status bar */
         MOVE_CURSOR(h - 2, 0);
         if (ret == ERR)
             return 1;
 
         /* sb_s needs to include the '\0' terminator */
-        if (w >= *sb_s) {
+        if (width >= *sb_s) {
             free(*sb);
             *sb = NULL;
             *sb_s = 0;
-            if (AOF(w, 1))
+            if (AOF(width, 1))
                 return 1;
-            if ((*sb = malloc(w + 1)) == NULL)
+            if ((*sb = malloc(width + 1)) == NULL)
                 return 1;
-            *sb_s = w + 1;
+            *sb_s = width + 1;
         }
         if (snprintf
             (*sb, *sb_s, "%c%c %s (%lu,%lu) %02X", rv ? '!' : ' ',
@@ -1736,7 +1764,7 @@ int draw_screen(struct gapbuf *b, struct gapbuf *cl, int cl_active,
              (unsigned long) col_num(cl_active ? cl : b),
              (unsigned char) (cl_active ? *cl->c : *b->c)) < 0)
             return 1;
-        if (addnstr(*sb, width) == ERR)
+        if (addnstr(*sb, w) == ERR)
             return 1;
         /* Highlight status bar */
         MOVE_CURSOR(h - 2, 0);
@@ -1746,79 +1774,12 @@ int draw_screen(struct gapbuf *b, struct gapbuf *cl, int cl_active,
         if (ret == ERR)
             return 1;
 
-        /* Clear variable for reuse */
-        centred = 0;
-
-      cl_draw_start:
-        /* Command line gap buffer */
-        MOVE_CURSOR(h - 1, 0);
-        if (ret == ERR)
+        /* Draw the command line */
+        if (draw_gapbuf(cl, &dummy, h - 1, h - 1, &cl_cy, &cl_cx))
             return 1;
-
-        CLEAR_DOWN();
-        if (ret == ERR)
-            return 1;
-
-        /* Draw from the cursor if it is before draw start */
-        if (cl->c < INDEX_TO_POINTER(cl, d)) {
-            centre_cursor(cl, 1);
-            centred = 1;
-        }
-
-        /* Commence from draw start */
-        q = cl->d + cl->a;
-        /* Start highlighting if mark is before draw start */
-        if (cl->m_set && cl->m < cl->d)
-            if (standout() == ERR)
-                return 1;
-
-        /* Before gap */
-        while (q != cl->g) {
-            /* Mark is on screen before cursor */
-            if (cl->m_set && q == INDEX_TO_POINTER(cl, m))
-                if (standout() == ERR)
-                    return 1;
-            DRAWCH;
-            if (ret == ERR) {
-                if (!centred) {
-                    centre_cursor(cl, 1);
-                    centred = 1;
-                    goto cl_draw_start;
-                } else {
-                    /* Draw from the cursor */
-                    cl->d = CURSOR_INDEX(cl);
-                    goto cl_draw_start;
-                }
-            }
-            ++q;
-        }
-
-        /* Don't highlight the cursor itself */
-        if (cl->m_set) {
-            if (INDEX_TO_POINTER(cl, m) > cl->c) {
-                if (standout() == ERR)
-                    return 1;
-            } else {
-                /* Stop highlighting */
-                if (standend() == ERR)
-                    return 1;
-            }
-        }
-
-        /* Record cursor position */
-        if (cl_active)
-            GET_CURSOR(cy, cx);
-        /* After gap */
-        q = cl->c;
-        while (q <= cl->e) {
-            /* Mark is after cursor */
-            if (cl->m_set && q == INDEX_TO_POINTER(cl, m))
-                if (standend() == ERR)
-                    return 1;
-            DRAWCH;
-            if (ret == ERR)
-                break;
-            ++q;
+        if (cl_active) {
+            cy = cl_cy;
+            cx = cl_cx;
         }
     }
 
