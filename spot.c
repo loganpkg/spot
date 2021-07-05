@@ -19,34 +19,6 @@
  * Dedicated to my son who was only a 4mm "spot" in his first ultrasound.
  */
 
-/*
- * README:
- * To compile simply run:
- * $ cc -ansi -g -O3 -Wall -Wextra -pedantic spot.c && mv a.out spot
- * or
- * > cl /Ot /Wall /wd4820 /wd4255 /wd4242 /wd4244 /wd4310 /wd4267 /wd4710 ^
- *   /wd4706 /wd5045 spot.c
- * and place the executable somewhere in your PATH.
- *
- * spot can optionally be compiled with a curses library by setting
- * USE_CURSES to 1, followed by:
- * $ cc -ansi -g -O3 -Wall -Wextra -pedantic spot.c -lncurses && mv a.out spot
- * or
- * > cd C:\Users\logan\Documents\PDCurses-3.9\PDCurses-3.9\wincon
- * > nmake -f Makefile.vc
- * > cd C:\Users\logan\Documents\spot
- * > cl /Ot /Wall /wd4820 /wd4668 /wd4267 /wd4242 /wd4244 /wd4710 /wd5045 ^
-     /wd4706 spot.c pdcurses.lib User32.Lib AdvAPI32.Lib ^
- *   /I C:\Users\logan\Documents\PDCurses-3.9\PDCurses-3.9 ^
- *   /link /LIBPATH:C:\Users\logan\Documents\PDCurses-3.9\PDCurses-3.9\wincon
- * Please note that PDCurses does not handle terminal size changes.
- *
- * To use:
- * $ spot [file...]
- *
- * The keybindings are shown below the #include statements.
- */
-
 /* Change this to 1 to compile with ncurses or PDCurses */
 #define USE_CURSES 0
 
@@ -96,7 +68,8 @@
 
 #define HELP char *help[] = { \
 "spot keybindings", \
-"^ means the control key, RK is the right key, and LK is the left key.", \
+"^ means the control key, and ^[ is equivalent to the escape key.", \
+"RK denotes the right key and LK the left key.", \
 "Commands with descriptions ending with * take an optional command", \
 "multiplier prefix ^U n (where n is a positive number).", \
 "^[ ?   Display keybindings in new gap buffer", \
@@ -1609,8 +1582,8 @@ void centre_cursor(struct gapbuf *b, int text_height)
     PRINTCH(ch); \
 } while(0)
 
-int draw_gapbuf(struct gapbuf *b, int *req_centre, int y_top, int y_bottom,
-                int *cy, int *cx)
+int draw_gapbuf(struct gapbuf *b, int y_top, int y_bottom, int clear_down,
+                int req_centre, int *cy, int *cx)
 {
     /*
      * Draws a gap buffer to a screen area bounded by y_top and y_bottom,
@@ -1620,25 +1593,28 @@ int draw_gapbuf(struct gapbuf *b, int *req_centre, int y_top, int y_bottom,
     int y, x;                   /* Changing cursor position */
     int ret = 0;                /* Macro "return value" */
     int centred = 0;            /* Indicates if centreing has occurred */
-    int skip = 1;               /* Skip clear down on first pass */
 
   draw_start:
     MOVE_CURSOR(y_top, 0);
     if (ret == ERR)
         return 1;
 
-    if (!skip) {
+    /*
+     * Only clear down on first attempt if needed. For example, this is not
+     * needed if erase() was just called.
+     */
+    if (clear_down) {
         CLEAR_DOWN();
         if (ret == ERR)
             return 1;
-
     }
-    skip = 0;
+    /* Always clean down on subsequent attempts */
+    clear_down = 1;
 
     /* Cursor is above draw start */
-    if (*req_centre || b->c < INDEX_TO_POINTER(b, d)) {
+    if (req_centre || b->c < INDEX_TO_POINTER(b, d)) {
         centre_cursor(b, y_bottom - y_top + 1);
-        *req_centre = 0;
+        req_centre = 0;
         centred = 1;
     }
 
@@ -1716,7 +1692,6 @@ int draw_screen(struct gapbuf *b, struct gapbuf *cl, int cl_active,
     size_t width;               /* Screen width as size_t */
     int cl_cy, cl_cx;           /* Cursor position in command line */
     int cy = 0, cx = 0;         /* Final cursor position */
-    int dummy = 0;              /* Dummy variable */
     int ret = 0;                /* Macro "return value" */
 
     if (*req_clear) {
@@ -1737,8 +1712,9 @@ int draw_screen(struct gapbuf *b, struct gapbuf *cl, int cl_active,
 
     /* Draw the text portion of the screen */
     if (draw_gapbuf
-        (b, req_centre, 0, h >= 3 ? h - 1 - 2 : h - 1, &cy, &cx))
+        (b, 0, h >= 3 ? h - 1 - 2 : h - 1, 0, *req_centre, &cy, &cx))
         return 1;
+    *req_centre = 0;
 
     if (h >= 3) {
         /* Status bar */
@@ -1775,7 +1751,7 @@ int draw_screen(struct gapbuf *b, struct gapbuf *cl, int cl_active,
             return 1;
 
         /* Draw the command line */
-        if (draw_gapbuf(cl, &dummy, h - 1, h - 1, &cl_cy, &cl_cx))
+        if (draw_gapbuf(cl, h - 1, h - 1, 0, 0, &cl_cy, &cl_cx))
             return 1;
         if (cl_active) {
             cy = cl_cy;
@@ -1918,6 +1894,9 @@ int main(int argc, char **argv)
             if ((b = new_gapbuf(b, *(argv + i))) == NULL)
                 QUIT;
         }
+        /* Move left to the first file specified */
+        while (b->prev != NULL)
+            b = b->prev;
     }
 
     if ((cl = init_gapbuf()) == NULL)
@@ -2058,6 +2037,7 @@ int main(int argc, char **argv)
             rv = delete_ch(z, mult);
             break;
         case C('l'):
+            /* Levels the text portion of the screen */
             req_centre = 1;
             req_clear = 1;
             break;
@@ -2132,8 +2112,12 @@ int main(int argc, char **argv)
             switch (x = getch()) {
             case 'n':
                 /* Search without editing the command line */
-                start_of_gapbuf(cl);
-                rv = search(z, cl->c, cl->e - cl->c);
+                if (!cl_active) {
+                    start_of_gapbuf(cl);
+                    rv = search(z, cl->c, cl->e - cl->c);
+                } else {
+                    rv = 1;
+                }
                 break;
             case 'm':
                 rv = match_bracket(z);
@@ -2183,6 +2167,8 @@ int main(int argc, char **argv)
                     while (*h != NULL)
                         if ((rv = insert_help_line(b, *h++)))
                             break;
+                    if (!rv)
+                        start_of_gapbuf(b);
                 }
                 break;
             }
