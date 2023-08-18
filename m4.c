@@ -184,7 +184,7 @@ struct m4_info {
     struct macro_call *stack;
     /*
      * Copy of stack head node made before popping and processing, so that
-     * output is repointed correctly.
+     * output is updated correctly.
      */
     struct macro_call mc;
     struct buf *tmp;            /* Used for substituting arguments */
