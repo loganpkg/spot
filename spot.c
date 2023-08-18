@@ -69,7 +69,9 @@
 /* Multiplication */
 #define mof(a, b) ((a) && (b) > SIZE_MAX / (a))
 
-#define phy_move(pos) printf("\x1B[%lu;%luH", (unsigned long) ((pos) / s->w + 1), \
+
+#define phy_move(pos) printf("\x1B[%lu;%luH", \
+    (unsigned long) ((pos) / s->w + 1),       \
     (unsigned long) ((pos) % s->w + 1))
 
 #define phy_hl_off() printf("\x1B[m")
@@ -80,7 +82,9 @@
 #define phy_clear() printf("\x1B[2J\x1B[1;1H")
 
 #define start_of_gb(b) while (!left_ch(b))
+
 #define end_of_gb(b) while (!right_ch(b))
+
 
 struct gb {
     char *fn;
@@ -111,11 +115,14 @@ struct screen {
     int centre;                 /* Draw cursor on the centre row */
 };
 
+
 struct gb *init_gb(void)
 {
     struct gb *b;
+
     if ((b = malloc(sizeof(struct gb))) == NULL)
         return NULL;
+
     b->fn = NULL;
     if ((b->a = malloc(BLOCK_SIZE)) == NULL) {
         free(b);
@@ -151,6 +158,7 @@ void free_gb(struct gb *b)
 void free_gb_list(struct gb *b)
 {
     struct gb *t;
+
     if (b != NULL) {
         while (b->prev != NULL)
             b = b->prev;
@@ -291,11 +299,11 @@ int insert_file(struct gb *b, const char *fn)
     return ret;
 }
 
-
 int delete_ch(struct gb *b)
 {
     if (b->c == b->e)
         return 1;
+
     ++b->c;
     b->m_set = 0;
     b->m = 0;
@@ -306,8 +314,10 @@ int delete_ch(struct gb *b)
 int left_ch(struct gb *b)
 {
     size_t i, count;
+
     if (!b->g)
         return 1;
+
     --b->g;
     --b->c;
     *(b->a + b->c) = *(b->a + b->g);
@@ -320,6 +330,7 @@ int left_ch(struct gb *b)
             --i;
             if (*(b->a + i) == '\n')
                 break;
+
             ++count;
         }
         b->col = count;
@@ -337,6 +348,7 @@ int right_ch(struct gb *b)
 {
     if (b->c == b->e)
         return 1;
+
     if (*(b->a + b->c) == '\n') {
         ++b->r;
         b->col = 0;
@@ -357,6 +369,7 @@ int backspace_ch(struct gb *b)
 {
     if (left_ch(b))
         return 1;
+
     return delete_ch(b);
 }
 
@@ -414,6 +427,7 @@ int str_to_size_t(const unsigned char *str, size_t *res)
 {
     unsigned char ch;
     size_t x = 0;
+
     if (str == NULL || *str == '\0')
         return 1;
 
@@ -421,9 +435,11 @@ int str_to_size_t(const unsigned char *str, size_t *res)
         if (isdigit(ch)) {
             if (mof(x, 10))
                 return 1;
+
             x *= 10;
             if (aof(x, ch - '0'))
                 return 1;
+
             x += ch - '0';
         } else {
             return 1;
@@ -438,6 +454,7 @@ int str_to_size_t(const unsigned char *str, size_t *res)
 int goto_row(struct gb *b, struct gb *cl)
 {
     size_t x;
+
     start_of_gb(cl);
     if (str_to_size_t(cl->a + cl->c, &x))
         return 1;
@@ -452,7 +469,8 @@ int goto_row(struct gb *b, struct gb *cl)
 
 int insert_hex(struct gb *b, struct gb *cl)
 {
-    unsigned char *str, ch[2], x;
+    const unsigned char *str;
+    unsigned char ch[2], x;
     size_t i;
 
     start_of_gb(cl);
@@ -487,14 +505,16 @@ int insert_hex(struct gb *b, struct gb *cl)
 int search(struct gb *b, struct gb *cl)
 {
     /* Embedded \0 chars will terminate strings early */
-    char *q;
+    const char *q;
     size_t num;
+
     if (b->c == b->e)
         return 1;
 
     start_of_gb(cl);
     if ((q =
-         strstr((char *) b->a + b->c + 1, (char *) cl->a + cl->c)) == NULL)
+         strstr((const char *) b->a + b->c + 1,
+                (const char *) cl->a + cl->c)) == NULL)
         return 1;
 
     num = q - ((char *) b->a + b->c);
@@ -509,6 +529,7 @@ int match_bracket(struct gb *b)
     unsigned char orig_ch, target, ch;
     int move_right = 0;
     size_t depth, c_orig = b->c;
+
     orig_ch = *(b->a + b->c);
     switch (orig_ch) {
     case '<':
@@ -662,6 +683,9 @@ int cut_region(struct gb *b, struct gb *p)
 
 int cut_to_eol(struct gb *b, struct gb *p)
 {
+    if (*(b->a + b->c) == '\n')
+        return delete_ch(b);
+
     b->m_set = 1;
     b->m = b->c;
     end_of_line(b);
@@ -679,6 +703,7 @@ int cut_to_sol(struct gb *b, struct gb *p)
 int paste(struct gb *b, struct gb *p)
 {
     size_t i;
+
     for (i = 0; i < p->g; ++i)
         if (insert_ch(b, *(p->a + i)))
             return 1;
@@ -694,10 +719,13 @@ int paste(struct gb *b, struct gb *p)
 int save(struct gb *b)
 {
     FILE *fp;
+
     if (b->fn == NULL || *b->fn == '\0')
         return 1;
+
     if ((fp = fopen(b->fn, "wb")) == NULL)
         return 1;
+
     if (fwrite(b->a, 1, b->g, fp) != b->g) {
         fclose(fp);
         return 1;
@@ -717,6 +745,7 @@ int save(struct gb *b)
 int rename_gb(struct gb *b, const char *fn)
 {
     char *fn_copy;
+
     if ((fn_copy = strdup(fn)) == NULL)
         return 1;
 
@@ -729,8 +758,10 @@ int rename_gb(struct gb *b, const char *fn)
 int new_gb(struct gb **b, const char *fn)
 {
     struct gb *t = NULL;
+
     if ((t = init_gb()) == NULL)
         return 1;
+
     if (fn != NULL && *fn != '\0') {
         /* OK for file to not exist */
         if (insert_file(t, fn) == 1) {
@@ -762,6 +793,7 @@ int new_gb(struct gb **b, const char *fn)
 int get_key(void)
 {
     int x, y;
+
 #ifdef _WIN32
     while (1) {
         x = _getch();
@@ -795,6 +827,7 @@ int get_key(void)
 #else
 
     int z, w;
+
     while (1) {
         x = getchar();
         if (x == ESC) {
@@ -817,10 +850,13 @@ int get_key(void)
                         return END_KEY;
                     }
                 } else {
-                    if (z == '3' && getchar() == '~')
+                    if (z == '3' && getchar() == '~') {
                         return DEL_KEY;
-                    else
-                        while ((w = getchar()) != '~' && (isdigit(w) || w == ';'));     /* Eat to end */
+                    } else {
+                        /* Eat to end */
+                        while ((w = getchar()) != '~'
+                               && (isdigit(w) || w == ';'));
+                    }
                 }
             } else if (y == 'O') {
                 getchar();      /* Eat */
@@ -842,14 +878,18 @@ int get_screen_size(struct screen *s)
 {
 #ifdef _WIN32
     CONSOLE_SCREEN_BUFFER_INFO si;
+
     if (!GetConsoleScreenBufferInfo(s->term_handle, &si))
         return 1;
+
     s->h = si.srWindow.Bottom - si.srWindow.Top + 1;
     s->w = si.srWindow.Right - si.srWindow.Left + 1;
 #else
     struct winsize ws;
+
     if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1)
         return 1;
+
     s->h = ws.ws_row;
     s->w = ws.ws_col;
 #endif
@@ -889,8 +929,10 @@ int draw(struct gb *b, struct gb *cl, struct screen *s, int cl_active,
 
     if (get_screen_size(s))
         return 1;
+
     if (mof(s->h, s->w))
         return 1;
+
     new_s_s = s->h * s->w;      /* New screen size */
 
     if (!new_s_s)
@@ -902,9 +944,11 @@ int draw(struct gb *b, struct gb *cl, struct screen *s, int cl_active,
         if (new_s_s != s->vs_s) {
             if ((t = realloc(s->vs_c, new_s_s)) == NULL)
                 return 1;
+
             s->vs_c = t;
             if ((t = realloc(s->vs_n, new_s_s)) == NULL)
                 return 1;
+
             s->vs_n = t;
             s->vs_s = new_s_s;
         }
@@ -925,6 +969,7 @@ int draw(struct gb *b, struct gb *cl, struct screen *s, int cl_active,
             --b->d;
             if (*(b->a + b->d) == '\n')
                 ++up;
+
             if (up == target_up) {
                 ++b->d;
                 break;
@@ -990,6 +1035,7 @@ int draw(struct gb *b, struct gb *cl, struct screen *s, int cl_active,
                        *(b->a + b->c));
         if (len < 0)
             return 1;
+
         /* Overwrite \0 char */
         if ((size_t) len >= s->w)       /* Truncated */
             *(sb + s->w - 1) = ' ';
@@ -1082,7 +1128,7 @@ int main(int argc, char **argv)
     struct gb *p = NULL;        /* Paste buffer */
     struct gb *cl = NULL;       /* Command line buffer */
     int cl_active = 0;          /* Cursor is in the command line */
-    char op = ' ';              /* Operation in progress that is using the cl */
+    char op = ' ';              /* The cl operation which is in progress */
 
 #ifdef _WIN32
     DWORD term_orig, term_new;
@@ -1103,13 +1149,17 @@ int main(int argc, char **argv)
 #ifdef _WIN32
     if (_setmode(_fileno(stdin), _O_BINARY) == -1)
         return 1;
+
     if (_setmode(_fileno(stdout), _O_BINARY) == -1)
         return 1;
+
     if (_setmode(_fileno(stderr), _O_BINARY) == -1)
         return 1;
+
     if ((s.term_handle =
          GetStdHandle(STD_OUTPUT_HANDLE)) == INVALID_HANDLE_VALUE)
         return 1;
+
     if (!GetConsoleMode(s.term_handle, &term_orig))
         return 1;
 
@@ -1284,10 +1334,12 @@ int main(int argc, char **argv)
             case LEFT_KEY:
                 if (b->prev != NULL)
                     b = b->prev;
+
                 break;
             case RIGHT_KEY:
                 if (b->next != NULL)
                     b = b->next;
+
                 break;
             }
             break;
@@ -1300,7 +1352,7 @@ int main(int argc, char **argv)
                     break;
                 case 'r':
                     start_of_gb(cl);
-                    rv = rename_gb(b, (char *) cl->a + cl->c);
+                    rv = rename_gb(b, (const char *) cl->a + cl->c);
                     break;
                 case 'g':
                     rv = goto_row(b, cl);
@@ -1310,11 +1362,11 @@ int main(int argc, char **argv)
                     break;
                 case 'n':
                     start_of_gb(cl);
-                    rv = new_gb(&b, (char *) cl->a + cl->c);
+                    rv = new_gb(&b, (const char *) cl->a + cl->c);
                     break;
                 case 'i':
                     start_of_gb(cl);
-                    rv = insert_file(b, (char *) cl->a + cl->c);
+                    rv = insert_file(b, (const char *) cl->a + cl->c);
                     break;
                 }
                 cl_active = 0;
@@ -1326,10 +1378,10 @@ int main(int argc, char **argv)
         default:
             if (isprint(x) || x == '\t')
                 rv = insert_ch(z, x);
+
             break;
         }
     }
-
 
 
   clean_up:
