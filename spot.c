@@ -643,7 +643,7 @@ void trim_clean(struct gb *b)
             break;
 }
 
-int cut_region(struct gb *b, struct gb *p)
+int copy_region(struct gb *b, struct gb *p, int cut)
 {
     /*
      * Region is:
@@ -664,18 +664,21 @@ int cut_region(struct gb *b, struct gb *p)
             if (insert_ch(p, *(b->a + i)))
                 return 1;
 
-        num = b->g - b->m;
-        while (num--)
-            backspace_ch(b);
-
+        if (cut) {
+            num = b->g - b->m;
+            while (num--)
+                backspace_ch(b);
+        }
     } else {
         for (i = b->c; i < b->m; ++i)
             if (insert_ch(p, *(b->a + i)))
                 return 1;
 
-        num = b->m - b->c;
-        while (num--)
-            delete_ch(b);
+        if (cut) {
+            num = b->m - b->c;
+            while (num--)
+                delete_ch(b);
+        }
     }
 
     return 0;
@@ -689,7 +692,7 @@ int cut_to_eol(struct gb *b, struct gb *p)
     b->m_set = 1;
     b->m = b->c;
     end_of_line(b);
-    return cut_region(b, p);
+    return copy_region(b, p, 1);
 }
 
 int cut_to_sol(struct gb *b, struct gb *p)
@@ -697,7 +700,7 @@ int cut_to_sol(struct gb *b, struct gb *p)
     b->m_set = 1;
     b->m = b->c;
     start_of_line(b);
-    return cut_region(b, p);
+    return copy_region(b, p, 1);
 }
 
 int paste(struct gb *b, struct gb *p)
@@ -1261,7 +1264,7 @@ int main(int argc, char **argv)
             s.clear = 1;
             break;
         case C('w'):
-            rv = cut_region(z, p);
+            rv = copy_region(z, p, 1);
             break;
         case C('y'):
             rv = paste(z, p);
@@ -1298,6 +1301,9 @@ int main(int argc, char **argv)
                 break;
             case 'n':
                 rv = search(b, cl);
+                break;
+            case 'w':
+                rv = copy_region(z, p, 0);
                 break;
             case '=':
                 delete_gb(cl);
