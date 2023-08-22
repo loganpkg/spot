@@ -693,7 +693,7 @@ int get_word(struct buf *input, struct buf *token, int read_stdin)
     char ch, type;
 
     do {
-        if ((r = get_ch(input, &ch, read_stdin)))
+        if ((r = get_ch(input, &ch, read_stdin)) != 0)
             mreturn(r);
     } while (ch == '\0' || ch == '\r'); /* Discard these chars */
 
