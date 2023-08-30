@@ -681,6 +681,12 @@ int copy_region(struct gb *b, struct gb *p, int cut)
         }
     }
 
+    /* Clear mark even when just copying */
+    if (!cut) {
+        b->m_set = 0;
+        b->m = 0;
+    }
+
     return 0;
 }
 
