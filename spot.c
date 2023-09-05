@@ -1012,7 +1012,7 @@ int draw(struct gb *b, struct gb *cl, struct screen *s, int cl_active,
         if (!have_centred)
             s->centre = 1;
         else
-            b->d = 0;
+            b->d = b->g;
         goto start;
     }
 
