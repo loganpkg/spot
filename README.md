@@ -127,7 +127,7 @@ writediv(div_num, filename)
 `writediv` empties the specified diversion to file.
 
 ```
- divnum
+divnum
 ```
 `divnum` pushes the active diversion number into the input.
 
@@ -180,12 +180,12 @@ errprint(error_message)
 `errprint` prints a message to `stderr`.
 
 ```
- incr(number)
+incr(number)
 ```
 `incr` increments a number. The result is pushed into the input.
 
 ```
- sysval
+sysval
 ```
 `sysval` pushes the return value of the last shell command run via `esyscmd`
 into the input.
