@@ -187,6 +187,7 @@ struct m4_info {
      * output is redirected correctly.
      */
     struct macro_call mc;
+    int mc_set;                 /* Copy of stack head is in use */
     struct buf *tmp;            /* Used for substituting arguments */
     struct buf *div[NUM_DIVS];
     size_t active_div;
@@ -856,6 +857,8 @@ M4ptr init_m4(void)
     if (put_ch(m4->store, '\0'))
         mgoto(error);
 
+    m4->mc_set = 0;
+
     if ((m4->tmp = init_buf()) == NULL)
         mgoto(error);
 
@@ -875,6 +878,33 @@ M4ptr init_m4(void)
   error:
     free_m4(m4);
     mreturn(NULL);
+}
+
+void dump_mc(struct macro_call *mc, struct buf *store)
+{
+    size_t i;
+
+    fprintf(stderr, "\nDef  : %s\n",
+            mc->mfp == NULL ? store->a + mc->def_i : "built-in");
+
+    for (i = 0; i <= mc->active_arg; ++i)
+        fprintf(stderr, "Arg %lu: %s\n", i, store->a + mc->arg_i[i]);
+}
+
+void dump_stack(M4ptr m4)
+{
+    struct macro_call *mc;
+
+    /* Copy of stack head */
+    if (m4->mc_set)
+        dump_mc(&m4->mc, m4->store);
+
+    /* Stack */
+    mc = m4->stack;
+    while (mc != NULL) {
+        dump_mc(mc, m4->store);
+        mc = mc->next;
+    }
 }
 
 int str_to_size_t(const char *str, size_t *res)
@@ -904,6 +934,9 @@ int str_to_size_t(const char *str, size_t *res)
     *res = x;
     return 0;
 }
+
+
+/* ********** Built-in macros ********** */
 
 int define(M4ptr m4)
 {
@@ -1587,6 +1620,8 @@ int main(int argc, char **argv)
 
             pop_mc(&m4->stack);
 
+            m4->mc_set = 1;
+
             if (m4->mc.mfp != NULL) {
                 if ((*m4->mc.mfp) (m4)) {
                     fprintf(stderr, "m4: %s: Failed\n",
@@ -1597,6 +1632,9 @@ int main(int argc, char **argv)
                 if (sub_args(m4))
                     mgoto(clean_up);
             }
+
+            m4->mc_set = 0;
+
         } else if (m4->stack != NULL && !strcmp(m4->token->a, "(")) {
             /* Nested unquoted open bracket */
             if (put_str(output, m4->token->a))
@@ -1678,6 +1716,9 @@ int main(int argc, char **argv)
         flush_buf(m4->div[i]);
 
   clean_up:
+    if (ret)
+        dump_stack(m4);
+
     free_m4(m4);
     free_buf(next_token);
 
