@@ -502,7 +502,7 @@ int insert_hex(struct gb *b, struct gb *cl)
     return 0;
 }
 
-int search(struct gb *b, struct gb *cl)
+int search_str(struct gb *b, const char *find, int skip_immediate)
 {
     /* Embedded \0 chars will terminate strings early */
     const char *q;
@@ -511,15 +511,112 @@ int search(struct gb *b, struct gb *cl)
     if (b->c == b->e)
         return 1;
 
-    start_of_gb(cl);
     if ((q =
-         strstr((const char *) b->a + b->c + 1,
-                (const char *) cl->a + cl->c)) == NULL)
+         strstr((const char *) b->a + b->c + (skip_immediate ? 1 : 0),
+                find)) == NULL)
         return 1;
 
     num = q - ((char *) b->a + b->c);
     while (num--)
         right_ch(b);
+
+    return 0;
+}
+
+int search(struct gb *b, struct gb *cl)
+{
+    start_of_gb(cl);
+    return search_str(b, (const char *) cl->a + cl->c, 1);
+}
+
+int replace_region(struct gb *b, struct gb *cl)
+{
+    /* Embedded \0 chars in b will terminate the string early (but not cl) */
+    unsigned char u, *find, *replace;
+    int escape_mode = 0, in_find = 1;
+    size_t count, find_len = 0, replace_len, region_size, g_start, n, i;
+
+    if (!b->m_set)
+        return 1;
+
+    start_of_gb(cl);
+    count = 0;
+    while (1) {
+        if (cl->c == cl->e)
+            break;
+
+        u = *(cl->a + cl->c);
+
+        if (u == '\0' || (u == '\\' && !escape_mode)) {
+            if (u == '\\')
+                escape_mode = 1;
+
+            delete_ch(cl);
+        } else if (u == '|' && !escape_mode && in_find) {
+            /* Separator between find and replace components */
+            *(cl->a + cl->c) = '\0';
+            find_len = count;
+            in_find = 0;
+            count = 0;
+            right_ch(cl);
+        } else {
+            if (escape_mode) {
+                switch (u) {
+                case 'n':
+                    *(cl->a + cl->c) = '\n';
+                    break;
+                case 't':
+                    *(cl->a + cl->c) = '\t';
+                    break;
+                }
+                escape_mode = 0;
+            }
+            ++count;
+            right_ch(cl);
+        }
+    }
+
+    if (!find_len || escape_mode)
+        return 1;
+
+    replace_len = count;
+
+    start_of_gb(cl);
+    find = cl->a + cl->c;
+    replace = cl->a + cl->e - replace_len;
+
+    /* Move cursor to start of region */
+    if (b->c > b->m) {
+        region_size = b->g - b->m;
+        while (b->c != b->m)
+            left_ch(b);
+    } else {
+        region_size = b->m - b->c;
+    }
+
+    g_start = b->g;
+
+    while (!search_str(b, (const char *) find, 0)) {
+        if (b->g >= g_start + region_size) {
+            /* Out of original region */
+            while (b->g != g_start + region_size)
+                left_ch(b);     /* Go back */
+
+            break;
+        }
+
+        n = find_len;
+        while (n--)
+            delete_ch(b);
+
+        region_size -= find_len;
+
+        for (i = 0; i < replace_len; ++i)
+            if (insert_ch(b, *(replace + i)))
+                return 1;
+
+        region_size += replace_len;
+    }
 
     return 0;
 }
@@ -1289,6 +1386,11 @@ int main(int argc, char **argv)
         case C('r'):
             delete_gb(cl);
             cl_active = 1;
+            op = 'R';           /* replace_region */
+            break;
+        case C('u'):
+            delete_gb(cl);
+            cl_active = 1;
             op = 'g';           /* goto_row */
             break;
         case C('q'):
@@ -1361,6 +1463,9 @@ int main(int argc, char **argv)
                 switch (op) {
                 case 's':
                     rv = search(b, cl);
+                    break;
+                case 'R':
+                    rv = replace_region(b, cl);
                     break;
                 case 'r':
                     start_of_gb(cl);
