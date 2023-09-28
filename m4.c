@@ -34,7 +34,7 @@
  * divnum
  * include(filename)
  * dnl
- * tnl
+ * tnl(str)
  * ifdef(`macro_name', `when_defined', `when_undefined')
  * ifelse(A, B, `when_same', `when_different')
  * dumpdef or dumpdef(`macro_name', ...)
@@ -42,7 +42,7 @@
  * incr(number)
  * sysval
  * esyscmd(shell_command)
- * m4exit(exit_value)
+ * m4exit or m4exit(exit_value)
  * remove(filename)
  */
 
@@ -1123,7 +1123,7 @@ int dnl(M4ptr m4)
 
 int tnl(M4ptr m4)
 {
-    /*@ tnl */
+    /*@ tnl(str) */
     /* Trim NewLine chars at the end of the first argument */
     char *p, *q, ch;
 
@@ -1368,7 +1368,7 @@ int esyscmd(M4ptr m4)
 
 int m4exit(M4ptr m4)
 {
-    /*@ m4exit(exit_value) */
+    /*@ m4exit or m4exit(exit_value) */
     size_t x;
 
     if (m4->mc.active_arg == 0) {
@@ -1618,7 +1618,7 @@ int main(int argc, char **argv)
                     mgoto(clean_up);
             } else {
                 /*  Macro */
-                /* See if called with or with brackts */
+                /* See if called with or without brackets */
                 r = get_word(m4->input, next_token, m4->read_stdin);
                 if (r == ERR)
                     mgoto(clean_up);
@@ -1660,6 +1660,8 @@ int main(int argc, char **argv)
         }
     }
 
+    ret = 0;                    /* Success so far */
+
     if (req_exit_val == -1) {
         /* Check */
         if (m4->stack != NULL) {
@@ -1675,7 +1677,6 @@ int main(int argc, char **argv)
     for (i = 0; i < NUM_DIVS - 1; ++i)
         flush_buf(m4->div[i]);
 
-    ret = 0;
   clean_up:
     free_m4(m4);
     free_buf(next_token);
