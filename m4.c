@@ -891,9 +891,13 @@ void dump_mc(struct macro_call *mc, struct buf *store)
         fprintf(stderr, "Arg %lu: %s\n", i, store->a + mc->arg_i[i]);
 }
 
-void dump_stack(M4ptr m4)
+int dump_stack(M4ptr m4)
 {
     struct macro_call *mc;
+
+    /* Make sure store is \0 terminated */
+    if (put_ch(m4->store, '\0'))
+        return 1;
 
     /* Copy of stack head */
     if (m4->mc_set)
@@ -905,6 +909,11 @@ void dump_stack(M4ptr m4)
         dump_mc(mc, m4->store);
         mc = mc->next;
     }
+
+    /* Undo \0 termination */
+    --m4->store->i;
+
+    return 0;
 }
 
 int str_to_size_t(const char *str, size_t *res)
@@ -1615,8 +1624,11 @@ int main(int argc, char **argv)
             memcpy(&m4->mc, m4->stack, sizeof(struct macro_call));
             m4->mc.next = NULL; /* Should not be used */
 
-            /* Truncate store */
-            m4->store->i = m4->stack->def_i;
+            /*
+             * Truncate store.
+             * Minus 1 for \0 char added at start of macro section.
+             */
+            m4->store->i = m4->stack->def_i - 1;
 
             pop_mc(&m4->stack);
 
@@ -1664,8 +1676,18 @@ int main(int argc, char **argv)
                 if (stack_mc(&m4->stack))
                     mgoto(clean_up);
 
+                /*
+                 * Place a \0 char at the start of the new macro section in
+                 * the store. This is to terminate the partially collected,
+                 * in-progress, argument of the previous macro, so that
+                 * dump_stack reports the correct information.
+                 */
+                if (put_ch(m4->store, '\0'))
+                    mgoto(clean_up);
+
                 m4->stack->bracket_depth = 1;
                 m4->stack->mfp = e->mfp;
+                /* One more than the start of the macro section in store */
                 m4->stack->def_i = m4->store->i;
                 if (e->def != NULL && put_str(m4->store, e->def))
                     mgoto(clean_up);
