@@ -182,7 +182,8 @@ struct m4_info {
     struct buf *token;
     struct buf *store;          /* Stores strings referenced by the stack */
     struct macro_call *stack;
-    int pass_through;           /* Pass through macro name to output */
+    /* Pass through macro name to output (only use when called with no args) */
+    int pass_through;
     struct buf *tmp;            /* Used for substituting arguments */
     struct buf *div[NUM_DIVS];
     size_t active_div;
@@ -937,10 +938,7 @@ int define(M4ptr m4)
 {
     /*@ define(macro_name, macro_def) */
     if (m4->stack->active_arg == 0) {
-        /*
-         * Called without arguments, so set pass through indicator.
-         * The actual pass through will occur after the stack is popped.
-         */
+        /* Called without arguments, so set pass through indicator */
         m4->pass_through = 1;
         mreturn(0);
     }
@@ -1411,6 +1409,43 @@ int remove_file(M4ptr m4)
     mreturn(0);
 }
 
+int end_macro(M4ptr m4)
+{
+    if (m4->stack->mfp != NULL) {
+        if ((*m4->stack->mfp) (m4)) {
+            fprintf(stderr, "m4: %s: Failed\n",
+                    m4->store->a + m4->stack->arg_i[0]);
+            mreturn(1);
+        }
+    } else {
+        if (sub_args(m4))
+            mreturn(1);
+    }
+
+    /*
+     * Truncate store.
+     * Minus 1 for \0 char added at start of macro section.
+     */
+    m4->store->i = m4->stack->def_i - 1;
+    /*
+     * Pop before pass_through, so that output redirectes to the next
+     * node (if any).
+     */
+    pop_mc(&m4->stack);
+
+    if (m4->pass_through) {
+        /*
+         * Only use when macro was called without arguments, otherwise
+         * token will no longer contain the macro name.
+         */
+        if (put_str(output, m4->token->a))
+            mreturn(1);
+
+        m4->pass_through = 0;
+    }
+    mreturn(0);
+}
+
 int main(int argc, char **argv)
 {
     /*
@@ -1576,35 +1611,8 @@ int main(int argc, char **argv)
             if (put_ch(output, '\0'))
                 mgoto(clean_up);
 
-          macro_end:
-            if (m4->stack->mfp != NULL) {
-                if ((*m4->stack->mfp) (m4)) {
-                    fprintf(stderr, "m4: %s: Failed\n",
-                            m4->store->a + m4->stack->arg_i[0]);
-                    goto clean_up;
-                }
-            } else {
-                if (sub_args(m4))
-                    mgoto(clean_up);
-            }
-
-            /*
-             * Truncate store.
-             * Minus 1 for \0 char added at start of macro section.
-             */
-            m4->store->i = m4->stack->def_i - 1;
-            pop_mc(&m4->stack);
-
-            if (m4->pass_through) {
-                /*
-                 * When a macro is called without arguments, then token will
-                 * still contain the macro name.
-                 */
-                if (put_str(output, m4->token->a))
-                    mreturn(1);
-
-                m4->pass_through = 0;
-            }
+            if (end_macro(m4))
+                mgoto(clean_up);
         } else if (m4->stack != NULL && !strcmp(m4->token->a, "(")) {
             /* Nested unquoted open bracket */
             if (put_str(output, m4->token->a))
@@ -1665,15 +1673,16 @@ int main(int argc, char **argv)
                     if (r != EOF && unget_str(m4->input, next_token->a))
                         mgoto(clean_up);
 
-                    goto macro_end;
+                    if (end_macro(m4))
+                        mgoto(clean_up);
+                } else {
+                    ++m4->stack->active_arg;
+                    m4->stack->arg_i[m4->stack->active_arg] = m4->store->i;
+
+                    /* Ready to collect arg 1 */
+                    if (eat_whitespace(m4->input, m4->read_stdin))
+                        mgoto(clean_up);
                 }
-
-                ++m4->stack->active_arg;
-                m4->stack->arg_i[m4->stack->active_arg] = m4->store->i;
-
-                /* Ready to collect arg 1 */
-                if (eat_whitespace(m4->input, m4->read_stdin))
-                    mgoto(clean_up);
             }
         }
     }
