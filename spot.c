@@ -620,6 +620,11 @@ int replace_region(struct gb *b, struct gb *cl)
                 case 't':
                     *(cl->a + cl->c) = '\t';
                     break;
+                case '\\':
+                case '|':
+                    break;      /* Literal */
+                default:
+                    return 1;   /* Invalid escape sequence */
                 }
                 escape_mode = 0;
             }
