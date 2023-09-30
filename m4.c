@@ -135,7 +135,7 @@
 #define output (m4->stack == NULL ? m4->div[m4->active_div] : m4->store)
 
 /* Arguments that have not been collected reference the empty string */
-#define arg(n) (m4->store->a + m4->mc.arg_i[n])
+#define arg(n) (m4->store->a + m4->stack->arg_i[n])
 
 
 typedef struct m4_info *M4ptr;
@@ -182,12 +182,7 @@ struct m4_info {
     struct buf *token;
     struct buf *store;          /* Stores strings referenced by the stack */
     struct macro_call *stack;
-    /*
-     * Copy of stack head node made before popping and processing, so that
-     * output is redirected correctly.
-     */
-    struct macro_call mc;
-    int mc_set;                 /* Copy of stack head is in use */
+    int pass_through;           /* Pass through macro name to output */
     struct buf *tmp;            /* Used for substituting arguments */
     struct buf *div[NUM_DIVS];
     size_t active_div;
@@ -768,7 +763,7 @@ int sub_args(M4ptr m4)
     size_t x;
 
     m4->tmp->i = 0;
-    p = m4->store->a + m4->mc.def_i;
+    p = m4->store->a + m4->stack->def_i;
 
     while (1) {
         ch = *p;
@@ -857,7 +852,7 @@ M4ptr init_m4(void)
     if (put_ch(m4->store, '\0'))
         mgoto(error);
 
-    m4->mc_set = 0;
+    m4->pass_through = 0;
 
     if ((m4->tmp = init_buf()) == NULL)
         mgoto(error);
@@ -880,33 +875,24 @@ M4ptr init_m4(void)
     mreturn(NULL);
 }
 
-void dump_mc(struct macro_call *mc, struct buf *store)
-{
-    size_t i;
-
-    fprintf(stderr, "\nDef  : %s\n",
-            mc->mfp == NULL ? store->a + mc->def_i : "built-in");
-
-    for (i = 0; i <= mc->active_arg; ++i)
-        fprintf(stderr, "Arg %lu: %s\n", i, store->a + mc->arg_i[i]);
-}
-
 int dump_stack(M4ptr m4)
 {
     struct macro_call *mc;
+    size_t i;
 
     /* Make sure store is \0 terminated */
     if (put_ch(m4->store, '\0'))
         return 1;
 
-    /* Copy of stack head */
-    if (m4->mc_set)
-        dump_mc(&m4->mc, m4->store);
-
-    /* Stack */
     mc = m4->stack;
     while (mc != NULL) {
-        dump_mc(mc, m4->store);
+        fprintf(stderr, "\nDef  : %s\n",
+                mc->mfp == NULL ? m4->store->a + mc->def_i : "built-in");
+
+        for (i = 0; i <= mc->active_arg; ++i)
+            fprintf(stderr, "Arg %lu: %s\n", (unsigned long) i,
+                    m4->store->a + mc->arg_i[i]);
+
         mc = mc->next;
     }
 
@@ -950,15 +936,16 @@ int str_to_size_t(const char *str, size_t *res)
 int define(M4ptr m4)
 {
     /*@ define(macro_name, macro_def) */
-    if (m4->mc.active_arg == 0) {
-        /* Called without arguments, so pass through */
-        if (put_str(output, m4->token->a))
-            mreturn(1);
-
+    if (m4->stack->active_arg == 0) {
+        /*
+         * Called without arguments, so set pass through indicator.
+         * The actual pass through will occur after the stack is popped.
+         */
+        m4->pass_through = 1;
         mreturn(0);
     }
 
-    if (m4->mc.active_arg != 2) /* Invalid number of arguments */
+    if (m4->stack->active_arg != 2)     /* Invalid number of arguments */
         mreturn(1);
 
     if (upsert(m4->ht, arg(1), arg(2), NULL))
@@ -970,15 +957,12 @@ int define(M4ptr m4)
 int undefine(M4ptr m4)
 {
     /*@ undefine(`macro_name') */
-    if (m4->mc.active_arg == 0) {
-        /* Called without arguments, so pass through */
-        if (put_str(output, m4->token->a))
-            mreturn(1);
-
+    if (m4->stack->active_arg == 0) {
+        m4->pass_through = 1;
         mreturn(0);
     }
 
-    if (m4->mc.active_arg != 1) /* Invalid number of arguments */
+    if (m4->stack->active_arg != 1)     /* Invalid number of arguments */
         mreturn(1);
 
     if (delete_entry(m4->ht, arg(1)))
@@ -992,13 +976,13 @@ int changequote(M4ptr m4)
     /*@ changequote(left_quote, right_quote) */
     char l_ch, r_ch;
 
-    if (m4->mc.active_arg == 0) {
+    if (m4->stack->active_arg == 0) {
         /* Called without arguments, so restore the defaults */
         m4->left_quote[0] = '`';
         m4->right_quote[0] = '\'';
         mreturn(0);
     }
-    if (m4->mc.active_arg != 2)
+    if (m4->stack->active_arg != 2)
         mreturn(1);
 
     l_ch = *arg(1);
@@ -1017,11 +1001,11 @@ int changequote(M4ptr m4)
 int divert(M4ptr m4)
 {
     /*@ divert or divert(div_num) */
-    if (m4->mc.active_arg == 0) {
+    if (m4->stack->active_arg == 0) {
         m4->active_div = 0;
         mreturn(0);
     }
-    if (m4->mc.active_arg != 1)
+    if (m4->stack->active_arg != 1)
         mreturn(1);
 
     if (!strcmp(arg(1), "-1")) {
@@ -1041,7 +1025,7 @@ int undivert(M4ptr m4)
     char ch;
     size_t i, x;
 
-    if (m4->mc.active_arg == 0) {
+    if (m4->stack->active_arg == 0) {
         if (m4->active_div != 0)
             mreturn(1);
 
@@ -1051,7 +1035,7 @@ int undivert(M4ptr m4)
 
         mreturn(0);
     }
-    for (i = 1; i <= m4->mc.active_arg; ++i) {
+    for (i = 1; i <= m4->stack->active_arg; ++i) {
         ch = *arg(i);
         if (ch == '\0') {
             mreturn(1);
@@ -1076,15 +1060,12 @@ int writediv(M4ptr m4)
     /*@ writediv(div_num, filename) */
     char ch;
 
-    if (m4->mc.active_arg == 0) {
-        /* Called without arguments, so pass through */
-        if (put_str(output, m4->token->a))
-            mreturn(1);
-
+    if (m4->stack->active_arg == 0) {
+        m4->pass_through = 1;
         mreturn(0);
     }
 
-    if (m4->mc.active_arg != 2)
+    if (m4->stack->active_arg != 2)
         mreturn(1);
 
     ch = *arg(1);
@@ -1104,7 +1085,7 @@ int divnum(M4ptr m4)
     /*@ divnum */
     char ch;
 
-    if (m4->mc.active_arg != 0)
+    if (m4->stack->active_arg != 0)
         mreturn(1);
 
     if (m4->active_div == 10) {
@@ -1124,14 +1105,11 @@ int divnum(M4ptr m4)
 int include(M4ptr m4)
 {
     /*@ include(filename) */
-    if (m4->mc.active_arg == 0) {
-        /* Called without arguments, so pass through */
-        if (put_str(output, m4->token->a))
-            mreturn(1);
-
+    if (m4->stack->active_arg == 0) {
+        m4->pass_through = 1;
         mreturn(0);
     }
-    if (m4->mc.active_arg != 1)
+    if (m4->stack->active_arg != 1)
         mreturn(1);
 
     if (unget_file(m4->input, arg(1)))
@@ -1147,7 +1125,7 @@ int dnl(M4ptr m4)
     int r;
     char ch;
 
-    if (m4->mc.active_arg != 0)
+    if (m4->stack->active_arg != 0)
         mreturn(1);
 
     while (1) {
@@ -1169,14 +1147,11 @@ int tnl(M4ptr m4)
     /* Trim NewLine chars at the end of the first argument */
     char *p, *q, ch;
 
-    if (m4->mc.active_arg == 0) {
-        /* Called without arguments, so pass through */
-        if (put_str(output, m4->token->a))
-            mreturn(1);
-
+    if (m4->stack->active_arg == 0) {
+        m4->pass_through = 1;
         mreturn(0);
     }
-    if (m4->mc.active_arg != 1)
+    if (m4->stack->active_arg != 1)
         mreturn(1);
 
     p = arg(1);
@@ -1205,14 +1180,11 @@ int ifdef(M4ptr m4)
     /*@ ifdef(`macro_name', `when_defined', `when_undefined') */
     struct entry *e;
 
-    if (m4->mc.active_arg == 0) {
-        /* Called without arguments, so pass through */
-        if (put_str(output, m4->token->a))
-            mreturn(1);
-
+    if (m4->stack->active_arg == 0) {
+        m4->pass_through = 1;
         mreturn(0);
     }
-    if (m4->mc.active_arg != 2 && m4->mc.active_arg != 3)
+    if (m4->stack->active_arg != 2 && m4->stack->active_arg != 3)
         mreturn(1);
 
     e = lookup(m4->ht, arg(1));
@@ -1220,7 +1192,7 @@ int ifdef(M4ptr m4)
         if (unget_str(m4->input, arg(2)))
             mreturn(1);
     } else {
-        if (m4->mc.active_arg == 3 && unget_str(m4->input, arg(3)))
+        if (m4->stack->active_arg == 3 && unget_str(m4->input, arg(3)))
             mreturn(1);
     }
     mreturn(0);
@@ -1229,21 +1201,18 @@ int ifdef(M4ptr m4)
 int ifelse(M4ptr m4)
 {
     /*@ ifelse(A, B, `when_same', `when_different') */
-    if (m4->mc.active_arg == 0) {
-        /* Called without arguments, so pass through */
-        if (put_str(output, m4->token->a))
-            mreturn(1);
-
+    if (m4->stack->active_arg == 0) {
+        m4->pass_through = 1;
         mreturn(0);
     }
-    if (m4->mc.active_arg != 3 && m4->mc.active_arg != 4)
+    if (m4->stack->active_arg != 3 && m4->stack->active_arg != 4)
         mreturn(1);
 
     if (!strcmp(arg(1), arg(2))) {
         if (unget_str(m4->input, arg(3)))
             mreturn(1);
     } else {
-        if (m4->mc.active_arg == 4 && unget_str(m4->input, arg(4)))
+        if (m4->stack->active_arg == 4 && unget_str(m4->input, arg(4)))
             mreturn(1);
     }
     mreturn(0);
@@ -1255,7 +1224,7 @@ int dumpdef(M4ptr m4)
     size_t i;
     struct entry *e;
 
-    if (m4->mc.active_arg == 0) {
+    if (m4->stack->active_arg == 0) {
         /* Dump all macro definitions */
         for (i = 0; i < NUM_BUCKETS; ++i) {
             e = m4->ht[i];
@@ -1267,7 +1236,7 @@ int dumpdef(M4ptr m4)
         }
         mreturn(0);
     }
-    for (i = 1; i <= m4->mc.active_arg; ++i) {
+    for (i = 1; i <= m4->stack->active_arg; ++i) {
         if (*arg(i) == '\0')
             mreturn(1);
 
@@ -1284,14 +1253,11 @@ int dumpdef(M4ptr m4)
 int errprint(M4ptr m4)
 {
     /*@ errprint(error_message) */
-    if (m4->mc.active_arg == 0) {
-        /* Called without arguments, so pass through */
-        if (put_str(output, m4->token->a))
-            mreturn(1);
-
+    if (m4->stack->active_arg == 0) {
+        m4->pass_through = 1;
         mreturn(0);
     }
-    if (m4->mc.active_arg != 1)
+    if (m4->stack->active_arg != 1)
         mreturn(1);
 
     fprintf(stderr, "%s\n", arg(1));
@@ -1305,14 +1271,11 @@ int incr(M4ptr m4)
     char num[NUM_BUF_SIZE];
     int r;
 
-    if (m4->mc.active_arg == 0) {
-        /* Called without arguments, so pass through */
-        if (put_str(output, m4->token->a))
-            mreturn(1);
-
+    if (m4->stack->active_arg == 0) {
+        m4->pass_through = 1;
         mreturn(0);
     }
-    if (m4->mc.active_arg != 1)
+    if (m4->stack->active_arg != 1)
         mreturn(1);
 
     if (str_to_size_t(arg(1), &x))
@@ -1333,10 +1296,10 @@ int incr(M4ptr m4)
 int sysval(M4ptr m4)
 {
     /*@ sysval */
-    if (m4->mc.active_arg != 0)
+    if (m4->stack->active_arg != 0)
         mreturn(1);
 
-    if (unget_str(m4->input, m4->store->a + m4->mc.def_i))
+    if (unget_str(m4->input, m4->store->a + m4->stack->def_i))
         mreturn(1);
 
     mreturn(0);
@@ -1350,14 +1313,11 @@ int esyscmd(M4ptr m4)
     int x, st, r;
     char num[NUM_BUF_SIZE];
 
-    if (m4->mc.active_arg == 0) {
-        /* Called without arguments, so pass through */
-        if (put_str(output, m4->token->a))
-            mreturn(1);
-
+    if (m4->stack->active_arg == 0) {
+        m4->pass_through = 1;
         mreturn(0);
     }
-    if (m4->mc.active_arg != 1)
+    if (m4->stack->active_arg != 1)
         mreturn(1);
 
     if ((fp = popen(arg(1), "r")) == NULL)
@@ -1413,11 +1373,11 @@ int m4exit(M4ptr m4)
     /*@ m4exit or m4exit(exit_value) */
     size_t x;
 
-    if (m4->mc.active_arg == 0) {
+    if (m4->stack->active_arg == 0) {
         m4->req_exit_val = 0;
         mreturn(0);
     }
-    if (m4->mc.active_arg != 1)
+    if (m4->stack->active_arg != 1)
         mreturn(1);
 
     if (str_to_size_t(arg(1), &x))
@@ -1435,14 +1395,11 @@ int remove_file(M4ptr m4)
 {
     /*@ remove(filename) */
     /* Removes empty directories on some systems */
-    if (m4->mc.active_arg == 0) {
-        /* Called without arguments, so pass through */
-        if (put_str(output, m4->token->a))
-            mreturn(1);
-
+    if (m4->stack->active_arg == 0) {
+        m4->pass_through = 1;
         mreturn(0);
     }
-    if (m4->mc.active_arg != 1)
+    if (m4->stack->active_arg != 1)
         mreturn(1);
 
     if (*arg(1) == '\0')
@@ -1620,24 +1577,10 @@ int main(int argc, char **argv)
                 mgoto(clean_up);
 
           macro_end:
-            /* Copy stack head and pop first, so that output is correct */
-            memcpy(&m4->mc, m4->stack, sizeof(struct macro_call));
-            m4->mc.next = NULL; /* Should not be used */
-
-            /*
-             * Truncate store.
-             * Minus 1 for \0 char added at start of macro section.
-             */
-            m4->store->i = m4->stack->def_i - 1;
-
-            pop_mc(&m4->stack);
-
-            m4->mc_set = 1;
-
-            if (m4->mc.mfp != NULL) {
-                if ((*m4->mc.mfp) (m4)) {
+            if (m4->stack->mfp != NULL) {
+                if ((*m4->stack->mfp) (m4)) {
                     fprintf(stderr, "m4: %s: Failed\n",
-                            m4->store->a + m4->mc.arg_i[0]);
+                            m4->store->a + m4->stack->arg_i[0]);
                     goto clean_up;
                 }
             } else {
@@ -1645,8 +1588,23 @@ int main(int argc, char **argv)
                     mgoto(clean_up);
             }
 
-            m4->mc_set = 0;
+            /*
+             * Truncate store.
+             * Minus 1 for \0 char added at start of macro section.
+             */
+            m4->store->i = m4->stack->def_i - 1;
+            pop_mc(&m4->stack);
 
+            if (m4->pass_through) {
+                /*
+                 * When a macro is called without arguments, then token will
+                 * still contain the macro name.
+                 */
+                if (put_str(output, m4->token->a))
+                    mreturn(1);
+
+                m4->pass_through = 0;
+            }
         } else if (m4->stack != NULL && !strcmp(m4->token->a, "(")) {
             /* Nested unquoted open bracket */
             if (put_str(output, m4->token->a))

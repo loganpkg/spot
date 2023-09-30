@@ -24,9 +24,9 @@ to the C preprocessor, although it is not tied to any specific language. It
 performs programmatic find-and-replace on text, but can also perform other
 tasks, such as executing shell commands.
 
-This implementation of m4 has been written in ANSI C and is cross-platform. To
-_install_ it, simply compile `m4.c` and place the executable somewhere in your
-`PATH`.
+This implementation of m4 is cross-platform and has been written in ANSI C with
+the minimum use of non-standard libraries. To _install_ it, simply compile
+`m4.c` and place the executable somewhere in your `PATH`.
 
 m4 has two classes of macros; built-in macros and user-defined macros.
 Built-in macros are written in C and can only be added or modified by editing
@@ -110,6 +110,8 @@ divert or divert(div_num)
 ```
 `divert` changes the active diversion. When called without arguments, the
 default diversion of 0 is used (which is regularly flushed to `stdout`).
+Diversion -1 is discarded. It is often used when defining multiple macros, as
+the remaining newline characters are typically not wanted in the output.
 
 ```
 undivert or undivert(div_num, filename, ...)
@@ -140,7 +142,9 @@ processed.
 ```
 dnl
 ```
-`dnl` deletes to (and including) the next newline character.
+`dnl` deletes to (and including) the next newline character. Often used for
+single-line comments or for removing the newline character after a macro
+definition.
 
 ```
 tnl(str)
