@@ -455,9 +455,13 @@ void right_word(struct gb *b, char transform)
     do {
         if (isupper(u) && transform == 'L') {
             *(b->a + b->c) = 'a' + u - 'A';
+            b->m_set = 0;
+            b->m = 0;
             b->mod = 1;
         } else if (islower(u) && transform == 'U') {
             *(b->a + b->c) = 'A' + u - 'a';
+            b->m_set = 0;
+            b->m = 0;
             b->mod = 1;
         }
 

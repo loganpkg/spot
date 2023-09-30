@@ -32,6 +32,11 @@ and code maintainability.
 To _install_, simply compile `spot.c` and place the executable somewhere in
 your `PATH`.
 
+The region is the area between the cursor and the mark, with whichever appears
+first included in the region and whichever appears last excluded from the
+region. It is cleared by editing commands, and navigational commands are used
+to change its coverage.
+
 The keybindings are listed below. `^a` means pressing `Ctrl` plus `a`.
 `LK` denotes the left key, and `RK` denotes the right key.
 
