@@ -423,6 +423,54 @@ int down_line(struct gb *b)
     return 0;
 }
 
+#define is_alpha_u(u) (isalpha(u) || (u) == '_')
+#define is_alnum_u(u) (isalnum(u) || (u) == '_')
+
+void left_word(struct gb *b)
+{
+    do
+        if (left_ch(b))
+            return;
+    while (!is_alpha_u(*(b->a + b->c)));
+
+    /* Look behind before moving, as want to stop at the start of a word */
+    while (b->g && is_alpha_u(*(b->a + b->g - 1)))
+        left_ch(b);
+}
+
+void right_word(struct gb *b, char transform)
+{
+    /*
+     * Moves the cursor right one word. If transform is 'L' then uppercase
+     * chars are converted to lowercase. Likewise, if transform is 'U' then
+     * lowercase chars are converted to uppercase.
+     */
+    unsigned char u;
+
+    while (!is_alpha_u(*(b->a + b->c)))
+        if (right_ch(b))
+            return;
+
+    u = *(b->a + b->c);
+    do {
+        if (isupper(u) && transform == 'L') {
+            *(b->a + b->c) = 'a' + u - 'A';
+            b->mod = 1;
+        } else if (islower(u) && transform == 'U') {
+            *(b->a + b->c) = 'A' + u - 'a';
+            b->mod = 1;
+        }
+
+        if (right_ch(b))
+            break;
+
+        u = *(b->a + b->c);
+    } while (is_alnum_u(u));
+}
+
+#undef is_alpha_u
+#undef is_alnum_u
+
 int str_to_size_t(const unsigned char *str, size_t *res)
 {
     unsigned char ch;
@@ -1401,6 +1449,20 @@ int main(int argc, char **argv)
         case ESC:
             y = get_key();
             switch (y) {
+            case 'b':
+                left_word(z);
+                break;
+            case 'f':
+                right_word(z, ' ');
+                break;
+            case 'l':
+                /* Lowercase word */
+                right_word(z, 'L');
+                break;
+            case 'u':
+                /* Uppercase word */
+                right_word(z, 'U');
+                break;
             case 'k':
                 rv = cut_to_sol(z, p);
                 break;
