@@ -32,8 +32,52 @@ and code maintainability.
 To _install_, simply compile `spot.c` and place the executable somewhere in
 your `PATH`.
 
-The keybindings are listed below:
+The keybindings are listed below. `^a` means pressing `Ctrl` plus `a`.
+`LK` denotes the left key, and `RK` denotes the right key.
 
+| Keys    | Command                                                   |
+| :------ | :-------------------------------------------------------- |
+| `^b`    | Left character                                            |
+| `^f`    | Right character                                           |
+| `^p`    | Up line                                                   |
+| `^n`    | Down line                                                 |
+| `^d`    | Delete character                                          |
+| `^h`    | Backspace character                                       |
+| `^a`    | Start of line                                             |
+| `^e`    | End of line                                               |
+| `^2`    | Set mark                                                  |
+| `^g`    | Clear mark, or exit command line                          |
+| `^l`    | Centre cursor on the screen and redraw graphics           |
+| `^w`    | Cut region                                                |
+| `^y`    | Paste                                                     |
+| `^k`    | Cut to end of line                                        |
+| `^t`    | Trim trailing white-space and remove non-printable chars  |
+| `^s`    | Forward search                                            |
+| `^r`    | Replace region (find and replace confined to the region)* |
+| `^u`    | Go to line number                                         |
+| `^q`    | Insert hex                                                |
+| `Esc b` | Left word                                                 |
+| `Esc f` | Right word                                                |
+| `Esc l` | Lowercase word                                            |
+| `Esc u` | Uppercase word                                            |
+| `Esc k` | Cut to start of line                                      |
+| `Esc m` | Match bracket `<>`, `[]`, `{}`, or `()`                   |
+| `Esc n` | Repeat last search                                        |
+| `Esc w` | Copy region                                               |
+| `Esc =` | Rename gap buffer                                         |
+| `Esc <` | Start of gap buffer                                       |
+| `Esc >` | End of gap buffer                                         |
+| `^x ^c` | Close editor without saving any buffers                   |
+| `^x ^s` | Save the current buffer only                              |
+| `^x ^f` | New gap buffer                                            |
+| `^x i`  | Insert file                                               |
+| `^x LK` | Move left one gap buffer                                  |
+| `^x RK` | Move right one gap buffer                                 |
+
+* Replace region syntax is `find|replace` where `\` is used as the escape
+character and; `\n` is a line feed, `\t` is a tab, `\\` is a literal backslash,
+and `\|` is a literal pipe character (instead of being interpreted as the
+delimiter).
 
 Enjoy,
 Logan =)_
