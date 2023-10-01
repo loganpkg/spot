@@ -37,6 +37,16 @@ first included in the region and whichever appears last excluded from the
 region. It is cleared by editing commands, and navigational commands are used
 to change its coverage.
 
+The status bar displays `!` if the last command failed, followed by `*` if the
+buffer has been modified. The filename associated with the buffer is presented
+next, followed by the current row and column number in brackets. Finally, the
+hex value of the char under the cursor (which may be in the command line) is
+displayed.
+
+The command line is at the bottom of the window and is used for _two-step_
+commands that require user input. Most single-step commands work inside the
+command line.
+
 The keybindings are listed below. `^a` means pressing `Ctrl` plus `a`.
 `LK` denotes the left key, and `RK` denotes the right key.
 

@@ -1195,7 +1195,7 @@ int draw(struct gb *b, struct gb *cl, struct screen *s, int cl_active,
         len = snprintf((char *) sb, s->w, "%c%c %s (%lu,%lu) %02X",
                        rv ? '!' : ' ', b->mod ? '*' : ' ', b->fn,
                        (unsigned long) b->r, (unsigned long) b->col,
-                       *(b->a + b->c));
+                       cl_active ? *(cl->a + cl->c) : *(b->a + b->c));
         if (len < 0)
             return 1;
 
