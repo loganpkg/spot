@@ -180,6 +180,8 @@ struct m4_info {
     /* There is only one input. Characters are stored in reverse order. */
     struct buf *input;
     struct buf *token;
+    /* Used to read the next token to see if it is an open bracket */
+    struct buf *next_token;
     struct buf *store;          /* Stores strings referenced by the stack */
     struct macro_call *stack;
     /* Pass through macro name to output (only use when called with no args) */
@@ -806,6 +808,7 @@ void free_m4(M4ptr m4)
         free_ht(m4->ht);
         free_buf(m4->input);
         free_buf(m4->token);
+        free_buf(m4->next_token);
         free_buf(m4->store);
         free_mc_stack(&m4->stack);
         free_buf(m4->tmp);
@@ -828,6 +831,7 @@ M4ptr init_m4(void)
     m4->ht = NULL;
     m4->input = NULL;
     m4->token = NULL;
+    m4->next_token = NULL;
     m4->store = NULL;
     m4->stack = NULL;
     /* Used for substituting arguments */
@@ -844,6 +848,9 @@ M4ptr init_m4(void)
         mgoto(error);
 
     if ((m4->token = init_buf()) == NULL)
+        mgoto(error);
+
+    if ((m4->next_token = init_buf()) == NULL)
         mgoto(error);
 
     if ((m4->store = init_buf()) == NULL)
@@ -1463,9 +1470,6 @@ int main(int argc, char **argv)
     int req_exit_val = -1;
     M4ptr m4;
     struct entry *e;            /* Used for macro lookups */
-
-    /* Used to read the next token to see if it is an open bracket */
-    struct buf *next_token = NULL;
     int i, r;
 
 #ifdef _WIN32
@@ -1480,9 +1484,6 @@ int main(int argc, char **argv)
 #endif
 
     if ((m4 = init_m4()) == NULL)
-        mgoto(clean_up);
-
-    if ((next_token = init_buf()) == NULL)
         mgoto(clean_up);
 
     /* Load built-in macros */
@@ -1635,7 +1636,7 @@ int main(int argc, char **argv)
             } else {
                 /*  Macro */
                 /* See if called with or without brackets */
-                r = get_word(m4->input, next_token, m4->read_stdin);
+                r = get_word(m4->input, m4->next_token, m4->read_stdin);
                 if (r == ERR)
                     mgoto(clean_up);
 
@@ -1668,9 +1669,10 @@ int main(int argc, char **argv)
                 if (put_ch(m4->store, '\0'))
                     mgoto(clean_up);
 
-                if (r == EOF || strcmp(next_token->a, "(")) {
+                if (r == EOF || strcmp(m4->next_token->a, "(")) {
                     /* Called without arguments */
-                    if (r != EOF && unget_str(m4->input, next_token->a))
+                    if (r != EOF
+                        && unget_str(m4->input, m4->next_token->a))
                         mgoto(clean_up);
 
                     if (end_macro(m4))
@@ -1709,7 +1711,6 @@ int main(int argc, char **argv)
         dump_stack(m4);
 
     free_m4(m4);
-    free_buf(next_token);
 
     if (req_exit_val != -1 && !ret)
         mreturn(req_exit_val);
