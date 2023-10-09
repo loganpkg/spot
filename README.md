@@ -69,6 +69,37 @@ in-between are retained. Due to the recursive nature of m4, text is often
 evaluated multiple times, and each time the outer layer of quotes will be
 striped.
 
+m4 only checks for macros when reading from the _input_ in non-quote mode.
+During argument collection, quote mode prevents commas from being interpreted
+as argument separators (as do added parentheses). Once argument collection
+is finished, quotes have no effect on the substitution of collected arguments
+into their placeholders, this will occur irrespective of the depth of
+quotation.
+
+In the example below, it looks like `x` is defined as `[[[hello $1]]]`,
+however, as `[[[hello $1]]]` is read from the input, quote mode is entered and
+exited, stripping the outer layer of quotes. As shown by `dumpdef`, `x` is
+actually defined with two layers of quotes, `[[hello $1]]`, not three. Then `x`
+is called, with the argument of `world`. Notice, that the argument is
+substituted into the placeholder `$1`, unaffected by the quotes in the
+definition. The result, which would be `[[hello world]]` is push back into the
+input. When this is re-read, quote mode is entered and exited again, stripping
+the outer layer of quotes, leaving the output as `[hello world]`, with only one
+layer of quotes.
+
+```m4
+changequote([, ])
+
+define(x, [[[hello $1]]])
+
+dumpdef([x])
+x: [[hello $1]]
+
+x(world)
+[hello world]
+m4exit
+```
+
 I strongly recommend learning m4. For a small investment in learning it
 provides a powerful tool that is free from a lot of the limitations imposed by
 many programming languages.
