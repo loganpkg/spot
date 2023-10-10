@@ -91,10 +91,11 @@ off the quotes, resulting in a gathered argument of `world` (which was not
 looked up in the hash table due to the quote mode).
 
 The argument, `world` is substituted into the placeholder `$1`, interestingly,
-unaffected by the quotes in the _definition_! The result, which would be
-`[hello world]` is pushed back into the input. When this is re-read, quote mode
-is entered and exited again, stripping off the quotes and preventing `world`
-from being expanded, leaving the output as simply `hello world`.
+unaffected by the quotes in the _definition_! The result, `[hello world]`,
+(which cannot be viewed directly) is pushed back into the input. When this
+is re-read, quote mode is entered and exited again, stripping off the quotes
+and preventing `world` from being expanded, leaving the output as simply
+`hello world`.
 
 Quoting the input to `x` and the output from `x` gave no opportunity for
 `world` to expand to `cool`.
