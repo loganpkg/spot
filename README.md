@@ -78,9 +78,7 @@ quotation.
 
 In the example below, the quote characters are changed to `[` and `]`. Then a
 new macro called `world` is created with a defining text of `cool`. `world` is
-then shown to expand to `cool`, as expected. The example assumes that this is
-a new execution of m4 and that `world` is not a pre-existing macro, otherwise
-it would need to be quoted in order to be redefined.
+then shown to expand to `cool`, as expected.
 
 It superficially looks like `x` is defined as `[[hello $1]]`, however, as
 `[[hello $1]]` is read from the _input_, quote mode is entered and exited,
