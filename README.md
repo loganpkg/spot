@@ -76,27 +76,45 @@ is finished, quotes have no effect on the substitution of collected arguments
 into their placeholders, this will occur irrespective of the depth of
 quotation.
 
-In the example below, it looks like `x` is defined as `[[[hello $1]]]`,
-however, as `[[[hello $1]]]` is read from the input, quote mode is entered and
-exited, stripping the outer layer of quotes. As shown by `dumpdef`, `x` is
-actually defined with two layers of quotes, `[[hello $1]]`, not three. Then `x`
-is called, with the argument of `world`. Notice, that the argument is
-substituted into the placeholder `$1`, unaffected by the quotes in the
-definition. The result, which would be `[[hello world]]` is push back into the
-input. When this is re-read, quote mode is entered and exited again, stripping
-the outer layer of quotes, leaving the output as `[hello world]`, with only one
-layer of quotes.
+In the example below, the quote characters are changed to `[` and `]`. Then a
+new macro called `world` is created with a defining text of `cool`. `world` is
+then shown to expand to `cool`, as expected. The example assumes that this is
+a new execution of m4 and that `world` is not a pre-existing macro, otherwise
+it would need to be quoted in order to be redefined.
+
+Then it looks like `x` is defined as `[[hello $1]]`, however, as `[[hello $1]]`
+is read from the _input_, quote mode is entered and exited, stripping off the
+outer layer of quotes. As shown by `dumpdef`, `x` is actually defined with a
+single layer of quotes, `[hello $1]`.
+
+`x` is called with what appears like an argument of `[world]`. However, as
+`[world]` is read from the input, quote mode is entered and exited, stripping
+off the quotes, resulting in the gathered argument of simply `world` (which
+was not checked to see if it is a macro due to the quote mode).
+
+The argument, `world` is substituted into the placeholder `$1`, interestingly,
+unaffected by the quotes in the _definition_. The result, which would be
+`[hello world]` is pushed back into the input. When this is re-read, quote mode
+is entered and exited again, stripping off the quotes and preventing `world`
+from being expanded, leaving the output as simply `hello world`.
+
+Quoting the input to the macro `x` and the output from `x` gave no opportunity
+for `world` to expand to `cool`.
 
 ```m4
 changequote([, ])
 
-define(x, [[[hello $1]]])
+define(world, cool)
+
+world
+cool
+define(x, [[hello $1]])
 
 dumpdef([x])
-x: [[hello $1]]
+x: [hello $1]
 
-x(world)
-[hello world]
+x([world])
+hello world
 m4exit
 ```
 
