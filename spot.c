@@ -48,7 +48,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef _WIN32
+#define popen _popen
+#define pclose _pclose
+#endif
+
 #define BLOCK_SIZE 512
+#define NUM_BUF_SIZE 32
 
 #define LEFT_KEY  (UCHAR_MAX + 1)
 #define RIGHT_KEY (UCHAR_MAX + 2)
@@ -132,7 +138,7 @@ struct gb *init_gb(void)
     b->c = BLOCK_SIZE - 1;
     b->e = BLOCK_SIZE - 1;
 
-    /* Last char cannot be deleted. Enables use as a string. */
+    /* Last char cannot be deleted. Enables use as a string. Do not change. */
     *(b->a + BLOCK_SIZE - 1) = '\0';
 
     b->m_set = 0;
@@ -245,6 +251,17 @@ int insert_ch(struct gb *b, char ch)
     b->m_set = 0;
     b->m = 0;
     b->mod = 1;
+    return 0;
+}
+
+int insert_str(struct gb *b, const char *str)
+{
+    char ch;
+
+    while ((ch = *str++) != '\0')
+        if (insert_ch(b, ch))
+            return 1;
+
     return 0;
 }
 
@@ -808,10 +825,13 @@ int copy_region(struct gb *b, struct gb *p, int cut)
      */
     size_t i, num;
 
-    if (!b->m_set || b->m == b->c)
+    if (!b->m_set)
         return 1;
 
     delete_gb(p);
+
+    if (b->m == b->c)
+        return 0;
 
     if (b->m < b->c) {
         for (i = b->m; i < b->g; ++i)
@@ -861,6 +881,106 @@ int cut_to_sol(struct gb *b, struct gb *p)
     b->m = b->c;
     start_of_line(b);
     return copy_region(b, p, 1);
+}
+
+int copy_logical_line(struct gb *b, struct gb *p)
+{
+    /*
+     * A backslash at the end of a line continues the logical line.
+     * End-of-line backslashes are removed and the lines are combined.
+     */
+
+    /* Move to start of logical line */
+    while (b->col || (b->g >= 2 && *(b->a + b->g - 2) == '\\'))
+        left_ch(b);
+
+    b->m_set = 1;
+    b->m = b->c;
+
+    /* Move to end of logical line */
+    while ((*(b->a + b->c) != '\n' || (b->g && *(b->a + b->g - 1) == '\\'))
+           && b->c != b->e)
+        right_ch(b);
+
+    if (copy_region(b, p, 0))
+        return 1;
+
+    /* Delete backslash at the end of lines and combine lines */
+    start_of_gb(p);
+    while (p->c != p->e) {
+        switch (*(p->a + p->c)) {
+        case '\\':
+            if (p->c + 1 == p->e || *(p->a + p->c + 1) == '\n') {
+                delete_ch(p);   /* Remove backslash */
+            } else {
+                right_ch(p);
+            }
+            break;
+        case '\n':
+            delete_ch(p);
+            break;
+        default:
+            right_ch(p);
+            break;
+        }
+    }
+
+    return 0;
+}
+
+int insert_shell_cmd(struct gb *b, const char *cmd, int *es)
+{
+    FILE *fp;
+    int x, st;
+
+    /* Open a new line */
+    if (insert_ch(b, '\n'))
+        return 1;
+
+    if ((fp = popen(cmd, "r")) == NULL)
+        return 1;
+
+    while ((x = getc(fp)) != EOF) {
+        if (x != '\0' && x != '\r' && insert_ch(b, x)) {
+            pclose(fp);
+            return 1;
+        }
+    }
+    if (ferror(fp) || !feof(fp)) {
+        pclose(fp);
+        return 1;
+    }
+    if ((st = pclose(fp)) == -1)
+        return 1;
+
+#ifndef _WIN32
+    if (!WIFEXITED(st))
+        return 1;
+
+    st = WEXITSTATUS(st);
+#endif
+
+    *es = st;
+
+    return 0;
+}
+
+int shell_line(struct gb *b, struct gb *p, int *es)
+{
+    if (copy_logical_line(b, p))
+        return 1;
+
+    end_of_gb(p);
+    if (insert_str(p, " 2>&1"))
+        return 1;
+
+    /* Embedded \0 will terminate string early */
+    start_of_gb(p);
+
+    if (insert_shell_cmd(b, (const char *) p->a + p->c, es))
+        return 1;
+
+    return 0;
 }
 
 int paste(struct gb *b, struct gb *p)
@@ -951,6 +1071,32 @@ int new_gb(struct gb **b, const char *fn)
     }
     *b = t;
     return 0;
+}
+
+void remove_gb(struct gb **b)
+{
+    struct gb *t;
+
+    /* Unlink */
+    if ((t = *b) != NULL) {
+        if ((*b)->prev == NULL) {
+            /* Start of list */
+            *b = (*b)->next;
+            if (*b != NULL)
+                (*b)->prev = NULL;
+        } else if ((*b)->next == NULL) {
+            /* End of list */
+            *b = (*b)->prev;
+            if (*b != NULL)
+                (*b)->next = NULL;
+        } else {
+            /* Middle of list, so bypass */
+            (*b)->prev->next = (*b)->next;
+            (*b)->next->prev = (*b)->prev;
+            *b = (*b)->prev;    /* Move left by default */
+        }
+        free_gb(t);
+    }
 }
 
 int get_key(void)
@@ -1083,12 +1229,13 @@ int get_screen_size(struct screen *s)
 } while (0)
 
 int draw(struct gb *b, struct gb *cl, struct screen *s, int cl_active,
-         int rv)
+         int rv, int es_set, int es)
 {
     size_t new_s_s, up, target_up, ts, i, j, cursor_pos, k;
     int v_hl, have_centred = 0;
     unsigned char *t, ch, new_ch, *sb;
-    int len;
+    char num_str[NUM_BUF_SIZE];
+    int r, len;
 
     if (get_screen_size(s))
         return 1;
@@ -1191,11 +1338,20 @@ int draw(struct gb *b, struct gb *cl, struct screen *s, int cl_active,
     if (s->h >= 2) {
         /* Status bar */
 
+        if (es_set) {
+            r = snprintf(num_str, NUM_BUF_SIZE, "%d", es);
+            if (r < 0 || r >= NUM_BUF_SIZE)
+                return 1;
+        } else {
+            *num_str = '\0';
+        }
+
         sb = s->vs_n + ((s->h - 2) * s->w);
-        len = snprintf((char *) sb, s->w, "%c%c %s (%lu,%lu) %02X",
+        len = snprintf((char *) sb, s->w, "%c%c %s (%lu,%lu) %02X %s",
                        rv ? '!' : ' ', b->mod ? '*' : ' ', b->fn,
                        (unsigned long) b->r, (unsigned long) b->col,
-                       cl_active ? *(cl->a + cl->c) : *(b->a + b->c));
+                       cl_active ? *(cl->a + cl->c) : *(b->a + b->c),
+                       num_str);
         if (len < 0)
             return 1;
 
@@ -1285,7 +1441,12 @@ int draw(struct gb *b, struct gb *cl, struct screen *s, int cl_active,
 
 int main(int argc, char **argv)
 {
-    int ret = 0, i, running = 1, rv = 0, x, y;
+    int ret = 0;                /* Return value of the text editor */
+    int running = 1;            /* Indicates if the text editor is running */
+    int rv = 0;                 /* Return value of last internal command */
+    int es_set = 0;
+    int es = 0;                 /* Exit status of last shell command */
+    int i, x, y;
     struct screen s;
     struct gb *b = NULL;        /* Text buffers linked together */
     struct gb *p = NULL;        /* Paste buffer */
@@ -1367,10 +1528,12 @@ int main(int argc, char **argv)
 
 
     while (running) {
-        if (draw(b, cl, &s, cl_active, rv))
+        if (draw(b, cl, &s, cl_active, rv, es_set, es))
             goto clean_up;
 
         rv = 0;
+        es_set = 0;
+        es = 0;
 
         x = get_key();
 
@@ -1432,6 +1595,12 @@ int main(int argc, char **argv)
         case C('k'):
             rv = cut_to_eol(z, p);
             break;
+        case C('o'):
+            rv = shell_line(z, p, &es);
+            if (!rv)
+                es_set = 1;
+
+            break;
         case C('t'):
             trim_clean(z);
             break;
@@ -1484,10 +1653,21 @@ int main(int argc, char **argv)
             case 'w':
                 rv = copy_region(z, p, 0);
                 break;
+            case '!':
+                remove_gb(&b);
+                if (b == NULL)
+                    running = 0;
+
+                break;
             case '=':
                 delete_gb(cl);
                 cl_active = 1;
                 op = 'r';       /* rename_gb */
+                break;
+            case '$':
+                delete_gb(cl);
+                cl_active = 1;
+                op = '$';       /* insert_shell_cmd */
                 break;
             case '<':
                 start_of_gb(z);
@@ -1555,6 +1735,14 @@ int main(int argc, char **argv)
                 case 'i':
                     start_of_gb(cl);
                     rv = insert_file(b, (const char *) cl->a + cl->c);
+                    break;
+                case '$':
+                    start_of_gb(cl);
+                    rv = insert_shell_cmd(b, (const char *) cl->a + cl->c,
+                                          &es);
+                    if (!rv)
+                        es_set = 1;
+
                     break;
                 }
                 cl_active = 0;

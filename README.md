@@ -39,9 +39,10 @@ to change its coverage.
 
 The status bar displays `!` if the last command failed, followed by `*` if the
 buffer has been modified. The filename associated with the buffer is presented
-next, followed by the current row and column number in brackets. Finally, the
-hex value of the char under the cursor (which may be in the command line) is
-displayed.
+next, followed by the current row and column number in brackets. The hex value
+of the char under the cursor (which may be in the command line) is displayed.
+Finally, the if the last command included a shell command which succeeded (the
+process terminated normally), then the exit status is displayed.
 
 The command line is at the bottom of the window and is used for _two-step_
 commands that require user input. Most single-step commands work inside the
@@ -66,6 +67,7 @@ The keybindings are listed below. `^a` means pressing `Ctrl` plus `a`.
 | `^w`    | Cut region                                                |
 | `^y`    | Paste                                                     |
 | `^k`    | Cut to end of line                                        |
+| `^o`    | Insert shell command of logical line under the cursor +   |
 | `^t`    | Trim trailing white-space and remove non-printable chars  |
 | `^s`    | Forward search                                            |
 | `^r`    | Replace region (find and replace confined to the region)* |
@@ -79,7 +81,9 @@ The keybindings are listed below. `^a` means pressing `Ctrl` plus `a`.
 | `Esc m` | Match bracket `<>`, `[]`, `{}`, or `()`                   |
 | `Esc n` | Repeat last search                                        |
 | `Esc w` | Copy region                                               |
+| `Esc !` | Remove current gap buffer without saving ^                |
 | `Esc =` | Rename gap buffer                                         |
+| `Esc $` | Insert shell command from the command line                |
 | `Esc <` | Start of gap buffer                                       |
 | `Esc >` | End of gap buffer                                         |
 | `^x ^c` | Close editor without saving any buffers                   |
@@ -89,10 +93,20 @@ The keybindings are listed below. `^a` means pressing `Ctrl` plus `a`.
 | `^x LK` | Move left one gap buffer                                  |
 | `^x RK` | Move right one gap buffer                                 |
 
-* Replace region syntax is `find|replace` where `\` is used as the escape
+
+`+` The _logical_ line under the cursor is formed by joining neighbouring lines
+that end in a backslash, to accommodate for long lines. These end-of-line
+backslashes are removed from the logical line, as are `\n` characters.
+`2>&1` is added to the end of the logical line, to capture `stderr` under most
+situations. If some `stderr` text comes through uncaptured, then it can be
+cleared by redrawing the screen (`^l`).
+
+`*` Replace region syntax is `find|replace` where `\` is used as the escape
 character and; `\n` is a line feed, `\t` is a tab, `\\` is a literal backslash,
 and `\|` is a literal pipe character (instead of being interpreted as the
 delimiter).
+
+`^` Text editor will exit if it is the last gap buffer.
 
 Enjoy,
 Logan =)_
