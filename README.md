@@ -24,9 +24,15 @@ to the C preprocessor, although it is not tied to any specific language. It
 performs programmatic find-and-replace on text, but can also perform other
 tasks, such as executing shell commands.
 
+Install
+-------
+
 This implementation of m4 is cross-platform and has been written in ANSI C with
 the minimum use of non-standard libraries. To _install_ it, simply compile
 `m4.c` and place the executable somewhere in your `PATH`.
+
+How m4 works
+------------
 
 m4 has two classes of macros; built-in macros and user-defined macros.
 Built-in macros are written in C and can only be added or modified by editing
@@ -76,6 +82,9 @@ is finished, quotes have no effect on the substitution of collected arguments
 into their placeholders, this will occur irrespective of the depth of
 quotation.
 
+Example
+-------
+
 In the example below, the quote characters are changed to `[` and `]`. Then a
 new macro called `world` is created with a defining text of `cool`. `world` is
 then shown to expand to `cool`, as expected.
@@ -120,6 +129,9 @@ m4exit
 I strongly recommend learning m4. For a small investment in learning it
 provides a powerful tool that is free from a lot of the limitations imposed by
 many programming languages.
+
+Built-in macros
+---------------
 
 I will now introduce the built-in macros.
 
