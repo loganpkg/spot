@@ -941,7 +941,7 @@ int insert_shell_cmd(struct gb *b, const char *cmd, int *es)
         return 1;
 
     while ((x = getc(fp)) != EOF) {
-        if (x != '\0' && x != '\r' && insert_ch(b, x)) {
+        if ((isprint(x) || x == '\t' || x == '\n') && insert_ch(b, x)) {
             pclose(fp);
             return 1;
         }
