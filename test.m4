@@ -1,5 +1,5 @@
 divert(-1)
-cmp <(m4 test.m4) <(/usr/bin/m4 test.m4)
+Hello
 divert
 define(x, y)
 x
