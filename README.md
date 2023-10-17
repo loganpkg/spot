@@ -22,8 +22,8 @@ m4 monorepo
 Welcome to the _m4 monorepo_ where multiple applications share code via modules.
 
 The applications are:
-* __m4__: An implementation of the m4 macro processor, and
-* __spot__: The text editor.
+* [m4](#m4): An implementation of the m4 macro processor, and
+* [spot](#spot): The text editor.
 
 
 m4
