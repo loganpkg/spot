@@ -1,0 +1,13 @@
+struct buf *init_buf(void);
+void free_buf(struct buf *b);
+int put_ch(struct buf *b, char ch);
+int put_str(struct buf *b, const char *str);
+int unget_str(struct buf *b, const char *str);
+int put_buf(struct buf *b, struct buf *t);
+int put_file(struct buf *b, const char *fn);
+int unget_file(struct buf *b, const char *fn);
+int write_buf(struct buf *b, const char *fn);
+int flush_buf(struct buf *b);
+int get_ch(struct buf *input, char *ch, int read_stdin);
+int get_word(struct buf *input, struct buf *token, int read_stdin);
+int eat_whitespace(struct buf *input, int read_stdin);

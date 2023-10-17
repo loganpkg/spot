@@ -49,34 +49,26 @@
 #ifdef _WIN32
 #include <io.h>
 #include <fcntl.h>
-#else
-#define _BSD_SOURCE
-#define _DEFAULT_SOURCE
+#endif
+
+#ifdef __linux__
+/* For: snprintf */
+#define _XOPEN_SOURCE 500
 #endif
 
 #include <ctype.h>
 #include <limits.h>
-#include <stdint.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef _WIN32
-#define popen _popen
-#define pclose _pclose
-#endif
+#include "debug.h"
+#include "gen.h"
+#include "num.h"
+#include "buf.h"
+#include "ht.h"
 
-#define DEBUG
-
-#define NUM_BUCKETS 1024
-#define BLOCK_SIZE 512
-#define NUM_BUF_SIZE 32
-
-/* EOF cannot be 1, so OK */
-#define ERR 1
-
-/* Used to not trigger the debugging */
-#define NULL_OK NULL
 
 /*
  * Do not change.
@@ -93,40 +85,6 @@
 #define NUM_ARGS 10
 
 
-#ifdef DEBUG
-#define mreturn(ret) do {                                                    \
-    if (!strcmp(#ret, "1") || !strcmp(#ret, "NULL") || !strcmp(#ret, "ERR")) \
-        fprintf(stderr, "%s:%d: mreturn: %s\n", __FILE__, __LINE__, #ret);   \
-    return ret;                                                              \
-} while (0)
-#else
-#define mreturn(ret) return ret
-#endif
-
-#ifdef DEBUG
-#define mgoto(lab) do {                                                  \
-    if (!strcmp(#lab, "clean_up") || !strcmp(#lab, "error"))             \
-        fprintf(stderr, "%s:%d: mgoto: %s\n", __FILE__, __LINE__, #lab); \
-    goto lab;                                                            \
-} while (0)
-#else
-#define mgoto(lab) goto lab
-#endif
-
-
-/* Overflow tests for size_t */
-/* Addition */
-#define aof(a, b) ((a) > SIZE_MAX - (b))
-
-/* Multiplication */
-#define mof(a, b) ((a) && (b) > SIZE_MAX / (a))
-
-/*
- * unget is used when the characters in the buffer are stored in reverse order.
- * put is used when the characters are stored in normal order.
- */
-#define unget_ch put_ch
-
 /*
  * When there is no stack, the output will be the active diversion.
  * Otherwise, during argument collection, the output will be the store buffer.
@@ -137,27 +95,6 @@
 /* Arguments that have not been collected reference the empty string */
 #define arg(n) (m4->store->a + m4->stack->arg_i[n])
 
-
-typedef struct m4_info *M4ptr;
-typedef int (*Fptr)(M4ptr);
-
-
-/* Hash table entry */
-struct entry {
-    char *name;                 /* Macro name */
-    char *def;                  /* User-defined macro definition */
-    Fptr mfp;                   /* Built-in Macro Function Pointer */
-    struct entry *next;         /* To chain collisions */
-};
-
-
-/* All unget commands reverse the order of the characters */
-
-struct buf {
-    char *a;                    /* Memory */
-    size_t i;                   /* Write index */
-    size_t s;                   /* Allocated size in bytes */
-};
 
 struct macro_call {
     Fptr mfp;
@@ -172,6 +109,9 @@ struct macro_call {
     size_t bracket_depth;       /* Depth of unquoted brackets */
     struct macro_call *next;    /* For nested macro calls */
 };
+
+
+typedef struct m4_info *M4ptr;
 
 struct m4_info {
     int req_exit_val;           /* User requested exit value */
@@ -242,521 +182,6 @@ void free_mc_stack(struct macro_call **head)
     if (head != NULL)
         while (*head != NULL)
             pop_mc(head);
-}
-
-struct entry *init_entry(void)
-{
-    struct entry *e;
-
-    if ((e = malloc(sizeof(struct entry))) == NULL)
-        mreturn(NULL);
-
-    e->name = NULL;
-    e->def = NULL;
-    e->mfp = NULL;
-    mreturn(e);
-}
-
-void free_entry(struct entry *e)
-{
-    if (e != NULL) {
-        free(e->name);
-        free(e->def);
-        free(e);
-    }
-}
-
-struct entry **init_ht(void)
-{
-    struct entry **ht;
-    size_t i;
-
-    if (mof(NUM_BUCKETS, sizeof(struct entry *)))
-        mreturn(NULL);
-
-    if ((ht = malloc(NUM_BUCKETS * sizeof(struct entry *))) == NULL)
-        mreturn(NULL);
-
-    for (i = 0; i < NUM_BUCKETS; ++i)
-        ht[i] = NULL;
-
-    mreturn(ht);
-}
-
-void free_ht(struct entry **ht)
-{
-    size_t i;
-    struct entry *e, *e_next;
-
-    if (ht != NULL) {
-        for (i = 0; i < NUM_BUCKETS; ++i) {
-            e = ht[i];
-            while (e != NULL) {
-                e_next = e->next;
-                free_entry(e);
-                e = e_next;
-            }
-        }
-        free(ht);
-    }
-}
-
-size_t hash_func(const char *str)
-{
-    /* djb2 */
-    unsigned char ch;
-    size_t h = 5381;
-
-    while ((ch = *str) != '\0') {
-        h = h * 33 ^ ch;
-        ++str;
-    }
-    mreturn(h % NUM_BUCKETS);   /* Bucket index */
-}
-
-struct entry *lookup(struct entry **ht, const char *name)
-{
-    size_t bucket;
-    struct entry *e;
-
-    bucket = hash_func(name);
-    e = ht[bucket];
-
-    while (e != NULL) {
-        if (!strcmp(name, e->name))
-            mreturn(e);         /* Match */
-
-        e = e->next;
-    }
-    mreturn(NULL_OK);           /* Not found */
-}
-
-int delete_entry(struct entry **ht, const char *name)
-{
-    size_t bucket;
-    struct entry *e, *e_prev;
-
-    bucket = hash_func(name);
-    e = ht[bucket];
-    e_prev = NULL;
-    while (e != NULL) {
-        if (!strcmp(name, e->name)) {
-            /* Link around */
-            if (e_prev != NULL)
-                e_prev->next = e->next;
-            else
-                ht[bucket] = e->next;   /* At head of list */
-
-            free_entry(e);
-            mreturn(0);
-        }
-        e_prev = e;
-        e = e->next;
-    }
-
-    mreturn(1);                 /* Not found */
-}
-
-int upsert(struct entry **ht, const char *name, const char *def, Fptr mfp)
-{
-    struct entry *e;
-    size_t bucket;
-    char *name_copy, *def_copy = NULL;
-
-    e = lookup(ht, name);
-
-    if (e == NULL) {
-        /* Make a new entry */
-        if ((e = init_entry()) == NULL)
-            mreturn(1);
-
-        if ((e->name = strdup(name)) == NULL) {
-            free_entry(e);
-            mreturn(1);
-        }
-
-        if (def != NULL && (e->def = strdup(def)) == NULL) {
-            free_entry(e);
-            mreturn(1);
-        }
-
-        e->mfp = mfp;
-
-        /* Link in at the head of the bucket collision list */
-        bucket = hash_func(name);
-        e->next = ht[bucket];
-        ht[bucket] = e;
-
-    } else {
-        /* Update the existing entry */
-        if ((name_copy = strdup(name)) == NULL)
-            mreturn(1);
-
-        if (def != NULL && (def_copy = strdup(def)) == NULL) {
-            free(name_copy);
-            mreturn(1);
-        }
-
-        free(e->name);
-        free(e->def);
-        e->name = name_copy;
-        e->def = def_copy;
-    }
-    mreturn(0);
-}
-
-struct buf *init_buf(void)
-{
-    struct buf *b;
-
-    if ((b = malloc(sizeof(struct buf))) == NULL)
-        mreturn(NULL);
-
-    if ((b->a = malloc(BLOCK_SIZE)) == NULL)
-        mreturn(NULL);
-
-    b->i = 0;
-    b->s = BLOCK_SIZE;
-    mreturn(b);
-}
-
-void free_buf(struct buf *b)
-{
-    if (b != NULL) {
-        free(b->a);
-        free(b);
-    }
-}
-
-int grow_buf(struct buf *b, size_t will_use)
-{
-    char *t;
-    size_t new_s, num;
-
-    if (aof(b->s, will_use))
-        mreturn(1);
-
-    new_s = b->s + will_use;
-
-    if (mof(new_s, 2))
-        mreturn(1);
-
-    new_s *= 2;
-
-    num = new_s / BLOCK_SIZE;
-
-    if (aof(num, 1))
-        mreturn(1);
-
-    ++num;
-
-    if (mof(num, BLOCK_SIZE))
-        mreturn(1);
-
-    new_s = num * BLOCK_SIZE;
-
-    if ((t = realloc(b->a, new_s)) == NULL)
-        mreturn(1);
-
-    b->a = t;
-    b->s = new_s;
-    mreturn(0);
-}
-
-int put_ch(struct buf *b, char ch)
-{
-    if (b->i == b->s && grow_buf(b, 1))
-        mreturn(1);
-
-    *(b->a + b->i) = ch;
-    ++b->i;
-    mreturn(0);
-}
-
-int put_str(struct buf *b, const char *str)
-{
-    size_t len;
-
-    len = strlen(str);
-    if (!len)
-        mreturn(0);
-
-    if (len > b->s - b->i && grow_buf(b, len))
-        mreturn(1);
-
-    memcpy(b->a + b->i, str, len);
-    b->i += len;
-    mreturn(0);
-}
-
-int unget_str(struct buf *b, const char *str)
-{
-    size_t len, j;
-    char *p;
-
-    len = strlen(str);
-
-    if (!len)
-        mreturn(0);
-
-    if (len > b->s - b->i && grow_buf(b, len))
-        mreturn(1);
-
-    p = b->a + b->i + len - 1;
-    j = len;
-    while (j) {
-        *p = *str;
-        --p;
-        ++str;
-        --j;
-    }
-    b->i += len;
-    mreturn(0);
-}
-
-int put_buf(struct buf *b, struct buf *t)
-{
-    /* Empties t onto the end of b */
-    if (t->i > b->s - b->i && grow_buf(b, t->i))
-        mreturn(1);
-
-    memcpy(b->a + b->i, t->a, t->i);
-    b->i += t->i;
-    t->i = 0;
-    mreturn(0);
-}
-
-int put_file(struct buf *b, const char *fn)
-{
-    int ret = 1;
-    FILE *fp = NULL;
-    long fs_l;
-    size_t fs;
-
-    if (fn == NULL || *fn == '\0')
-        mreturn(1);
-
-    if ((fp = fopen(fn, "rb")) == NULL)
-        mgoto(clean_up);
-
-    if (fseek(fp, 0L, SEEK_END))
-        mgoto(clean_up);
-
-    if ((fs_l = ftell(fp)) == -1 || fs_l < 0)
-        mgoto(clean_up);
-
-    if (fseek(fp, 0L, SEEK_SET))
-        mgoto(clean_up);
-
-    if (!fs_l)
-        mgoto(done);
-
-    fs = (size_t) fs_l;
-
-    if (fs > b->s - b->i && grow_buf(b, fs))
-        mgoto(clean_up);
-
-    if (fread(b->a + b->i, 1, fs, fp) != fs)
-        mgoto(clean_up);
-
-    b->i += fs;
-
-  done:
-    ret = 0;
-  clean_up:
-    if (fp != NULL)
-        if (fclose(fp))
-            ret = 1;
-
-    mreturn(ret);
-}
-
-int unget_file(struct buf *b, const char *fn)
-{
-    int ret = 1;
-    FILE *fp = NULL;
-    long fs_l;
-    size_t fs, j;
-    char *p;
-    int x;
-
-    if (fn == NULL || *fn == '\0')
-        mreturn(1);
-
-    if ((fp = fopen(fn, "rb")) == NULL)
-        mgoto(clean_up);
-
-    if (fseek(fp, 0L, SEEK_END))
-        mgoto(clean_up);
-
-    if ((fs_l = ftell(fp)) == -1 || fs_l < 0)
-        mgoto(clean_up);
-
-    if (fseek(fp, 0L, SEEK_SET))
-        mgoto(clean_up);
-
-    if (!fs_l)
-        mgoto(done);
-
-    fs = (size_t) fs_l;
-
-    if (fs > b->s - b->i && grow_buf(b, fs))
-        mgoto(clean_up);
-
-    p = b->a + b->i + fs - 1;
-    j = fs;
-    while (j) {
-        if ((x = getc(fp)) == EOF)
-            mgoto(clean_up);
-
-        *p = x;
-        --p;
-        --j;
-    }
-    if (ferror(fp))
-        mgoto(clean_up);
-
-    b->i += fs;
-
-  done:
-    ret = 0;
-  clean_up:
-    if (fp != NULL && fclose(fp))
-        ret = 1;
-
-    mreturn(ret);
-}
-
-int write_buf(struct buf *b, const char *fn)
-{
-    /* Empties b to file fn */
-    FILE *fp;
-
-    if (fn == NULL || *fn == '\0')
-        mreturn(1);
-
-    if ((fp = fopen(fn, "wb")) == NULL)
-        mreturn(1);
-
-    if (fwrite(b->a, 1, b->i, fp) != b->i) {
-        fclose(fp);
-        mreturn(1);
-    }
-    if (fclose(fp))
-        mreturn(1);
-
-    b->i = 0;
-    mreturn(0);
-}
-
-int flush_buf(struct buf *b)
-{
-    if (!b->i)
-        mreturn(0);
-
-    if (fwrite(b->a, 1, b->i, stdout) != b->i)
-        mreturn(1);
-
-    if (fflush(stdout))
-        mreturn(1);
-
-    b->i = 0;
-    mreturn(0);
-}
-
-int get_ch(struct buf *input, char *ch, int read_stdin)
-{
-    int x;
-
-    if (input->i) {
-        --input->i;
-        *ch = *(input->a + input->i);
-        mreturn(0);
-    }
-    if (!read_stdin)
-        mreturn(EOF);
-
-    if ((x = getchar()) == EOF) {
-        if (feof(stdin) && !ferror(stdin))
-            mreturn(EOF);
-        else
-            mreturn(ERR);
-    }
-    *ch = x;
-    mreturn(0);
-}
-
-int get_word(struct buf *input, struct buf *token, int read_stdin)
-{
-    int r;
-    char ch, type;
-
-    do {
-        if ((r = get_ch(input, &ch, read_stdin)) != 0)
-            mreturn(r);
-    } while (ch == '\0' || ch == '\r'); /* Discard these chars */
-
-    token->i = 0;
-
-    if (put_ch(token, ch))
-        mreturn(ERR);
-
-    if (isdigit(ch))
-        type = 'd';             /* Decimal number */
-    else if (isalpha(ch) || ch == '_')  /* First char cannot be a digit */
-        type = 'w';             /* Word */
-    else
-        mgoto(end);             /* Send a single char */
-
-    while (1) {
-        do {
-            r = get_ch(input, &ch, read_stdin);
-            if (r == ERR)
-                mreturn(ERR);
-            else if (r == EOF)  /* Ignore, as not the first char */
-                mgoto(end);
-        } while (ch == '\0' || ch == '\r');
-
-        if ((type == 'd' && isdigit(ch))
-            || (type == 'w' && (isalnum(ch) || ch == '_'))) {
-            /* More of the same type. Words can include digits here. */
-            if (put_ch(token, ch))
-                mreturn(ERR);
-        } else {
-            if (unget_ch(input, ch))
-                mreturn(ERR);
-
-            mgoto(end);
-        }
-    }
-
-  end:
-    if (put_ch(token, '\0'))    /* Terminate string */
-        mreturn(ERR);
-
-    mreturn(0);
-}
-
-int eat_whitespace(struct buf *input, int read_stdin)
-{
-    int r;
-    char ch;
-
-    while (1) {
-        r = get_ch(input, &ch, read_stdin);
-        if (r == ERR)
-            mreturn(1);
-        else if (r == EOF)
-            break;
-
-        if (!(isspace(ch) || ch == '\0')) {
-            if (unget_ch(input, ch))
-                mreturn(1);
-
-            break;
-        }
-    }
-    mreturn(0);
 }
 
 int sub_args(M4ptr m4)
@@ -910,40 +335,14 @@ int dump_stack(M4ptr m4)
     return 0;
 }
 
-int str_to_size_t(const char *str, size_t *res)
-{
-    unsigned char ch;
-    size_t x = 0;
-
-    if (str == NULL || *str == '\0')
-        mreturn(1);
-
-    while ((ch = *str) != '\0') {
-        if (isdigit(ch)) {
-            if (mof(x, 10))
-                return 1;
-
-            x *= 10;
-            if (aof(x, ch - '0'))
-                return 1;
-
-            x += ch - '0';
-        } else {
-            return 1;
-        }
-
-        ++str;
-    }
-    *res = x;
-    return 0;
-}
-
 
 /* ********** Built-in macros ********** */
 
-int define(M4ptr m4)
+int define(void *v)
 {
     /*@ define(macro_name, macro_def) */
+    M4ptr m4 = (M4ptr) v;
+
     if (m4->stack->active_arg == 0) {
         /* Called without arguments, so set pass through indicator */
         m4->pass_through = 1;
@@ -959,9 +358,11 @@ int define(M4ptr m4)
     mreturn(0);
 }
 
-int undefine(M4ptr m4)
+int undefine(void *v)
 {
     /*@ undefine(`macro_name') */
+    M4ptr m4 = (M4ptr) v;
+
     if (m4->stack->active_arg == 0) {
         m4->pass_through = 1;
         mreturn(0);
@@ -976,9 +377,10 @@ int undefine(M4ptr m4)
     mreturn(0);
 }
 
-int changequote(M4ptr m4)
+int changequote(void *v)
 {
     /*@ changequote(left_quote, right_quote) */
+    M4ptr m4 = (M4ptr) v;
     char l_ch, r_ch;
 
     if (m4->stack->active_arg == 0) {
@@ -1003,9 +405,11 @@ int changequote(M4ptr m4)
     mreturn(0);
 }
 
-int divert(M4ptr m4)
+int divert(void *v)
 {
     /*@ divert or divert(div_num) */
+    M4ptr m4 = (M4ptr) v;
+
     if (m4->stack->active_arg == 0) {
         m4->active_div = 0;
         mreturn(0);
@@ -1024,9 +428,10 @@ int divert(M4ptr m4)
     mreturn(1);
 }
 
-int undivert(M4ptr m4)
+int undivert(void *v)
 {
     /*@ undivert or undivert(div_num, filename, ...) */
+    M4ptr m4 = (M4ptr) v;
     char ch;
     size_t i, x;
 
@@ -1060,9 +465,10 @@ int undivert(M4ptr m4)
     mreturn(0);
 }
 
-int writediv(M4ptr m4)
+int writediv(void *v)
 {
     /*@ writediv(div_num, filename) */
+    M4ptr m4 = (M4ptr) v;
     char ch;
 
     if (m4->stack->active_arg == 0) {
@@ -1085,9 +491,10 @@ int writediv(M4ptr m4)
     mreturn(0);
 }
 
-int divnum(M4ptr m4)
+int divnum(void *v)
 {
     /*@ divnum */
+    M4ptr m4 = (M4ptr) v;
     char ch;
 
     if (m4->stack->active_arg != 0)
@@ -1107,9 +514,11 @@ int divnum(M4ptr m4)
     mreturn(0);
 }
 
-int include(M4ptr m4)
+int include(void *v)
 {
     /*@ include(filename) */
+    M4ptr m4 = (M4ptr) v;
+
     if (m4->stack->active_arg == 0) {
         m4->pass_through = 1;
         mreturn(0);
@@ -1123,10 +532,11 @@ int include(M4ptr m4)
     mreturn(0);
 }
 
-int dnl(M4ptr m4)
+int dnl(void *v)
 {
     /*@ dnl */
     /* Delete to NewLine (inclusive) */
+    M4ptr m4 = (M4ptr) v;
     int r;
     char ch;
 
@@ -1146,10 +556,11 @@ int dnl(M4ptr m4)
     mreturn(0);
 }
 
-int tnl(M4ptr m4)
+int tnl(void *v)
 {
     /*@ tnl(str) */
     /* Trim NewLine chars at the end of the first argument */
+    M4ptr m4 = (M4ptr) v;
     char *p, *q, ch;
 
     if (m4->stack->active_arg == 0) {
@@ -1180,9 +591,10 @@ int tnl(M4ptr m4)
     mreturn(0);
 }
 
-int ifdef(M4ptr m4)
+int ifdef(void *v)
 {
     /*@ ifdef(`macro_name', `when_defined', `when_undefined') */
+    M4ptr m4 = (M4ptr) v;
     struct entry *e;
 
     if (m4->stack->active_arg == 0) {
@@ -1203,9 +615,11 @@ int ifdef(M4ptr m4)
     mreturn(0);
 }
 
-int ifelse(M4ptr m4)
+int ifelse(void *v)
 {
     /*@ ifelse(A, B, `when_same', `when_different') */
+    M4ptr m4 = (M4ptr) v;
+
     if (m4->stack->active_arg == 0) {
         m4->pass_through = 1;
         mreturn(0);
@@ -1223,9 +637,10 @@ int ifelse(M4ptr m4)
     mreturn(0);
 }
 
-int dumpdef(M4ptr m4)
+int dumpdef(void *v)
 {
     /*@ dumpdef or dumpdef(`macro_name', ...) */
+    M4ptr m4 = (M4ptr) v;
     size_t i;
     struct entry *e;
 
@@ -1235,7 +650,7 @@ int dumpdef(M4ptr m4)
             e = m4->ht[i];
             while (e != NULL) {
                 fprintf(stderr, "%s: %s\n", e->name,
-                        e->mfp == NULL ? e->def : "built-in");
+                        e->func_p == NULL ? e->def : "built-in");
                 e = e->next;
             }
         }
@@ -1250,14 +665,16 @@ int dumpdef(M4ptr m4)
             fprintf(stderr, "%s: undefined\n", arg(i));
         else
             fprintf(stderr, "%s: %s\n", e->name,
-                    e->mfp == NULL ? e->def : "built-in");
+                    e->func_p == NULL ? e->def : "built-in");
     }
     mreturn(0);
 }
 
-int errprint(M4ptr m4)
+int errprint(void *v)
 {
     /*@ errprint(error_message) */
+    M4ptr m4 = (M4ptr) v;
+
     if (m4->stack->active_arg == 0) {
         m4->pass_through = 1;
         mreturn(0);
@@ -1269,9 +686,10 @@ int errprint(M4ptr m4)
     mreturn(0);
 }
 
-int incr(M4ptr m4)
+int incr(void *v)
 {
     /*@ incr(number) */
+    M4ptr m4 = (M4ptr) v;
     size_t x;
     char num[NUM_BUF_SIZE];
     int r;
@@ -1298,9 +716,11 @@ int incr(M4ptr m4)
     mreturn(0);
 }
 
-int sysval(M4ptr m4)
+int sysval(void *v)
 {
     /*@ sysval */
+    M4ptr m4 = (M4ptr) v;
+
     if (m4->stack->active_arg != 0)
         mreturn(1);
 
@@ -1310,9 +730,10 @@ int sysval(M4ptr m4)
     mreturn(0);
 }
 
-int esyscmd(M4ptr m4)
+int esyscmd(void *v)
 {
     /*@ esyscmd(shell_command) */
+    M4ptr m4 = (M4ptr) v;
     struct entry *e;
     FILE *fp;
     int x, st, r;
@@ -1355,7 +776,7 @@ int esyscmd(M4ptr m4)
 
     e = lookup(m4->ht, "sysval");
 
-    if (e != NULL && e->mfp != NULL) {
+    if (e != NULL && e->func_p != NULL) {
         /* Still a built-in macro */
 
 #ifndef _WIN32
@@ -1373,9 +794,10 @@ int esyscmd(M4ptr m4)
     mreturn(0);
 }
 
-int m4exit(M4ptr m4)
+int m4exit(void *v)
 {
     /*@ m4exit or m4exit(exit_value) */
+    M4ptr m4 = (M4ptr) v;
     size_t x;
 
     if (m4->stack->active_arg == 0) {
@@ -1396,10 +818,12 @@ int m4exit(M4ptr m4)
     mreturn(0);
 }
 
-int remove_file(M4ptr m4)
+int remove_file(void *v)
 {
     /*@ remove(filename) */
     /* Removes empty directories on some systems */
+    M4ptr m4 = (M4ptr) v;
+
     if (m4->stack->active_arg == 0) {
         m4->pass_through = 1;
         mreturn(0);
@@ -1653,7 +1077,7 @@ int main(int argc, char **argv)
                     mgoto(clean_up);
 
                 m4->stack->bracket_depth = 1;
-                m4->stack->mfp = e->mfp;
+                m4->stack->mfp = e->func_p;
                 /* One more than the start of the macro section in store */
                 m4->stack->def_i = m4->store->i;
                 if (e->def != NULL && put_str(m4->store, e->def))
