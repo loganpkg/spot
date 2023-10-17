@@ -12,13 +12,20 @@ find . -type f ! -path '*.git*' -exec cp -p '{}' "$build_dir" \;
 
 cd "$build_dir" || exit 1
 
-find . -type f \( -name '*.h' -o -name '*.c' \) -exec indent -nut -kr -bad '{}' \;
+find . -type f \( -name '*.h' -o -name '*.c' \) \
+    -exec indent -nut -kr -bad '{}' \;
 
-find . -type f ! -path '*.git*' -name '*.h' -exec ./func_dec.sh '{}' \;
+find . -type f ! -path '*.git*' \
+    -exec grep -H -n -E '.{80}' '{}' \;
 
-find . -type f ! -path '*.git*' -name '*.h' ! -name '*_func_dec.h' -exec cc -ansi -Wall -Wextra -pedantic '{}' \;
+find . -type f ! -path '*.git*' -name '*.h' \
+    -exec ./func_dec.sh '{}' \;
 
-find . -type f ! -path '*.git*' -name '*.c' -exec cc -c -ansi -Wall -Wextra -pedantic '{}' \;
+find . -type f ! -path '*.git*' -name '*.h' ! -name '*_func_dec.h' \
+    -exec cc -ansi -Wall -Wextra -pedantic '{}' \;
+
+find . -type f ! -path '*.git*' -name '*.c' \
+    -exec cc -c -ansi -Wall -Wextra -pedantic '{}' \;
 
 cc -ansi -Wall -Wextra -pedantic -o m4 m4.o num.o buf.o ht.o
 cc -ansi -Wall -Wextra -pedantic -o spot spot.o num.o gb.o
