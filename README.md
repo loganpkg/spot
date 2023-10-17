@@ -16,11 +16,14 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 -->
 
-toucan mono repo
-================
+m4 monorepo
+===========
 
-Welcome to the toucan monorepo where multiple applications share code via
-modules.
+Welcome to the _m4 monorepo_ where multiple applications share code via modules.
+
+The applications are:
+* __m4__: An implementation of the m4 macro processor, and
+* __spot__: The text editor.
 
 
 m4

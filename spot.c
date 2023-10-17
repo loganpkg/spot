@@ -25,6 +25,12 @@
  *                                                          John 4:13-14 GNT
  */
 
+#ifdef __linux__
+/* For: snprintf */
+#define _XOPEN_SOURCE 500
+/* For: cfmakeraw */
+#define _DEFAULT_SOURCE
+#endif
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -33,8 +39,6 @@
 #include <fcntl.h>
 #include <Windows.h>
 #else
-#define _BSD_SOURCE
-#define _DEFAULT_SOURCE
 #include <sys/ioctl.h>
 #include <termios.h>
 #include <unistd.h>
