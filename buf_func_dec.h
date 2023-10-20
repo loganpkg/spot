@@ -1,4 +1,4 @@
-struct buf *init_buf(void);
+struct buf *init_buf(size_t s);
 void free_buf(struct buf *b);
 int put_ch(struct buf *b, char ch);
 int put_str(struct buf *b, const char *str);

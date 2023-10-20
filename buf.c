@@ -26,18 +26,18 @@
 #include "debug.h"
 #include "num.h"
 
-struct buf *init_buf(void)
+struct buf *init_buf(size_t s)
 {
     struct buf *b;
 
     if ((b = malloc(sizeof(struct buf))) == NULL)
         mreturn(NULL);
 
-    if ((b->a = malloc(BLOCK_SIZE)) == NULL)
+    if ((b->a = malloc(s)) == NULL)
         mreturn(NULL);
 
     b->i = 0;
-    b->s = BLOCK_SIZE;
+    b->s = s;
     mreturn(b);
 }
 
@@ -52,7 +52,7 @@ void free_buf(struct buf *b)
 static int grow_buf(struct buf *b, size_t will_use)
 {
     char *t;
-    size_t new_s, num;
+    size_t new_s;
 
     if (aof(b->s, will_use))
         mreturn(1);
@@ -63,18 +63,6 @@ static int grow_buf(struct buf *b, size_t will_use)
         mreturn(1);
 
     new_s *= 2;
-
-    num = new_s / BLOCK_SIZE;
-
-    if (aof(num, 1))
-        mreturn(1);
-
-    ++num;
-
-    if (mof(num, BLOCK_SIZE))
-        mreturn(1);
-
-    new_s = num * BLOCK_SIZE;
 
     if ((t = realloc(b->a, new_s)) == NULL)
         mreturn(1);

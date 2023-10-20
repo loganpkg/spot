@@ -56,6 +56,7 @@
 #include "num.h"
 #include "gb.h"
 
+#define INIT_GB_SIZE 512
 
 #define LEFT_KEY  (UCHAR_MAX + 1)
 #define RIGHT_KEY (UCHAR_MAX + 2)
@@ -505,20 +506,20 @@ int main(int argc, char **argv)
 
     if (argc > 1) {
         for (i = 1; i < argc; ++i) {
-            if (new_gb(&b, *(argv + i)))
+            if (new_gb(&b, *(argv + i), INIT_GB_SIZE))
                 goto clean_up;
         }
         while (b->prev)
             b = b->prev;
     } else {
-        if (new_gb(&b, NULL))
+        if (new_gb(&b, NULL, INIT_GB_SIZE))
             goto clean_up;
     }
 
-    if ((p = init_gb()) == NULL)
+    if ((p = init_gb(INIT_GB_SIZE)) == NULL)
         goto clean_up;
 
-    if ((cl = init_gb()) == NULL)
+    if ((cl = init_gb(INIT_GB_SIZE)) == NULL)
         goto clean_up;
 
 
@@ -725,7 +726,8 @@ int main(int argc, char **argv)
                     break;
                 case 'n':
                     start_of_gb(cl);
-                    rv = new_gb(&b, (const char *) cl->a + cl->c);
+                    rv = new_gb(&b, (const char *) cl->a + cl->c,
+                                INIT_GB_SIZE);
                     break;
                 case 'i':
                     start_of_gb(cl);

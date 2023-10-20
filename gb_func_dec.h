@@ -1,4 +1,4 @@
-struct gb *init_gb(void);
+struct gb *init_gb(size_t s);
 void free_gb(struct gb *b);
 void free_gb_list(struct gb *b);
 void delete_gb(struct gb *b);
@@ -31,5 +31,5 @@ int shell_line(struct gb *b, struct gb *p, int *es);
 int paste(struct gb *b, struct gb *p);
 int save(struct gb *b);
 int rename_gb(struct gb *b, const char *fn);
-int new_gb(struct gb **b, const char *fn);
+int new_gb(struct gb **b, const char *fn, size_t s);
 void remove_gb(struct gb **b);

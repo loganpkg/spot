@@ -19,7 +19,9 @@
 #ifndef HT_H
 #define HT_H
 
-#define NUM_BUCKETS 1024
+#include <stddef.h>
+
+
 
 typedef int (*Fptr)(void *);
 
@@ -30,6 +32,12 @@ struct entry {
     char *def;                  /* User-defined macro definition */
     Fptr func_p;                /* Function Pointer */
     struct entry *next;         /* To chain collisions */
+};
+
+/* Hash table */
+struct ht {
+    struct entry **b;           /* Buckets */
+    size_t n;                   /* Number of buckets */
 };
 
 #include "ht_func_dec.h"

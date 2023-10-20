@@ -21,8 +21,6 @@
 
 #include <stddef.h>
 
-#define GB_BLOCK_SIZE 512
-
 #define start_of_gb(b) while (!left_ch(b))
 
 #define end_of_gb(b) while (!right_ch(b))

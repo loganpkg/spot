@@ -7,6 +7,13 @@ set -x
 flags='-ansi -Wall -Wextra -pedantic'
 install_dir="$HOME"/bin
 
+if [ "$(uname)" = Linux ]
+then
+    indent=indent
+else
+    indent=gindent
+fi
+
 repo_dir="$(pwd)"
 build_dir="$(mktemp -d)"
 
@@ -15,7 +22,7 @@ find . -type f ! -path '*.git*' -exec cp -p '{}' "$build_dir" \;
 cd "$build_dir" || exit 1
 
 find . -type f \( -name '*.h' -o -name '*.c' \) \
-    -exec indent -nut -kr -bad '{}' \;
+    -exec "$indent" -nut -kr -bad '{}' \;
 
 find . -type f ! -path '*.git*' \
     -exec grep -H -n -E '.{80}' '{}' \;

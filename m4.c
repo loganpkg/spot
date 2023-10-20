@@ -70,6 +70,11 @@
 #include "ht.h"
 
 
+/* Number of buckets in hash table */
+#define NUM_BUCKETS 1024
+
+#define INIT_BUF_SIZE 512
+
 /*
  * Do not change.
  * Diversion 0 continuously flushes to stdout.
@@ -115,7 +120,7 @@ typedef struct m4_info *M4ptr;
 
 struct m4_info {
     int req_exit_val;           /* User requested exit value */
-    struct entry **ht;
+    struct ht *ht;
     int read_stdin;
     /* There is only one input. Characters are stored in reverse order. */
     struct buf *input;
@@ -264,21 +269,21 @@ M4ptr init_m4(void)
     for (i = 0; i < NUM_DIVS; ++i)
         m4->div[i] = NULL;
 
-    if ((m4->ht = init_ht()) == NULL)
+    if ((m4->ht = init_ht(NUM_BUCKETS)) == NULL)
         mgoto(error);
 
     m4->read_stdin = 0;
 
-    if ((m4->input = init_buf()) == NULL)
+    if ((m4->input = init_buf(INIT_BUF_SIZE)) == NULL)
         mgoto(error);
 
-    if ((m4->token = init_buf()) == NULL)
+    if ((m4->token = init_buf(INIT_BUF_SIZE)) == NULL)
         mgoto(error);
 
-    if ((m4->next_token = init_buf()) == NULL)
+    if ((m4->next_token = init_buf(INIT_BUF_SIZE)) == NULL)
         mgoto(error);
 
-    if ((m4->store = init_buf()) == NULL)
+    if ((m4->store = init_buf(INIT_BUF_SIZE)) == NULL)
         mgoto(error);
 
     /* Setup empty string for uncollected args to reference at index 0 */
@@ -287,11 +292,11 @@ M4ptr init_m4(void)
 
     m4->pass_through = 0;
 
-    if ((m4->tmp = init_buf()) == NULL)
+    if ((m4->tmp = init_buf(INIT_BUF_SIZE)) == NULL)
         mgoto(error);
 
     for (i = 0; i < NUM_DIVS; ++i)
-        if ((m4->div[i] = init_buf()) == NULL)
+        if ((m4->div[i] = init_buf(INIT_BUF_SIZE)) == NULL)
             mgoto(error);
 
     m4->active_div = 0;
@@ -647,7 +652,7 @@ int dumpdef(void *v)
     if (m4->stack->active_arg == 0) {
         /* Dump all macro definitions */
         for (i = 0; i < NUM_BUCKETS; ++i) {
-            e = m4->ht[i];
+            e = m4->ht->b[i];
             while (e != NULL) {
                 fprintf(stderr, "%s: %s\n", e->name,
                         e->func_p == NULL ? e->def : "built-in");

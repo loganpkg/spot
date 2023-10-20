@@ -32,7 +32,7 @@
 #include "gen.h"
 #include "num.h"
 
-struct gb *init_gb(void)
+struct gb *init_gb(size_t s)
 {
     struct gb *b;
 
@@ -40,16 +40,16 @@ struct gb *init_gb(void)
         return NULL;
 
     b->fn = NULL;
-    if ((b->a = malloc(GB_BLOCK_SIZE)) == NULL) {
+    if ((b->a = malloc(s)) == NULL) {
         free(b);
         return NULL;
     }
     b->g = 0;
-    b->c = GB_BLOCK_SIZE - 1;
-    b->e = GB_BLOCK_SIZE - 1;
+    b->c = s - 1;
+    b->e = s - 1;
 
     /* Last char cannot be deleted. Enables use as a string. Do not change. */
-    *(b->a + GB_BLOCK_SIZE - 1) = '\0';
+    *(b->a + s - 1) = '\0';
 
     b->m_set = 0;
     b->m = 0;
@@ -103,7 +103,7 @@ void delete_gb(struct gb *b)
 static int grow_gap(struct gb *b, size_t will_use)
 {
     unsigned char *t;
-    size_t s, new_s, num, increase;
+    size_t s, new_s, increase;
 
     s = b->e + 1;               /* OK as in memory already */
 
@@ -116,18 +116,6 @@ static int grow_gap(struct gb *b, size_t will_use)
         return 1;
 
     new_s *= 2;
-
-    num = new_s / GB_BLOCK_SIZE;
-
-    if (aof(num, 1))
-        return 1;
-
-    ++num;
-
-    if (mof(num, GB_BLOCK_SIZE))
-        return 1;
-
-    new_s = num * GB_BLOCK_SIZE;
 
     if ((t = realloc(b->a, new_s)) == NULL)
         return 1;
@@ -921,11 +909,11 @@ int rename_gb(struct gb *b, const char *fn)
     return 0;
 }
 
-int new_gb(struct gb **b, const char *fn)
+int new_gb(struct gb **b, const char *fn, size_t s)
 {
     struct gb *t = NULL;
 
-    if ((t = init_gb()) == NULL)
+    if ((t = init_gb(s)) == NULL)
         return 1;
 
     if (fn != NULL && *fn != '\0') {

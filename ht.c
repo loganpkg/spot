@@ -19,7 +19,6 @@
 #define _XOPEN_SOURCE 500
 #endif
 
-#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -52,42 +51,49 @@ static void free_entry(struct entry *e)
     }
 }
 
-struct entry **init_ht(void)
+struct ht *init_ht(size_t num_buckets)
 {
-    struct entry **ht;
+    struct ht *ht;
     size_t i;
 
-    if (mof(NUM_BUCKETS, sizeof(struct entry *)))
+    if ((ht = malloc(sizeof(struct ht))) == NULL)
         mreturn(NULL);
 
-    if ((ht = malloc(NUM_BUCKETS * sizeof(struct entry *))) == NULL)
+    if (mof(num_buckets, sizeof(struct entry *)))
         mreturn(NULL);
 
-    for (i = 0; i < NUM_BUCKETS; ++i)
-        ht[i] = NULL;
+    if ((ht->b = malloc(num_buckets * sizeof(struct entry *))) == NULL)
+        mreturn(NULL);
+
+    for (i = 0; i < num_buckets; ++i)
+        ht->b[i] = NULL;
+
+    ht->n = num_buckets;
 
     mreturn(ht);
 }
 
-void free_ht(struct entry **ht)
+void free_ht(struct ht *ht)
 {
     size_t i;
     struct entry *e, *e_next;
 
     if (ht != NULL) {
-        for (i = 0; i < NUM_BUCKETS; ++i) {
-            e = ht[i];
-            while (e != NULL) {
-                e_next = e->next;
-                free_entry(e);
-                e = e_next;
+        if (ht->b != NULL) {
+            for (i = 0; i < ht->n; ++i) {
+                e = ht->b[i];
+                while (e != NULL) {
+                    e_next = e->next;
+                    free_entry(e);
+                    e = e_next;
+                }
             }
         }
         free(ht);
     }
 }
 
-static size_t hash_func(const char *str)
+static size_t hash_func(const char *str, size_t n)
 {
     /* djb2 */
     unsigned char ch;
@@ -97,16 +103,16 @@ static size_t hash_func(const char *str)
         h = h * 33 ^ ch;
         ++str;
     }
-    mreturn(h % NUM_BUCKETS);   /* Bucket index */
+    mreturn(h % n);             /* Bucket index */
 }
 
-struct entry *lookup(struct entry **ht, const char *name)
+struct entry *lookup(struct ht *ht, const char *name)
 {
     size_t bucket;
     struct entry *e;
 
-    bucket = hash_func(name);
-    e = ht[bucket];
+    bucket = hash_func(name, ht->n);
+    e = ht->b[bucket];
 
     while (e != NULL) {
         if (!strcmp(name, e->name))
@@ -117,13 +123,13 @@ struct entry *lookup(struct entry **ht, const char *name)
     mreturn(NULL_OK);           /* Not found */
 }
 
-int delete_entry(struct entry **ht, const char *name)
+int delete_entry(struct ht *ht, const char *name)
 {
     size_t bucket;
     struct entry *e, *e_prev;
 
-    bucket = hash_func(name);
-    e = ht[bucket];
+    bucket = hash_func(name, ht->n);
+    e = ht->b[bucket];
     e_prev = NULL;
     while (e != NULL) {
         if (!strcmp(name, e->name)) {
@@ -131,7 +137,7 @@ int delete_entry(struct entry **ht, const char *name)
             if (e_prev != NULL)
                 e_prev->next = e->next;
             else
-                ht[bucket] = e->next;   /* At head of list */
+                ht->b[bucket] = e->next;        /* At head of list */
 
             free_entry(e);
             mreturn(0);
@@ -143,8 +149,7 @@ int delete_entry(struct entry **ht, const char *name)
     mreturn(1);                 /* Not found */
 }
 
-int upsert(struct entry **ht, const char *name, const char *def,
-           Fptr func_p)
+int upsert(struct ht *ht, const char *name, const char *def, Fptr func_p)
 {
     struct entry *e;
     size_t bucket;
@@ -170,9 +175,9 @@ int upsert(struct entry **ht, const char *name, const char *def,
         e->func_p = func_p;
 
         /* Link in at the head of the bucket collision list */
-        bucket = hash_func(name);
-        e->next = ht[bucket];
-        ht[bucket] = e;
+        bucket = hash_func(name, ht->n);
+        e->next = ht->b[bucket];
+        ht->b[bucket] = e;
 
     } else {
         /* Update the existing entry */
