@@ -123,16 +123,16 @@ struct m4_info {
     struct ht *ht;
     int read_stdin;
     /* There is only one input. Characters are stored in reverse order. */
-    struct buf *input;
-    struct buf *token;
+    struct ibuf *input;
+    struct obuf *token;
     /* Used to read the next token to see if it is an open bracket */
-    struct buf *next_token;
-    struct buf *store;          /* Stores strings referenced by the stack */
+    struct obuf *next_token;
+    struct obuf *store;         /* Stores strings referenced by the stack */
     struct macro_call *stack;
     /* Pass through macro name to output (only use when called with no args) */
     int pass_through;
-    struct buf *tmp;            /* Used for substituting arguments */
-    struct buf *div[NUM_DIVS];
+    struct obuf *tmp;           /* Used for substituting arguments */
+    struct obuf *div[NUM_DIVS];
     size_t active_div;
     char left_quote[2];
     char right_quote[2];
@@ -236,14 +236,14 @@ void free_m4(M4ptr m4)
 
     if (m4 != NULL) {
         free_ht(m4->ht);
-        free_buf(m4->input);
-        free_buf(m4->token);
-        free_buf(m4->next_token);
-        free_buf(m4->store);
+        free_ibuf(m4->input);
+        free_obuf(m4->token);
+        free_obuf(m4->next_token);
+        free_obuf(m4->store);
         free_mc_stack(&m4->stack);
-        free_buf(m4->tmp);
+        free_obuf(m4->tmp);
         for (i = 0; i < NUM_DIVS; ++i)
-            free_buf(m4->div[i]);
+            free_obuf(m4->div[i]);
 
         free(m4);
     }
@@ -274,16 +274,16 @@ M4ptr init_m4(void)
 
     m4->read_stdin = 0;
 
-    if ((m4->input = init_buf(INIT_BUF_SIZE)) == NULL)
+    if ((m4->input = init_ibuf(INIT_BUF_SIZE)) == NULL)
         mgoto(error);
 
-    if ((m4->token = init_buf(INIT_BUF_SIZE)) == NULL)
+    if ((m4->token = init_obuf(INIT_BUF_SIZE)) == NULL)
         mgoto(error);
 
-    if ((m4->next_token = init_buf(INIT_BUF_SIZE)) == NULL)
+    if ((m4->next_token = init_obuf(INIT_BUF_SIZE)) == NULL)
         mgoto(error);
 
-    if ((m4->store = init_buf(INIT_BUF_SIZE)) == NULL)
+    if ((m4->store = init_obuf(INIT_BUF_SIZE)) == NULL)
         mgoto(error);
 
     /* Setup empty string for uncollected args to reference at index 0 */
@@ -292,11 +292,11 @@ M4ptr init_m4(void)
 
     m4->pass_through = 0;
 
-    if ((m4->tmp = init_buf(INIT_BUF_SIZE)) == NULL)
+    if ((m4->tmp = init_obuf(INIT_BUF_SIZE)) == NULL)
         mgoto(error);
 
     for (i = 0; i < NUM_DIVS; ++i)
-        if ((m4->div[i] = init_buf(INIT_BUF_SIZE)) == NULL)
+        if ((m4->div[i] = init_obuf(INIT_BUF_SIZE)) == NULL)
             mgoto(error);
 
     m4->active_div = 0;
@@ -445,7 +445,7 @@ int undivert(void *v)
             mreturn(1);
 
         for (i = 1; i < NUM_DIVS - 1; ++i)
-            if (put_buf(m4->div[m4->active_div], m4->div[i]))
+            if (put_obuf(m4->div[m4->active_div], m4->div[i]))
                 mreturn(1);
 
         mreturn(0);
@@ -456,7 +456,7 @@ int undivert(void *v)
             mreturn(1);
         } else if (isdigit(ch) && strlen(arg(i)) == 1
                    && (x = ch - '0') != m4->active_div) {
-            if (put_buf(m4->div[m4->active_div], m4->div[x]))
+            if (put_obuf(m4->div[m4->active_div], m4->div[x]))
                 mreturn(1);
         } else {
             /*
@@ -487,7 +487,7 @@ int writediv(void *v)
     ch = *arg(1);
     /* Cannot write diversions 0 and -1 */
     if (strlen(arg(1)) == 1 && isdigit(ch) && ch != '0') {
-        if (write_buf(m4->div[ch - '0'], arg(2)))
+        if (write_obuf(m4->div[ch - '0'], arg(2)))
             mreturn(1);
     } else {
         mreturn(1);
@@ -991,7 +991,7 @@ int main(int argc, char **argv)
         if ((req_exit_val = m4->req_exit_val) != -1)
             break;
 
-        if (flush_buf(m4->div[0]))
+        if (flush_obuf(m4->div[0]))
             mgoto(clean_up);
 
         m4->div[NUM_ARGS]->i = 0;
@@ -1133,7 +1133,7 @@ int main(int argc, char **argv)
     }
 
     for (i = 0; i < NUM_DIVS - 1; ++i)
-        flush_buf(m4->div[i]);
+        flush_obuf(m4->div[i]);
 
   clean_up:
     if (ret)

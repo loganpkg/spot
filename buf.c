@@ -26,11 +26,11 @@
 #include "debug.h"
 #include "num.h"
 
-struct buf *init_buf(size_t s)
+struct ibuf *init_ibuf(size_t s)
 {
-    struct buf *b;
+    struct ibuf *b;
 
-    if ((b = malloc(sizeof(struct buf))) == NULL)
+    if ((b = malloc(sizeof(struct ibuf))) == NULL)
         mreturn(NULL);
 
     if ((b->a = malloc(s)) == NULL)
@@ -41,7 +41,12 @@ struct buf *init_buf(size_t s)
     mreturn(b);
 }
 
-void free_buf(struct buf *b)
+struct obuf *init_obuf(size_t s)
+{
+    mreturn((struct obuf *) init_ibuf(s));
+}
+
+void free_ibuf(struct ibuf *b)
 {
     if (b != NULL) {
         free(b->a);
@@ -49,7 +54,12 @@ void free_buf(struct buf *b)
     }
 }
 
-static int grow_buf(struct buf *b, size_t will_use)
+void free_obuf(struct obuf *b)
+{
+    free_ibuf((struct ibuf *) b);
+}
+
+static int grow_ibuf(struct ibuf *b, size_t will_use)
 {
     char *t;
     size_t new_s;
@@ -72,9 +82,14 @@ static int grow_buf(struct buf *b, size_t will_use)
     mreturn(0);
 }
 
-int put_ch(struct buf *b, char ch)
+static int grow_obuf(struct obuf *b, size_t will_use)
 {
-    if (b->i == b->s && grow_buf(b, 1))
+    mreturn(grow_ibuf((struct ibuf *) b, will_use));
+}
+
+int unget_ch(struct ibuf *b, char ch)
+{
+    if (b->i == b->s && grow_ibuf(b, 1))
         mreturn(1);
 
     *(b->a + b->i) = ch;
@@ -82,23 +97,12 @@ int put_ch(struct buf *b, char ch)
     mreturn(0);
 }
 
-int put_str(struct buf *b, const char *str)
+int put_ch(struct obuf *b, char ch)
 {
-    size_t len;
-
-    len = strlen(str);
-    if (!len)
-        mreturn(0);
-
-    if (len > b->s - b->i && grow_buf(b, len))
-        mreturn(1);
-
-    memcpy(b->a + b->i, str, len);
-    b->i += len;
-    mreturn(0);
+    mreturn(unget_ch((struct ibuf *) b, ch));
 }
 
-int unget_str(struct buf *b, const char *str)
+int unget_str(struct ibuf *b, const char *str)
 {
     size_t len, j;
     char *p;
@@ -108,7 +112,7 @@ int unget_str(struct buf *b, const char *str)
     if (!len)
         mreturn(0);
 
-    if (len > b->s - b->i && grow_buf(b, len))
+    if (len > b->s - b->i && grow_ibuf(b, len))
         mreturn(1);
 
     p = b->a + b->i + len - 1;
@@ -123,64 +127,7 @@ int unget_str(struct buf *b, const char *str)
     mreturn(0);
 }
 
-int put_buf(struct buf *b, struct buf *t)
-{
-    /* Empties t onto the end of b */
-    if (t->i > b->s - b->i && grow_buf(b, t->i))
-        mreturn(1);
-
-    memcpy(b->a + b->i, t->a, t->i);
-    b->i += t->i;
-    t->i = 0;
-    mreturn(0);
-}
-
-int put_file(struct buf *b, const char *fn)
-{
-    int ret = 1;
-    FILE *fp = NULL;
-    long fs_l;
-    size_t fs;
-
-    if (fn == NULL || *fn == '\0')
-        mreturn(1);
-
-    if ((fp = fopen(fn, "rb")) == NULL)
-        mgoto(clean_up);
-
-    if (fseek(fp, 0L, SEEK_END))
-        mgoto(clean_up);
-
-    if ((fs_l = ftell(fp)) == -1 || fs_l < 0)
-        mgoto(clean_up);
-
-    if (fseek(fp, 0L, SEEK_SET))
-        mgoto(clean_up);
-
-    if (!fs_l)
-        mgoto(done);
-
-    fs = (size_t) fs_l;
-
-    if (fs > b->s - b->i && grow_buf(b, fs))
-        mgoto(clean_up);
-
-    if (fread(b->a + b->i, 1, fs, fp) != fs)
-        mgoto(clean_up);
-
-    b->i += fs;
-
-  done:
-    ret = 0;
-  clean_up:
-    if (fp != NULL)
-        if (fclose(fp))
-            ret = 1;
-
-    mreturn(ret);
-}
-
-int unget_file(struct buf *b, const char *fn)
+int unget_file(struct ibuf *b, const char *fn)
 {
     int ret = 1;
     FILE *fp = NULL;
@@ -209,7 +156,7 @@ int unget_file(struct buf *b, const char *fn)
 
     fs = (size_t) fs_l;
 
-    if (fs > b->s - b->i && grow_buf(b, fs))
+    if (fs > b->s - b->i && grow_ibuf(b, fs))
         mgoto(clean_up);
 
     p = b->a + b->i + fs - 1;
@@ -236,44 +183,7 @@ int unget_file(struct buf *b, const char *fn)
     mreturn(ret);
 }
 
-int write_buf(struct buf *b, const char *fn)
-{
-    /* Empties b to file fn */
-    FILE *fp;
-
-    if (fn == NULL || *fn == '\0')
-        mreturn(1);
-
-    if ((fp = fopen(fn, "wb")) == NULL)
-        mreturn(1);
-
-    if (fwrite(b->a, 1, b->i, fp) != b->i) {
-        fclose(fp);
-        mreturn(1);
-    }
-    if (fclose(fp))
-        mreturn(1);
-
-    b->i = 0;
-    mreturn(0);
-}
-
-int flush_buf(struct buf *b)
-{
-    if (!b->i)
-        mreturn(0);
-
-    if (fwrite(b->a, 1, b->i, stdout) != b->i)
-        mreturn(1);
-
-    if (fflush(stdout))
-        mreturn(1);
-
-    b->i = 0;
-    mreturn(0);
-}
-
-int get_ch(struct buf *input, char *ch, int read_stdin)
+int get_ch(struct ibuf *input, char *ch, int read_stdin)
 {
     int x;
 
@@ -295,7 +205,7 @@ int get_ch(struct buf *input, char *ch, int read_stdin)
     mreturn(0);
 }
 
-int get_word(struct buf *input, struct buf *token, int read_stdin)
+int get_word(struct ibuf *input, struct obuf *token, int read_stdin)
 {
     int r;
     char ch, type;
@@ -346,7 +256,7 @@ int get_word(struct buf *input, struct buf *token, int read_stdin)
     mreturn(0);
 }
 
-int eat_whitespace(struct buf *input, int read_stdin)
+int eat_whitespace(struct ibuf *input, int read_stdin)
 {
     int r;
     char ch;
@@ -365,5 +275,115 @@ int eat_whitespace(struct buf *input, int read_stdin)
             break;
         }
     }
+    mreturn(0);
+}
+
+int put_str(struct obuf *b, const char *str)
+{
+    size_t len;
+
+    len = strlen(str);
+    if (!len)
+        mreturn(0);
+
+    if (len > b->s - b->i && grow_obuf(b, len))
+        mreturn(1);
+
+    memcpy(b->a + b->i, str, len);
+    b->i += len;
+    mreturn(0);
+}
+
+int put_obuf(struct obuf *b, struct obuf *t)
+{
+    /* Empties t onto the end of b */
+    if (t->i > b->s - b->i && grow_obuf(b, t->i))
+        mreturn(1);
+
+    memcpy(b->a + b->i, t->a, t->i);
+    b->i += t->i;
+    t->i = 0;
+    mreturn(0);
+}
+
+int put_file(struct obuf *b, const char *fn)
+{
+    int ret = 1;
+    FILE *fp = NULL;
+    long fs_l;
+    size_t fs;
+
+    if (fn == NULL || *fn == '\0')
+        mreturn(1);
+
+    if ((fp = fopen(fn, "rb")) == NULL)
+        mgoto(clean_up);
+
+    if (fseek(fp, 0L, SEEK_END))
+        mgoto(clean_up);
+
+    if ((fs_l = ftell(fp)) == -1 || fs_l < 0)
+        mgoto(clean_up);
+
+    if (fseek(fp, 0L, SEEK_SET))
+        mgoto(clean_up);
+
+    if (!fs_l)
+        mgoto(done);
+
+    fs = (size_t) fs_l;
+
+    if (fs > b->s - b->i && grow_obuf(b, fs))
+        mgoto(clean_up);
+
+    if (fread(b->a + b->i, 1, fs, fp) != fs)
+        mgoto(clean_up);
+
+    b->i += fs;
+
+  done:
+    ret = 0;
+  clean_up:
+    if (fp != NULL)
+        if (fclose(fp))
+            ret = 1;
+
+    mreturn(ret);
+}
+
+int write_obuf(struct obuf *b, const char *fn)
+{
+    /* Empties b to file fn */
+    FILE *fp;
+
+    if (fn == NULL || *fn == '\0')
+        mreturn(1);
+
+    if ((fp = fopen(fn, "wb")) == NULL)
+        mreturn(1);
+
+    if (fwrite(b->a, 1, b->i, fp) != b->i) {
+        fclose(fp);
+        mreturn(1);
+    }
+    if (fclose(fp))
+        mreturn(1);
+
+    b->i = 0;
+    mreturn(0);
+}
+
+int flush_obuf(struct obuf *b)
+{
+    if (!b->i)
+        mreturn(0);
+
+    if (fwrite(b->a, 1, b->i, stdout) != b->i)
+        mreturn(1);
+
+    if (fflush(stdout))
+        mreturn(1);
+
+    b->i = 0;
     mreturn(0);
 }

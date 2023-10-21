@@ -24,19 +24,28 @@
 /* EOF cannot be 1, so OK */
 #define ERR 1
 
+#define buf_members                                           \
+    char *a;                    /* Memory */                  \
+    size_t i;                   /* Write index */             \
+    size_t s                    /* Allocated size in bytes */
+
 /*
- * unget is used when the characters in the buffer are stored in reverse order.
- * put is used when the characters are stored in normal order.
+ * Input buffer. Characters are stored in reverse order.
+ * Operated on by get and unget functions.
  */
-#define unget_ch put_ch
-
-/* All unget commands reverse the order of the characters */
-
-struct buf {
-    char *a;                    /* Memory */
-    size_t i;                   /* Write index */
-    size_t s;                   /* Allocated size in bytes */
+struct ibuf {
+    buf_members;
 };
+
+/*
+ * Ouput buffer. Characters are stored in normal order.
+ * Operated on by put functions.
+ */
+struct obuf {
+    buf_members;
+};
+
+#undef buf_members
 
 #include "buf_func_dec.h"
 
