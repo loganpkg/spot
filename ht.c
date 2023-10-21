@@ -59,7 +59,7 @@ struct ht *init_ht(size_t num_buckets)
     if ((ht = malloc(sizeof(struct ht))) == NULL)
         mreturn(NULL);
 
-    if (mof(num_buckets, sizeof(struct entry *)))
+    if (mof(num_buckets, sizeof(struct entry *), SIZE_MAX))
         mreturn(NULL);
 
     if ((ht->b = malloc(num_buckets * sizeof(struct entry *))) == NULL)

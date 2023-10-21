@@ -21,12 +21,12 @@
 
 #include <stddef.h>
 
-/* Overflow tests for size_t */
+/* Unsigned overflow tests */
 /* Addition */
-#define aof(a, b) ((a) > SIZE_MAX - (b))
+#define aof(a, b, max_val) ((a) > (max_val) - (b))
 
 /* Multiplication */
-#define mof(a, b) ((a) && (b) > SIZE_MAX / (a))
+#define mof(a, b, max_val) ((a) && (b) > (max_val) / (a))
 
 #include "num_func_dec.h"
 

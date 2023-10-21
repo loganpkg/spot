@@ -236,7 +236,7 @@ int draw(struct gb *b, struct gb *cl, struct screen *s, int cl_active,
     if (get_screen_size(s))
         return 1;
 
-    if (mof(s->h, s->w))
+    if (mof(s->h, s->w, SIZE_MAX))
         return 1;
 
     new_s_s = s->h * s->w;      /* New screen size */

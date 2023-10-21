@@ -64,12 +64,12 @@ static int grow_ibuf(struct ibuf *b, size_t will_use)
     char *t;
     size_t new_s;
 
-    if (aof(b->s, will_use))
+    if (aof(b->s, will_use, SIZE_MAX))
         mreturn(1);
 
     new_s = b->s + will_use;
 
-    if (mof(new_s, 2))
+    if (mof(new_s, 2, SIZE_MAX))
         mreturn(1);
 
     new_s *= 2;

@@ -107,12 +107,12 @@ static int grow_gap(struct gb *b, size_t will_use)
 
     s = b->e + 1;               /* OK as in memory already */
 
-    if (aof(s, will_use))
+    if (aof(s, will_use, SIZE_MAX))
         return 1;
 
     new_s = s + will_use;
 
-    if (mof(new_s, 2))
+    if (mof(new_s, 2, SIZE_MAX))
         return 1;
 
     new_s *= 2;

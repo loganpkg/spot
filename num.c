@@ -25,7 +25,7 @@
 #include "num.h"
 #include "debug.h"
 
-int str_to_size_t(const char *str, size_t *res)
+int str_to_num(const char *str, unsigned long max_val, unsigned long *res)
 {
     unsigned char ch;
     size_t x = 0;
@@ -35,11 +35,11 @@ int str_to_size_t(const char *str, size_t *res)
 
     while ((ch = *str) != '\0') {
         if (isdigit(ch)) {
-            if (mof(x, 10))
+            if (mof(x, 10, max_val))
                 return 1;
 
             x *= 10;
-            if (aof(x, ch - '0'))
+            if (aof(x, ch - '0', max_val))
                 return 1;
 
             x += ch - '0';
@@ -50,5 +50,16 @@ int str_to_size_t(const char *str, size_t *res)
         ++str;
     }
     *res = x;
+    return 0;
+}
+
+int str_to_size_t(const char *str, size_t *res)
+{
+    unsigned long n;
+
+    if (str_to_num(str, SIZE_MAX, &n))
+        return 1;
+
+    *res = (size_t) n;
     return 0;
 }
