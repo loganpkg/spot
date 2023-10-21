@@ -28,7 +28,7 @@
 int str_to_num(const char *str, unsigned long max_val, unsigned long *res)
 {
     unsigned char ch;
-    size_t x = 0;
+    unsigned long x = 0;
 
     if (str == NULL || *str == '\0')
         mreturn(1);
