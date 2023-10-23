@@ -14,24 +14,13 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-/* Generic module */
+/* eval module */
 
-#ifndef GEN_H
-#define GEN_H
+#ifndef EVAL_H
+#define EVAL_H
 
-/* To stop empty translation unit error */
-typedef int gen_dummy;
+#include "buf.h"
 
-/* EOF cannot be 1, so OK */
-#define ERR 1
-
-#define NUM_BUF_SIZE 32
-
-#ifdef _WIN32
-#define popen _popen
-#define pclose _pclose
-#endif
-
-#include "gen_func_dec.h"
+#include "eval_func_dec.h"
 
 #endif

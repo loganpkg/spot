@@ -2,13 +2,16 @@
 set flags=/Od /Zi /MT /Qspectre /Wall
 robocopy . %TEMP%\m4_spot_build /mir /a-:SH /xd ".git"
 cd %TEMP%\m4_spot_build || exit 1
+cl /c %flags% gen.c || exit 1
 cl /c %flags% num.c || exit 1
 cl /c %flags% buf.c || exit 1
+cl /c %flags% eval.c || exit 1
 cl /c %flags% ht.c || exit 1
 cl /c %flags% gb.c || exit 1
 cl /c %flags% m4.c || exit 1
 cl /c %flags% spot.c || exit 1
-cl %flags% m4.c num.obj buf.obj ht.obj || exit 1
-cl %flags% spot.c num.obj gb.obj || exit 1
-copy /y m4.exe %HOMEDRIVE%%HOMEPATH%\bin || exit 1
-copy /y spot.exe %HOMEDRIVE%%HOMEPATH%\bin || exit 1
+cl /c %flags% bc.c || exit 1
+cl %flags% m4.obj gen.obj num.obj buf.obj eval.obj ht.obj || exit 1
+cl %flags% spot.obj gen.obj num.obj gb.obj || exit 1
+cl %flags% bc.obj gen.obj num.obj buf.obj eval.obj || exit 1
+copy /y *.exe %HOMEDRIVE%%HOMEPATH%\bin || exit 1

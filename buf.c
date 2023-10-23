@@ -24,6 +24,7 @@
 
 #include "buf.h"
 #include "debug.h"
+#include "gen.h"
 #include "num.h"
 
 struct ibuf *init_ibuf(size_t s)
@@ -278,6 +279,25 @@ int eat_whitespace(struct ibuf *input, int read_stdin)
     mreturn(0);
 }
 
+int delete_to_nl(struct ibuf *input, int read_stdin)
+{
+    /* Delete to (and including) the next newline character */
+    int r;
+    char ch;
+
+    while (1) {
+        r = get_ch(input, &ch, read_stdin);
+        if (r == ERR)
+            mreturn(1);
+        else if (r == EOF)
+            break;
+
+        if (ch == '\n')
+            break;
+    }
+    mreturn(0);
+}
+
 int put_str(struct obuf *b, const char *str)
 {
     size_t len;
@@ -385,5 +405,68 @@ int flush_obuf(struct obuf *b)
         mreturn(1);
 
     b->i = 0;
+    mreturn(0);
+}
+
+struct lbuf *init_lbuf(size_t n)
+{
+    struct lbuf *b;
+
+    if ((b = malloc(sizeof(struct lbuf))) == NULL)
+        mreturn(NULL);
+
+    if (mof(n, sizeof(long), SIZE_MAX))
+        mreturn(NULL);
+
+    if ((b->a = malloc(n * sizeof(long))) == NULL)
+        mreturn(NULL);
+
+    b->i = 0;
+    b->n = n;
+    mreturn(b);
+}
+
+void free_lbuf(struct lbuf *b)
+{
+    if (b != NULL) {
+        free(b->a);
+        free(b);
+    }
+}
+
+static int grow_lbuf(struct lbuf *b, size_t will_use)
+{
+    long *t;
+    size_t new_n;
+
+    if (aof(b->n, will_use, SIZE_MAX))
+        mreturn(1);
+
+    new_n = b->n + will_use;
+
+    if (mof(new_n, 2, SIZE_MAX))
+        mreturn(1);
+
+    new_n *= 2;
+
+    if (mof(new_n, sizeof(long), SIZE_MAX))
+        mreturn(1);
+
+    if ((t = realloc(b->a, new_n * sizeof(long))) == NULL)
+        mreturn(1);
+
+    b->a = t;
+    b->n = new_n;
+    mreturn(0);
+}
+
+
+int add_l(struct lbuf *b, long x)
+{
+    if (b->i == b->n && grow_lbuf(b, 1))
+        mreturn(1);
+
+    *(b->a + b->i) = x;
+    ++b->i;
     mreturn(0);
 }

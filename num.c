@@ -17,6 +17,7 @@
 /* Number module */
 
 #include <ctype.h>
+#include <limits.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -36,21 +37,21 @@ int str_to_num(const char *str, unsigned long max_val, unsigned long *res)
     while ((ch = *str) != '\0') {
         if (isdigit(ch)) {
             if (mof(x, 10, max_val))
-                return 1;
+                mreturn(1);
 
             x *= 10;
             if (aof(x, ch - '0', max_val))
-                return 1;
+                mreturn(1);
 
             x += ch - '0';
         } else {
-            return 1;
+            mreturn(1);
         }
 
         ++str;
     }
     *res = x;
-    return 0;
+    mreturn(0);
 }
 
 int str_to_size_t(const char *str, size_t *res)
@@ -58,8 +59,86 @@ int str_to_size_t(const char *str, size_t *res)
     unsigned long n;
 
     if (str_to_num(str, SIZE_MAX, &n))
-        return 1;
+        mreturn(1);
 
     *res = (size_t) n;
-    return 0;
+    mreturn(0);
+}
+
+int lop(long *a, long b, char op)
+{
+    /* long operation. Checks for signed long overflow. */
+    if (op == '*') {
+        if (!*a)
+            mreturn(0);
+
+        if (!b) {
+            *a = 0;
+            mreturn(0);
+        }
+        /* Same sign, result will be positive */
+        if (*a > 0 && b > 0 && *a > LONG_MAX / b)
+            mreturn(1);
+
+        if (*a < 0 && b < 0 && *a < LONG_MAX / b)
+            mreturn(1);
+
+        /* Opposite sign, result will be negative */
+        if (*a > 0 && b < 0 && b < LONG_MIN / *a)
+            mreturn(1);
+
+        if (*a < 0 && b > 0 && *a < LONG_MIN / b)
+            mreturn(1);
+
+        *a *= b;
+    } else if (op == '/' || op == '%') {
+        if (!b || (*a == LONG_MIN && b == -1))
+            mreturn(1);
+
+        if (op == '/')
+            *a /= b;
+        else
+            *a %= b;
+    } else if (op == '+') {
+        /* Need to be the same sign to overflow */
+        if ((*a > 0 && b > 0 && *a > LONG_MAX - b)
+            || (*a < 0 && b < 0 && *a < LONG_MIN - b))
+            mreturn(1);
+
+        *a += b;
+    } else if (op == '-') {
+        if ((b < 0 && *a > LONG_MAX + b)
+            || (b > 0 && *a < LONG_MIN + b))
+            mreturn(1);
+
+        *a -= b;
+    } else if (op == '^') {
+        mreturn(lpow(a, b));
+    }
+
+    mreturn(0);
+}
+
+int lpow(long *a, long b)
+{
+    long x;
+
+    if (!b) {
+        /* Anything to the power of zero is one */
+        *a = 1;
+        mreturn(0);
+    }
+    if (!*a || b == 1) {
+        mreturn(0);
+    }
+    if (b < 0)
+        mreturn(1);
+
+    x = *a;
+    while (--b)
+        if (lop(&x, *a, '*'))
+            mreturn(1);
+
+    *a = x;
+    mreturn(0);
 }

@@ -46,11 +46,6 @@
  * remove(filename)
  */
 
-#ifdef _WIN32
-#include <io.h>
-#include <fcntl.h>
-#endif
-
 #ifdef __linux__
 /* For: snprintf */
 #define _XOPEN_SOURCE 500
@@ -67,6 +62,7 @@
 #include "gen.h"
 #include "num.h"
 #include "buf.h"
+#include "eval.h"
 #include "ht.h"
 
 
@@ -542,23 +538,11 @@ int dnl(void *v)
     /*@ dnl */
     /* Delete to NewLine (inclusive) */
     M4ptr m4 = (M4ptr) v;
-    int r;
-    char ch;
 
     if (m4->stack->active_arg != 0)
         mreturn(1);
 
-    while (1) {
-        r = get_ch(m4->input, &ch, m4->read_stdin);
-        if (r == ERR)
-            mreturn(1);
-        else if (r == EOF)
-            break;
-
-        if (ch == '\n')
-            break;
-    }
-    mreturn(0);
+    mreturn(delete_to_nl(m4->input, m4->read_stdin));
 }
 
 int tnl(void *v)
@@ -712,6 +696,34 @@ int incr(void *v)
     ++x;
 
     r = snprintf(num, NUM_BUF_SIZE, "%lu", (unsigned long) x);
+    if (r < 0 || r >= NUM_BUF_SIZE)
+        mreturn(1);
+
+    if (unget_str(m4->input, num))
+        mreturn(1);
+
+    mreturn(0);
+}
+
+int eval_math(void *v)
+{
+    /*@ eval(math) */
+    M4ptr m4 = (M4ptr) v;
+    long x;
+    char num[NUM_BUF_SIZE];
+    int r;
+
+    if (m4->stack->active_arg == 0) {
+        m4->pass_through = 1;
+        mreturn(0);
+    }
+    if (m4->stack->active_arg != 1)
+        mreturn(1);
+
+    if (eval_str(arg(1), &x))
+        mreturn(1);
+
+    r = snprintf(num, NUM_BUF_SIZE, "%ld", x);
     if (r < 0 || r >= NUM_BUF_SIZE)
         mreturn(1);
 
@@ -901,16 +913,8 @@ int main(int argc, char **argv)
     struct entry *e;            /* Used for macro lookups */
     int i, r;
 
-#ifdef _WIN32
-    if (_setmode(_fileno(stdin), _O_BINARY) == -1)
+    if (sane_io())
         mreturn(1);
-
-    if (_setmode(_fileno(stdout), _O_BINARY) == -1)
-        mreturn(1);
-
-    if (_setmode(_fileno(stderr), _O_BINARY) == -1)
-        mreturn(1);
-#endif
 
     if ((m4 = init_m4()) == NULL)
         mgoto(clean_up);
@@ -959,6 +963,9 @@ int main(int argc, char **argv)
         mgoto(clean_up);
 
     if (upsert(m4->ht, "incr", NULL, &incr))
+        mgoto(clean_up);
+
+    if (upsert(m4->ht, "eval", NULL, &eval_math))
         mgoto(clean_up);
 
     if (upsert(m4->ht, "esyscmd", NULL, &esyscmd))

@@ -17,12 +17,26 @@ fi
 repo_dir="$(pwd)"
 build_dir="$(mktemp -d)"
 
+# Fix permissions
+find . -type d ! -path '*.git*' -exec chmod 700 '{}' \;
+find . -type f ! -path '*.git*' ! -name '*.sh' -exec chmod 600 '{}' \;
+find . -type f ! -path '*.git*' -name '*.sh' -exec chmod 700 '{}' \;
+
+# Copy files
 find . -type f ! -path '*.git*' -exec cp -p '{}' "$build_dir" \;
 
 cd "$build_dir" || exit 1
 
+rm -f err
+
 find . -type f \( -name '*.h' -o -name '*.c' \) \
-    -exec "$indent" -nut -kr -bad '{}' \;
+    -exec "$indent" -nut -kr -bad '{}' \; 2> err
+
+if [ -s err ]
+then
+    cat err
+    exit 1
+fi
 
 find . -type f ! -path '*.git*' \
     -exec grep -H -n -E '.{80}' '{}' \;
@@ -36,11 +50,11 @@ find . -type f ! -path '*.git*' -name '*.h' ! -name '*_func_dec.h' \
 find . -type f ! -path '*.git*' -name '*.c' \
     -exec cc -c $flags '{}' \;
 
-cc $flags -o m4 m4.o num.o buf.o ht.o
-cc $flags -o spot spot.o num.o gb.o
+cc $flags -o m4 m4.o gen.o num.o buf.o eval.o ht.o
+cc $flags -o spot spot.o gen.o num.o gb.o
+cc $flags -o bc bc.o gen.o num.o buf.o eval.o
 
-cp -p m4 "$install_dir"
-cp -p spot "$install_dir"
+cp -p m4 spot bc "$install_dir"
 
 m4 test.m4 > .k
 /usr/bin/m4 test.m4 > .k2

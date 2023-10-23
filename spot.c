@@ -34,9 +34,9 @@
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
+/* For: _getch */
 #include <conio.h>
-#include <io.h>
-#include <fcntl.h>
+/* For terminal functions */
 #include <Windows.h>
 #else
 #include <sys/ioctl.h>
@@ -464,18 +464,11 @@ int main(int argc, char **argv)
     s.clear = 1;
     s.centre = 0;
 
+    if (sane_io())
+        return 1;
+
 /* Setup terminal */
-
 #ifdef _WIN32
-    if (_setmode(_fileno(stdin), _O_BINARY) == -1)
-        return 1;
-
-    if (_setmode(_fileno(stdout), _O_BINARY) == -1)
-        return 1;
-
-    if (_setmode(_fileno(stderr), _O_BINARY) == -1)
-        return 1;
-
     if ((s.term_handle =
          GetStdHandle(STD_OUTPUT_HANDLE)) == INVALID_HANDLE_VALUE)
         return 1;

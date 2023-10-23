@@ -21,9 +21,6 @@
 
 #include <stddef.h>
 
-/* EOF cannot be 1, so OK */
-#define ERR 1
-
 #define buf_members                                           \
     char *a;                    /* Memory */                  \
     size_t i;                   /* Write index */             \
@@ -46,6 +43,13 @@ struct obuf {
 };
 
 #undef buf_members
+
+/* Buffer of long integers */
+struct lbuf {
+    long *a;                    /* Memory */
+    size_t i;                   /* Write index */
+    size_t n;                   /* Number of elements, not bytes */
+};
 
 #include "buf_func_dec.h"
 

@@ -16,22 +16,25 @@
 
 /* Generic module */
 
-#ifndef GEN_H
-#define GEN_H
-
-/* To stop empty translation unit error */
-typedef int gen_dummy;
-
-/* EOF cannot be 1, so OK */
-#define ERR 1
-
-#define NUM_BUF_SIZE 32
-
 #ifdef _WIN32
-#define popen _popen
-#define pclose _pclose
+#include <io.h>
+#include <fcntl.h>
+#include <stdio.h>
 #endif
 
-#include "gen_func_dec.h"
+#include "gen.h"
 
+int sane_io(void)
+{
+#ifdef _WIN32
+    if (_setmode(_fileno(stdin), _O_BINARY) == -1)
+        return 1;
+
+    if (_setmode(_fileno(stdout), _O_BINARY) == -1)
+        return 1;
+
+    if (_setmode(_fileno(stderr), _O_BINARY) == -1)
+        return 1;
 #endif
+    return 0;
+}
