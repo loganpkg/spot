@@ -40,6 +40,7 @@
  * dumpdef or dumpdef(`macro_name', ...)
  * errprint(error_message)
  * incr(number)
+ * eval(math)
  * sysval
  * esyscmd(shell_command)
  * m4exit or m4exit(exit_value)

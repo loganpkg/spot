@@ -266,6 +266,13 @@ incr(number)
 `incr` increments a number. The result is pushed into the input.
 
 ```
+eval(math)
+```
+`eval` evaluates an arithmetic expression. It understands `(`, `)`, `^`,
+`*`, `/`, `%` (modulus), and _unary_ and binary `+` and `-`. Works with signed
+_long_ integers.
+
+```
 sysval
 ```
 `sysval` pushes the return value of the last shell command run via `esyscmd`
