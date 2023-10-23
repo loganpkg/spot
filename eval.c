@@ -69,6 +69,7 @@ int eval(struct ibuf *input, int read_stdin, int *math_error, long *res)
     char t;                     /* First char of token */
     char h;                     /* Operator at head of stack */
     int u = 1;                  /* Unary + or - indicator */
+    int n = 0;                  /* Last read was a number indicator */
     int first_read = 1;
 
     if ((token = init_obuf(INIT_BUF_SIZE)) == NULL)
@@ -112,7 +113,11 @@ int eval(struct ibuf *input, int read_stdin, int *math_error, long *res)
             if (add_l(x, (long) num))
                 mgoto(error);
 
+            if (n)
+                mgoto(math_err);
+
             u = 0;
+            n = 1;
         } else if (strlen(token->a) != 1) {
             mgoto(math_err);
         } else {
@@ -122,6 +127,7 @@ int eval(struct ibuf *input, int read_stdin, int *math_error, long *res)
                     mgoto(math_err);
 
                 u = 1;
+                n = 0;
                 break;
             case ')':
                 while (1) {
@@ -139,6 +145,7 @@ int eval(struct ibuf *input, int read_stdin, int *math_error, long *res)
                     --y->i;
                 }
                 u = 0;
+                n = 0;
                 break;
             case '^':
                 while (y->i) {
@@ -155,6 +162,7 @@ int eval(struct ibuf *input, int read_stdin, int *math_error, long *res)
                     mgoto(error);
 
                 u = 1;
+                n = 0;
                 break;
             case '*':
             case '/':
@@ -173,6 +181,7 @@ int eval(struct ibuf *input, int read_stdin, int *math_error, long *res)
                     mgoto(error);
 
                 u = 1;
+                n = 0;
                 break;
             case '+':
             case '-':
@@ -196,6 +205,7 @@ int eval(struct ibuf *input, int read_stdin, int *math_error, long *res)
                         mgoto(error);
                 }
                 u = 1;
+                n = 0;
                 break;
             case ' ':          /* Eat whitespace */
             case '\n':         /* Only when !read_stdin */
