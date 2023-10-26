@@ -22,9 +22,25 @@ m4 monorepo
 Welcome to the _m4 monorepo_ where multiple applications share code via modules.
 
 The applications are:
-* [m4](#m4): An implementation of the m4 macro processor, and
-* [spot](#spot): The text editor.
+* [m4](#m4): An implementation of the m4 macro processor,
+* [spot](#spot): The text editor, and
+* [bc](#bc): A basic calculator.
 
+Install
+-------
+
+This software is cross-platform and has been written in ANSI C with the minimum
+use of non-standard libraries. To install, edit `install_dev.sh` or
+`winstall_dev.txt` (depending on your operating system) and set `install_dir`.
+Then simply run:
+```
+./install_dev.sh
+```
+or
+```
+< winstall_dev.txt cmd
+```
+and make sure `install_dir` is included in your `PATH`.
 
 m4
 ==
@@ -33,20 +49,6 @@ m4 is a general purpose macro processor. It performs text replacement, similar
 to the C preprocessor, although it is not tied to any specific language. It
 performs programmatic find-and-replace on text, but can also perform other
 tasks, such as executing shell commands.
-
-Install
--------
-
-This implementation of m4 is cross-platform and has been written in ANSI C with
-the minimum use of non-standard libraries. To _install_ it, simply compile:
-```
-cc -o m4 m4.c num.c buf.c ht.c
-```
-or (depending on your operating system)
-```
-cl m4.c num.c buf.c ht.c
-```
-and place the executable somewhere in your `PATH`.
 
 How m4 works
 ------------
@@ -312,16 +314,6 @@ Gap buffers are used to edit the text, which are very efficient for most
 operations. A nice balance has been achieved between optimisation, features,
 and code maintainability.
 
-To _install_, simply compile:
-```
-cc -o spot spot.c num.c gb.c
-```
-or (depending on your operating system)
-```
-cl spot.c num.c gb.c
-```
-and place the executable somewhere in your `PATH`.
-
 The region is the area between the cursor and the mark, with whichever appears
 first included in the region and whichever appears last excluded from the
 region. It is cleared by editing commands, and navigational commands are used
@@ -397,6 +389,15 @@ and `\|` is a literal pipe character (instead of being interpreted as the
 delimiter).
 
 `^` Text editor will exit if it is the last gap buffer.
+
+
+bc
+==
+
+bc is a cross-platform basic calculator. It reads from `stdin` and works with
+signed _long_ integers. It understands `(`, `)`, `^`, `*`, `/`, `%` (modulus),
+and _unary_ and binary `+` and `-`.
+
 
 Enjoy,
 Logan =)_

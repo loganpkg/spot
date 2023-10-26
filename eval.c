@@ -93,10 +93,11 @@ int eval(struct ibuf *input, int read_stdin, int *math_error, long *res)
 
         if (r == EOF || (read_stdin && *token->a == '\n')) {
             while (y->i) {
-                if (*(y->a + y->i - 1) == '(')
+                h = *(y->a + y->i - 1);
+                if (h == '(')
                     mgoto(math_err);
 
-                if (process_operator(x, *(y->a + y->i - 1)))
+                if (process_operator(x, h))
                     mgoto(math_err);
 
                 --y->i;
@@ -134,12 +135,13 @@ int eval(struct ibuf *input, int read_stdin, int *math_error, long *res)
                     if (!y->i)  /* Open bracket not found */
                         mgoto(math_err);
 
-                    if (*(y->a + y->i - 1) == '(') {
-                        --y->i;
+                    h = *(y->a + y->i - 1);
+                    if (h == '(') {
+                        --y->i; /* Eat */
                         break;
                     }
 
-                    if (process_operator(x, *(y->a + y->i - 1)))
+                    if (process_operator(x, h))
                         mgoto(math_err);
 
                     --y->i;
