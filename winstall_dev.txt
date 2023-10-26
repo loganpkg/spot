@@ -1,7 +1,13 @@
 :: < winstall_dev.txt cmd
+
+:: Configuration
+set install_dir=%HOMEDRIVE%%HOMEPATH%\bin
 set flags=/Od /Zi /MT /Qspectre /Wall
-robocopy . %TEMP%\m4_spot_build /mir /a-:SH /xd ".git"
-cd %TEMP%\m4_spot_build || exit 1
+
+set build_dir=%TEMP%\m4_spot_build
+
+robocopy . %build_dir% /mir /a-:SH /xd ".git"
+cd %build_dir% || exit 1
 cl /c %flags% gen.c || exit 1
 cl /c %flags% num.c || exit 1
 cl /c %flags% buf.c || exit 1
@@ -11,7 +17,9 @@ cl /c %flags% gb.c || exit 1
 cl /c %flags% m4.c || exit 1
 cl /c %flags% spot.c || exit 1
 cl /c %flags% bc.c || exit 1
+
 cl %flags% m4.obj gen.obj num.obj buf.obj eval.obj ht.obj || exit 1
 cl %flags% spot.obj gen.obj num.obj gb.obj || exit 1
 cl %flags% bc.obj gen.obj num.obj buf.obj eval.obj || exit 1
-copy /y *.exe %HOMEDRIVE%%HOMEPATH%\bin || exit 1
+
+copy /y *.exe %install_dir% || exit 1

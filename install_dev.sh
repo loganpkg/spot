@@ -4,8 +4,9 @@ set -e
 set -u
 set -x
 
-flags='-ansi -Wall -Wextra -pedantic'
+# Configuration
 install_dir="$HOME"/bin
+flags='-ansi -Wall -Wextra -pedantic'
 
 if [ "$(uname)" = Linux ]
 then
@@ -54,7 +55,9 @@ cc $flags -o m4 m4.o gen.o num.o buf.o eval.o ht.o
 cc $flags -o spot spot.o gen.o num.o gb.o
 cc $flags -o bc bc.o gen.o num.o buf.o eval.o
 
-cp -p m4 spot bc "$install_dir"
+cc $flags -o regex regex.o
+
+cp -p m4 spot bc regex "$install_dir"
 
 m4 test.m4 > .k
 /usr/bin/m4 test.m4 > .k2
