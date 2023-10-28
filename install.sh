@@ -75,9 +75,9 @@ find . -type f ! -path '*.git*' -name '*.h' ! -name '*_func_dec.h' \
 find . -type f ! -path '*.git*' -name '*.c' \
     -exec cc -c $flags '{}' \;
 
-cc $flags -o m4 m4.o gen.o num.o buf.o eval.o ht.o
-cc $flags -o spot spot.o gen.o num.o gb.o
-cc $flags -o bc bc.o gen.o num.o buf.o eval.o
+cc $flags -o m4 m4.o gen.o num.o buf.o eval.o ht.o fs.o
+cc $flags -o spot spot.o gen.o num.o gb.o fs.o
+cc $flags -o bc bc.o gen.o num.o buf.o eval.o fs.o
 
 cc $flags -o regex regex.o
 

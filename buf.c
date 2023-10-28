@@ -32,6 +32,7 @@
 #include "debug.h"
 #include "gen.h"
 #include "num.h"
+#include "fs.h"
 
 struct ibuf *init_ibuf(size_t s)
 {
@@ -385,7 +386,7 @@ int write_obuf(struct obuf *b, const char *fn)
     if (fn == NULL || *fn == '\0')
         mreturn(1);
 
-    if ((fp = fopen(fn, "wb")) == NULL)
+    if ((fp = fopen_w(fn)) == NULL)
         mreturn(1);
 
     if (fwrite(b->a, 1, b->i, fp) != b->i) {

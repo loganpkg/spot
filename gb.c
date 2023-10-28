@@ -37,6 +37,7 @@
 #include "gb.h"
 #include "gen.h"
 #include "num.h"
+#include "fs.h"
 
 struct gb *init_gb(size_t s)
 {
@@ -883,7 +884,7 @@ int save(struct gb *b)
     if (b->fn == NULL || *b->fn == '\0')
         return 1;
 
-    if ((fp = fopen(b->fn, "wb")) == NULL)
+    if ((fp = fopen_w(b->fn)) == NULL)
         return 1;
 
     if (fwrite(b->a, 1, b->g, fp) != b->g) {
