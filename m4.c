@@ -50,7 +50,7 @@
  * sysval
  * esyscmd(shell_command)
  * m4exit or m4exit(exit_value)
- * remove(filename)
+ * recrm(path)
  */
 
 #ifdef __linux__
@@ -71,6 +71,7 @@
 #include "buf.h"
 #include "eval.h"
 #include "ht.h"
+#include "fs.h"
 
 
 /* Number of buckets in hash table */
@@ -842,10 +843,10 @@ int m4exit(void *v)
     mreturn(0);
 }
 
-int remove_file(void *v)
+int recrm(void *v)
 {
-    /*@ remove(filename) */
-    /* Removes empty directories on some systems */
+    /*@ recrm(path) */
+    /* Recursively removes a path if it exists */
     M4ptr m4 = (M4ptr) v;
 
     if (m4->stack->active_arg == 0) {
@@ -858,7 +859,7 @@ int remove_file(void *v)
     if (*arg(1) == '\0')
         mreturn(1);
 
-    if (remove(arg(1)))
+    if (rec_rm(arg(1)))
         mreturn(1);
 
     mreturn(0);
@@ -984,7 +985,7 @@ int main(int argc, char **argv)
     if (upsert(m4->ht, "m4exit", NULL, &m4exit))
         mgoto(clean_up);
 
-    if (upsert(m4->ht, "remove", NULL, &remove_file))
+    if (upsert(m4->ht, "recrm", NULL, &recrm))
         mgoto(clean_up);
 
 

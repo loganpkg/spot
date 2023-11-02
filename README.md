@@ -213,7 +213,8 @@ occurs during this, macros are not expanded.
 ```
 writediv(div_num, filename)
 ```
-`writediv` empties the specified diversion to file.
+`writediv` empties the specified diversion to file. Creates missing directories
+in the file path.
 
 ```
 divnum
@@ -303,10 +304,9 @@ called with no arguments). Please note that the specified exit value will be
 overwritten with 1 if an error occurs.
 
 ```
-remove(filename)
+recrm(path)
 ```
-`remove` deletes a file, and on some operating systems, removes an empty
-directory.
+`remove` recursively removes a path if it exists.
 
 
 spot

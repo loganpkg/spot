@@ -32,6 +32,12 @@
 #define mkdir(dir) mkdir(dir, S_IRWXU)
 #endif
 
+#ifdef _WIN32
+#define DIR_SEP_STR "\\"
+#else
+#define DIR_SEP_STR "/"
+#endif
+
 #include "fs_func_dec.h"
 
 #endif

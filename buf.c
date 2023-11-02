@@ -307,17 +307,18 @@ int delete_to_nl(struct ibuf *input, int read_stdin)
 
 int put_str(struct obuf *b, const char *str)
 {
-    size_t len;
+    size_t i_backup = b->i;
+    char ch;
 
-    len = strlen(str);
-    if (!len)
-        mreturn(0);
+    while ((ch = *str++) != '\0') {
+        if (b->i == b->s && grow_obuf(b, 1)) {
+            b->i = i_backup;    /* Restore */
+            mreturn(1);
+        }
 
-    if (len > b->s - b->i && grow_obuf(b, len))
-        mreturn(1);
+        *(b->a + b->i++) = ch;
+    }
 
-    memcpy(b->a + b->i, str, len);
-    b->i += len;
     mreturn(0);
 }
 

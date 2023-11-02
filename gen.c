@@ -25,10 +25,21 @@
 #ifdef _WIN32
 #include <io.h>
 #include <fcntl.h>
-#include <stdio.h>
 #endif
 
-#include "gen.h"
+#include <stdarg.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+/* #include "gen.h" */
+#include "debug.h"
+#include "buf.h"
+#include "num.h"
+
+#define INIT_CONCAT_BUF 512
+
 
 int sane_io(void)
 {
@@ -43,4 +54,43 @@ int sane_io(void)
         return 1;
 #endif
     return 0;
+}
+
+char *concat(const char *str, ...)
+{
+    va_list v;
+    struct obuf *b;
+    const char *p;
+    char *res;
+
+    if (str == NULL)
+        mreturn(NULL);
+
+    if ((b = init_obuf(INIT_CONCAT_BUF)) == NULL)
+        mreturn(NULL);
+
+    p = str;
+
+    va_start(v, str);
+
+    do {
+        if (put_str(b, p)) {
+            free_obuf(b);
+            mreturn(NULL);
+        }
+        if ((p = va_arg(v, const char *)) == NULL)
+            break;
+    } while (1);
+
+    va_end(v);
+
+    if (put_ch(b, '\0')) {
+        free_obuf(b);
+        mreturn(NULL);
+    }
+
+    res = b->a;
+    free(b);                    /* Free struct only, not memory inside */
+
+    mreturn(res);
 }
