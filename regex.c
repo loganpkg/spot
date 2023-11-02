@@ -20,7 +20,14 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-/* Regular expression module */
+/*
+ * Regular expression module.
+ *
+ * "And now I give you a new commandment: love one another. As I have loved
+ * you, so you must love one another. If you have love for one another, then
+ * everyone will know that you are my disciples."
+ *                                      John 13:34-35 GNT
+ */
 
 #include <ctype.h>
 #include <limits.h>
