@@ -357,35 +357,6 @@ static int shunting_yard_regex(size_t *regex_nums, size_t rn_len,
 }
 
 
-static int validate_postfix(size_t *regex_postfix, size_t rp_len)
-{
-    size_t i, x, y;
-
-    if (!rp_len)
-        mreturn(1);
-
-    for (i = 0; i < rp_len - 1; ++i) {
-        x = regex_postfix[i];
-        y = regex_postfix[i + 1];
-        switch (x) {
-        case '*':
-        case '+':
-        case '?':
-        case '^':
-        case '$':
-            switch (y) {
-                /* Operators with loop back */
-            case '*':
-            case '+':
-                mreturn(1);     /* Recursive loop */
-            }
-            break;
-        }
-    }
-    mreturn(0);                 /* OK */
-}
-
-
 void print_regex(unsigned char *char_sets,
                  size_t *regex_nums, size_t rn_len)
 {
@@ -670,14 +641,14 @@ static int is_done(unsigned char *sl, size_t sa_len, size_t match_state,
 
 static int run_nfa(struct nfa state_machine, struct state *state_array,
                    size_t sa_len, unsigned char *sl,
-                   unsigned char *sl_next, unsigned char *char_sets,
-                   const char *mem, size_t mem_len, int sol, int nl_sen,
-                   size_t *match_len)
+                   unsigned char *sl_next, unsigned char *sl_from,
+                   unsigned char *char_sets, const char *mem,
+                   size_t mem_len, int sol, int nl_sen, size_t *match_len)
 {
     unsigned char *tmp;
     const unsigned char *p, *p_stop, *p_max_match = NULL;
     unsigned char u;
-    size_t t, i;
+    size_t t, i, x;
     int run_again;
     int eol;
 
@@ -700,6 +671,7 @@ static int run_nfa(struct nfa state_machine, struct state *state_array,
          * No read. Recursively follow epsilon transitions and read states.
          * No elimination if cannot move.
          */
+        memset(sl_from, '\0', sa_len);
         do {
             /* Clear next state list */
             memset(sl_next, '\0', sa_len);
@@ -709,11 +681,21 @@ static int run_nfa(struct nfa state_machine, struct state *state_array,
                     if ((t = state_array[i].t_a) == 'e'
                         || (sol && t == '^')
                         || (eol && t == '$')) {
-                        sl_next[state_array[i].a] = 1;
+                        sl_from[i] = 1;
+                        x = state_array[i].a;
+                        if (sl_from[x])
+                            mgoto(error);       /* Recursive loop */
+
+                        sl_next[x] = 1;
                         run_again = 1;
                         /* b is only used when it is an epsilon split */
-                        if (state_array[i].t_b == 'e')
-                            sl_next[state_array[i].b] = 1;
+                        if (state_array[i].t_b == 'e') {
+                            x = state_array[i].b;
+                            if (sl_from[x])
+                                mgoto(error);   /* Recursive loop */
+
+                            sl_next[x] = 1;
+                        }
                     } else {
                         /* Cannot move, so pass through. No elimination. */
                         sl_next[i] = 1;
@@ -764,6 +746,8 @@ static int run_nfa(struct nfa state_machine, struct state *state_array,
     } else {
         mreturn(NO_MATCH);
     }
+  error:
+    mreturn(1);
 }
 
 
@@ -778,6 +762,12 @@ int regex_search(const char *regex_str, const char *mem, size_t mem_len,
     size_t sa_len;
     unsigned char *sl = NULL;   /* (Active) state list */
     unsigned char *sl_next = NULL;      /* Next (active) state list */
+
+    /*
+     * List of states that have been transitioned from during a no-read
+     * operation. Used to detect recursive loops.
+     */
+    unsigned char *sl_from = NULL;
     size_t m_len;
     const char *start;
     size_t len;
@@ -792,9 +782,6 @@ int regex_search(const char *regex_str, const char *mem, size_t mem_len,
 
     print_regex(cs, rp, rp_len);
 
-    if (validate_postfix(rp, rp_len))
-        mgoto(clean_up);
-
     if (generate_nfa(rp, rp_len, &sm, &sa, &sa_len))
         mgoto(clean_up);
 
@@ -804,14 +791,22 @@ int regex_search(const char *regex_str, const char *mem, size_t mem_len,
     if ((sl_next = malloc(sa_len)) == NULL)
         mgoto(clean_up);
 
+    if ((sl_from = malloc(sa_len)) == NULL)
+        mgoto(clean_up);
+
+
     start = mem;
     len = mem_len;
     sol = 1;
 
     do {
         /* Still run on a len of zero */
-        r = run_nfa(sm, sa, sa_len, sl, sl_next, cs, start, len, sol,
-                    nl_sen, &m_len);
+        r = run_nfa(sm, sa, sa_len, sl, sl_next, sl_from, cs, start, len,
+                    sol, nl_sen, &m_len);
+
+        if (r == 1)
+            mgoto(clean_up);
+
         if (!r)
             break;
 
@@ -844,6 +839,7 @@ int regex_search(const char *regex_str, const char *mem, size_t mem_len,
     free(sa);
     free(sl);
     free(sl_next);
+    free(sl_from);
 
     mreturn(ret);
 }
@@ -852,7 +848,7 @@ int regex_search(const char *regex_str, const char *mem, size_t mem_len,
 int main(void)
 {
     const char *regex = "a+";
-    const char *str = "kkkaaaabbbb";
+    const char *str = "aaaaaabb";
     size_t match_offset, match_len;
     int r;
 
