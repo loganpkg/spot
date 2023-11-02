@@ -28,7 +28,7 @@ set -x
 
 # Configuration
 install_dir="$HOME"/bin
-flags='-ansi -Wall -Wextra -pedantic'
+flags='-ansi -g -Og -Wall -Wextra -pedantic'
 
 if [ "$(uname)" = Linux ]
 then
@@ -76,7 +76,7 @@ find . -type f ! -path '*.git*' -name '*.c' \
     -exec cc -c $flags '{}' \;
 
 cc $flags -o m4 m4.o gen.o num.o buf.o eval.o ht.o fs.o
-cc $flags -o spot spot.o gen.o num.o gb.o fs.o
+cc $flags -o spot spot.o gen.o num.o buf.o gb.o fs.o
 cc $flags -o bc bc.o gen.o num.o buf.o eval.o fs.o
 
 cc $flags -o regex regex.o
