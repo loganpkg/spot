@@ -72,6 +72,7 @@
 #include "eval.h"
 #include "ht.h"
 #include "fs.h"
+#include "regex.h"
 
 
 /* Number of buckets in hash table */
@@ -588,6 +589,34 @@ int tnl(void *v)
     mreturn(0);
 }
 
+int regexreplace(void *v)
+{
+    /*@ regexreplace(text, regex_find, replace, [, nl_insensitive]) */
+    M4ptr m4 = (M4ptr) v;
+    char *res;
+    size_t res_len;
+    int nl_sen = 1;             /* Newline sensitive is the default */
+
+    if (m4->stack->active_arg == 0) {
+        m4->pass_through = 1;
+        mreturn(0);
+    }
+    if (m4->stack->active_arg != 3 && m4->stack->active_arg != 4)
+        mreturn(1);
+
+    if (m4->stack->active_arg == 4 && !strcmp(arg(4), "1"))
+        nl_sen = 0;             /* Newline insensitive */
+
+    if (regex_replace(arg(1), strlen(arg(1)), arg(2),
+                      arg(3), strlen(arg(3)), nl_sen, &res, &res_len))
+        mreturn(1);
+
+    if (unget_str(m4->input, res))
+        mreturn(1);
+
+    mreturn(0);
+}
+
 int ifdef(void *v)
 {
     /*@ ifdef(`macro_name', `when_defined', `when_undefined') */
@@ -956,6 +985,9 @@ int main(int argc, char **argv)
         mgoto(clean_up);
 
     if (upsert(m4->ht, "tnl", NULL, &tnl))
+        mgoto(clean_up);
+
+    if (upsert(m4->ht, "regexreplace", NULL, &regexreplace))
         mgoto(clean_up);
 
     if (upsert(m4->ht, "ifdef", NULL, &ifdef))

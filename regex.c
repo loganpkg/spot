@@ -36,8 +36,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "regex.h"
 #include "debug.h"
 #include "num.h"
+#include "buf.h"
+
 
 #define NO_MATCH 2
 #define CONCAT_CH '.'
@@ -68,10 +71,23 @@ struct state {
     size_t b;                   /* Index to branch b state */
 };
 
-
 struct nfa {
     size_t start;               /* Index to start state */
     size_t end;                 /* Index to end state */
+};
+
+struct regex_info {
+    unsigned char *cs;          /* Character sets */
+    struct nfa sm;              /* State machine */
+    struct state *sa;           /* State array */
+    size_t sa_len;              /* State array length */
+    unsigned char *sl;          /* (Active) state list */
+    unsigned char *sl_next;     /* Next (active) state list */
+    /*
+     * List of states that have been transitioned from during a no-read
+     * operation. Used to detect recursive loops.
+     */
+    unsigned char *sl_from;
 };
 
 
@@ -357,6 +373,7 @@ static int shunting_yard_regex(size_t *regex_nums, size_t rn_len,
 }
 
 
+/*
 void print_regex(unsigned char *char_sets,
                  size_t *regex_nums, size_t rn_len)
 {
@@ -368,7 +385,6 @@ void print_regex(unsigned char *char_sets,
     for (k = 0; k < rn_len; ++k) {
         x = regex_nums[k];
         if (x == '^' || x == '$') {
-            /* Read status */
             printf("R status: %c\n", (unsigned char) x);
         } else if (x <= UCHAR_MAX) {
             printf("Operator: %c\n", (unsigned char) x);
@@ -382,9 +398,10 @@ void print_regex(unsigned char *char_sets,
         }
     }
 }
+*/
 
 
-size_t get_s_i(int *reuse, size_t *s_i_reuse, size_t *s_i)
+static size_t get_s_i(int *reuse, size_t *s_i_reuse, size_t *s_i)
 {
     /*
      * Gives the next state available, allowing for the reuse of a deleted
@@ -540,7 +557,7 @@ static int generate_nfa(size_t *regex_postfix, size_t rp_len,
                 if (n_i < 2)    /* Binary operator */
                     mgoto(clean_up);
 
-                /* Copy branches from start of second NFA to end of first NFA */
+                /* Copy branches from start of 2nd NFA to end of 1st NFA */
                 sa[head_m1.end].t_a = sa[head.start].t_a;
                 sa[head_m1.end].a = sa[head.start].a;
                 sa[head_m1.end].t_b = sa[head.start].t_b;
@@ -616,6 +633,64 @@ static int generate_nfa(size_t *regex_postfix, size_t rp_len,
 #undef head_m1
 
 
+static void free_regex(struct regex_info ri)
+{
+    free(ri.cs);
+    free(ri.sa);
+    free(ri.sl);
+    free(ri.sl_next);
+    free(ri.sl_from);
+}
+
+
+static int compile_regex(const char *regex_str, int nl_sen,
+                         struct regex_info *ri)
+{
+    struct regex_info reg_i;
+    size_t *rn = NULL, rn_len, *rp = NULL, rp_len;
+
+    reg_i.cs = NULL;
+    reg_i.sa = NULL;
+    reg_i.sl = NULL;
+    reg_i.sl_next = NULL;
+    reg_i.sl_from = NULL;
+
+    if (preprocess_regex(regex_str, nl_sen, &reg_i.cs, &rn, &rn_len))
+        mgoto(clean_up);
+
+    if (shunting_yard_regex(rn, rn_len, &rp, &rp_len))
+        mgoto(clean_up);
+
+    free(rn);
+    rn = NULL;
+
+    if (generate_nfa(rp, rp_len, &reg_i.sm, &reg_i.sa, &reg_i.sa_len))
+        mgoto(clean_up);
+
+    free(rp);
+    rp = NULL;
+
+    if ((reg_i.sl = malloc(reg_i.sa_len)) == NULL)
+        mgoto(clean_up);
+
+    if ((reg_i.sl_next = malloc(reg_i.sa_len)) == NULL)
+        mgoto(clean_up);
+
+    if ((reg_i.sl_from = malloc(reg_i.sa_len)) == NULL)
+        mgoto(clean_up);
+
+    *ri = reg_i;
+
+    mreturn(0);
+
+  clean_up:
+    free(rn);
+    free(rp);
+    free_regex(reg_i);
+    mreturn(1);
+}
+
+
 static int is_done(unsigned char *sl, size_t sa_len, size_t match_state,
                    const unsigned char *p,
                    const unsigned char **p_max_match)
@@ -639,10 +714,7 @@ static int is_done(unsigned char *sl, size_t sa_len, size_t match_state,
 }
 
 
-static int run_nfa(struct nfa state_machine, struct state *state_array,
-                   size_t sa_len, unsigned char *sl,
-                   unsigned char *sl_next, unsigned char *sl_from,
-                   unsigned char *char_sets, const char *mem,
+static int run_nfa(struct regex_info ri, const char *mem,
                    size_t mem_len, int sol, int nl_sen, size_t *match_len)
 {
     unsigned char *tmp;
@@ -652,8 +724,8 @@ static int run_nfa(struct nfa state_machine, struct state *state_array,
     int run_again;
     int eol;
 
-    memset(sl, '\0', sa_len);
-    sl[state_machine.start] = 1;
+    memset(ri.sl, '\0', ri.sa_len);
+    ri.sl[ri.sm.start] = 1;
 
     p = (unsigned char *) mem;
     p_stop = p + mem_len;       /* Exclusive */
@@ -671,44 +743,43 @@ static int run_nfa(struct nfa state_machine, struct state *state_array,
          * No read. Recursively follow epsilon transitions and read states.
          * No elimination if cannot move.
          */
-        memset(sl_from, '\0', sa_len);
+        memset(ri.sl_from, '\0', ri.sa_len);
         do {
             /* Clear next state list */
-            memset(sl_next, '\0', sa_len);
+            memset(ri.sl_next, '\0', ri.sa_len);
             run_again = 0;
-            for (i = 0; i < sa_len; ++i)
-                if (sl[i]) {
-                    if ((t = state_array[i].t_a) == 'e'
-                        || (sol && t == '^')
+            for (i = 0; i < ri.sa_len; ++i)
+                if (ri.sl[i]) {
+                    if ((t = ri.sa[i].t_a) == 'e' || (sol && t == '^')
                         || (eol && t == '$')) {
-                        sl_from[i] = 1;
-                        x = state_array[i].a;
-                        if (sl_from[x])
+                        ri.sl_from[i] = 1;
+                        x = ri.sa[i].a;
+                        if (ri.sl_from[x])
                             mgoto(error);       /* Recursive loop */
 
-                        sl_next[x] = 1;
+                        ri.sl_next[x] = 1;
                         run_again = 1;
                         /* b is only used when it is an epsilon split */
-                        if (state_array[i].t_b == 'e') {
-                            x = state_array[i].b;
-                            if (sl_from[x])
+                        if (ri.sa[i].t_b == 'e') {
+                            x = ri.sa[i].b;
+                            if (ri.sl_from[x])
                                 mgoto(error);   /* Recursive loop */
 
-                            sl_next[x] = 1;
+                            ri.sl_next[x] = 1;
                         }
                     } else {
                         /* Cannot move, so pass through. No elimination. */
-                        sl_next[i] = 1;
+                        ri.sl_next[i] = 1;
                     }
                 }
 
             /* Switch state lists */
-            tmp = sl;
-            sl = sl_next;
-            sl_next = tmp;
+            tmp = ri.sl;
+            ri.sl = ri.sl_next;
+            ri.sl_next = tmp;
         } while (run_again);
 
-        if (is_done(sl, sa_len, state_machine.end, p, &p_max_match))
+        if (is_done(ri.sl, ri.sa_len, ri.sm.end, p, &p_max_match))
             break;
 
         if (p == p_stop)
@@ -723,20 +794,20 @@ static int run_nfa(struct nfa state_machine, struct state *state_array,
         /* Read. Must move or be elimated. */
 
         /* Clear next state list */
-        memset(sl_next, '\0', sa_len);
+        memset(ri.sl_next, '\0', ri.sa_len);
 
         /* b is only ever epsilon, so do not need to check */
-        for (i = 0; i < sa_len; ++i)
-            if (sl[i] && (t = state_array[i].t_a) > UCHAR_MAX
-                && is_set_cs(char_sets, t, u))
-                sl_next[state_array[i].a] = 1;
+        for (i = 0; i < ri.sa_len; ++i)
+            if (ri.sl[i] && (t = ri.sa[i].t_a) > UCHAR_MAX
+                && is_set_cs(ri.cs, t, u))
+                ri.sl_next[ri.sa[i].a] = 1;
 
         /* Switch state lists */
-        tmp = sl;
-        sl = sl_next;
-        sl_next = tmp;
+        tmp = ri.sl;
+        ri.sl = ri.sl_next;
+        ri.sl_next = tmp;
 
-        if (is_done(sl, sa_len, state_machine.end, p, &p_max_match))
+        if (is_done(ri.sl, ri.sa_len, ri.sm.end, p, &p_max_match))
             break;
     }
 
@@ -751,120 +822,149 @@ static int run_nfa(struct nfa state_machine, struct state *state_array,
 }
 
 
-int regex_search(const char *regex_str, const char *mem, size_t mem_len,
-                 int nl_sen, size_t *match_offset, size_t *match_len)
+static int regex_search(const char *mem, size_t mem_len,
+                        struct regex_info ri, int sol, int nl_sen,
+                        size_t *match_offset, size_t *match_len)
 {
-    int ret = 1;                /* Failure */
-    unsigned char *cs = NULL;
-    size_t *rn = NULL, rn_len, *rp = NULL, rp_len;
-    struct nfa sm;
-    struct state *sa = NULL;
-    size_t sa_len;
-    unsigned char *sl = NULL;   /* (Active) state list */
-    unsigned char *sl_next = NULL;      /* Next (active) state list */
-
-    /*
-     * List of states that have been transitioned from during a no-read
-     * operation. Used to detect recursive loops.
-     */
-    unsigned char *sl_from = NULL;
     size_t m_len;
     const char *start;
-    size_t len;
-    int sol;                    /* Start of line */
+    const char *stop;           /* Exclusive */
     int r;
 
-    if (preprocess_regex(regex_str, nl_sen, &cs, &rn, &rn_len))
-        return 1;
-
-    if (shunting_yard_regex(rn, rn_len, &rp, &rp_len))
-        mgoto(clean_up);
-
-    print_regex(cs, rp, rp_len);
-
-    if (generate_nfa(rp, rp_len, &sm, &sa, &sa_len))
-        mgoto(clean_up);
-
-    if ((sl = malloc(sa_len)) == NULL)
-        mgoto(clean_up);
-
-    if ((sl_next = malloc(sa_len)) == NULL)
-        mgoto(clean_up);
-
-    if ((sl_from = malloc(sa_len)) == NULL)
-        mgoto(clean_up);
-
-
     start = mem;
-    len = mem_len;
-    sol = 1;
+    stop = start + mem_len;
 
-    do {
-        /* Still run on a len of zero */
-        r = run_nfa(sm, sa, sa_len, sl, sl_next, sl_from, cs, start, len,
-                    sol, nl_sen, &m_len);
+    while (1) {
+        /*
+         * Update start of line indicator. sol is determined by argument value
+         * when start == mem.
+         */
+        if (start != mem) {
+            if (nl_sen && *(start - 1) == '\n')
+                sol = 1;
+            else
+                sol = 0;
+        }
+
+        /* Still run on a length of zero */
+        r = run_nfa(ri, start, stop - start, sol, nl_sen, &m_len);
 
         if (r == 1)
-            mgoto(clean_up);
+            mreturn(1);
 
         if (!r)
             break;
 
-        if (!len)
+        if (start == stop)
             break;
 
         ++start;
-        --len;
-
-        if (*start == '\n' && len && nl_sen) {
-            /* Eat */
-            ++start;
-            --len;
-            sol = 1;
-        }
-    } while (1);
+    }
 
     if (!r) {
         *match_offset = start - mem;
         *match_len = m_len;
-        ret = 0;
+        mreturn(0);
     } else {
-        ret = NO_MATCH;
+        mreturn(NO_MATCH);
     }
-
-  clean_up:
-    free(cs);
-    free(rn);
-    free(rp);
-    free(sa);
-    free(sl);
-    free(sl_next);
-    free(sl_from);
-
-    mreturn(ret);
 }
 
 
-int main(void)
+int regex_replace(const char *mem, size_t mem_len,
+                  const char *regex_find_str, const char *replace,
+                  size_t replace_len, int nl_sen, char **res,
+                  size_t *res_len)
 {
-    const char *regex = "a+";
-    const char *str = "aaaaaabb";
-    size_t match_offset, match_len;
+    int ret = 1;
+    struct regex_info ri;
+    int sol;                    /* Start of line */
+    struct obuf *b = NULL;
     int r;
+    const char *m, *m_stop;
+    size_t match_offset, match_len;
 
-    printf("%s\n%s\n", regex, str);
+    if (compile_regex(regex_find_str, nl_sen, &ri))
+        mreturn(1);
 
-    r = regex_search(regex, str, strlen(str), 1, &match_offset,
-                     &match_len);
+    if ((b = init_obuf(mem_len)) == NULL)
+        mgoto(clean_up);
 
-    if (!r) {
-        printf("MATCH:\n");
-        fwrite(str + match_offset, 1, match_len, stdout);
-    } else if (r == NO_MATCH) {
-        printf("NO MATCH\n");
-    } else {
-        printf("ERROR\n");
+    m = mem;
+    m_stop = m + mem_len;
+    sol = 1;
+
+    while (1) {
+        /* sol is always 1 at the start */
+        if (m != mem) {
+            /* Adjust start of line read state */
+            if (nl_sen && *(m - 1) == '\n')
+                sol = 1;
+            else
+                sol = 0;
+        }
+
+        r = regex_search(m, m_stop - m, ri, sol, nl_sen, &match_offset,
+                         &match_len);
+        if (!r) {
+            /* Match */
+            /* Add text before match */
+            if (put_mem(b, m, match_offset))
+                mgoto(clean_up);
+
+            /* Add replacement text */
+            if (put_mem(b, replace, replace_len))
+                mgoto(clean_up);
+
+            /* Advance */
+            m += match_offset;
+            m += match_len;
+
+            /* Stop when the end is reached from advancing a match */
+            if (m == m_stop)
+                break;
+
+            /*
+             * Continue if the end is reached from jumping over a character
+             * due to a zero length match.
+             */
+            if (!match_len) {
+                /*
+                 * Move forward 1 if a 0 length match,
+                 * but pass through the jumped char.
+                 */
+                if (put_ch(b, *m))
+                    mgoto(clean_up);
+
+                ++m;
+            }
+        } else if (r == NO_MATCH) {
+            break;
+        } else {
+            mgoto(clean_up);
+        }
     }
 
-    mreturn(r);
+    /* Add any remaining text */
+    if (put_mem(b, m, m_stop - m))
+        mgoto(clean_up);
+
+    /* \0 terminate in case used as a string */
+    if (put_ch(b, '\0'))
+        mgoto(clean_up);
+
+    ret = 0;
+
+  clean_up:
+    free_regex(ri);
+    if (ret) {
+        free_obuf(b);
+    } else {
+        *res = b->a;
+        *res_len = b->i - 1;    /* Not counting terminating \0 */
+        /* Just free the wrapper struct */
+        free(b);
+    }
+
+    mreturn(ret);
 }

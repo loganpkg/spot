@@ -322,14 +322,22 @@ int put_str(struct obuf *b, const char *str)
     mreturn(0);
 }
 
+int put_mem(struct obuf *b, const char *mem, size_t mem_len)
+{
+    if (mem_len > b->s - b->i && grow_obuf(b, mem_len))
+        mreturn(1);
+
+    memcpy(b->a + b->i, mem, mem_len);
+    b->i += mem_len;
+    mreturn(0);
+}
+
 int put_obuf(struct obuf *b, struct obuf *t)
 {
     /* Empties t onto the end of b */
-    if (t->i > b->s - b->i && grow_obuf(b, t->i))
+    if (put_mem(b, t->a, t->i))
         mreturn(1);
 
-    memcpy(b->a + b->i, t->a, t->i);
-    b->i += t->i;
     t->i = 0;
     mreturn(0);
 }

@@ -169,8 +169,9 @@ int walk_dir_inner(const char *dir,
         if (!strcmp(fn, ".") || !strcmp(fn, ".."))
             SET_DOTDIR(type);
 
-        if (IS_DIR(type) && !IS_SLINK(type) && !IS_DOTDIR(type))        /* Recurse */
-            if (walk_dir_inner(path, func_p))
+
+        if (IS_DIR(type) && !IS_SLINK(type) && !IS_DOTDIR(type))
+            if (walk_dir_inner(path, func_p))   /* Recurse */
                 mgoto(clean_up);
 
         if ((*func_p) (path, type))
