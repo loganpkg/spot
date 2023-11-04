@@ -63,7 +63,7 @@ fi
 
 # Max of 79 chars per line plus the \n, making a total of 80.
 # So 80 non-newline chars is too long.
-find . -type f ! -path '*.git*' \
+find . -type f ! -path '*.git*' ! -name '*~' \
     -exec grep -H -n -E '.{80}' '{}' \;
 
 find . -type f ! -path '*.git*' -name '*.h' \
@@ -75,13 +75,11 @@ find . -type f ! -path '*.git*' -name '*.h' ! -name '*_func_dec.h' \
 find . -type f ! -path '*.git*' -name '*.c' \
     -exec cc -c $flags '{}' \;
 
-cc $flags -o m4 m4.o gen.o num.o buf.o eval.o ht.o fs.o
+cc $flags -o m4 m4.o gen.o num.o buf.o eval.o ht.o fs.o regex.o
 cc $flags -o spot spot.o gen.o num.o buf.o gb.o fs.o
 cc $flags -o bc bc.o gen.o num.o buf.o eval.o fs.o
 
-cc $flags -o regex regex.o
-
-cp -p m4 spot bc regex "$install_dir"
+cp -p m4 spot bc "$install_dir"
 
 m4 test.m4 > .k
 /usr/bin/m4 test.m4 > .k2

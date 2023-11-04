@@ -11,6 +11,7 @@ int get_word(struct ibuf *input, struct obuf *token, int read_stdin);
 int eat_whitespace(struct ibuf *input, int read_stdin);
 int delete_to_nl(struct ibuf *input, int read_stdin);
 int put_str(struct obuf *b, const char *str);
+int put_mem(struct obuf *b, const char *mem, size_t mem_len);
 int put_obuf(struct obuf *b, struct obuf *t);
 int put_file(struct obuf *b, const char *fn);
 int write_obuf(struct obuf *b, const char *fn);
