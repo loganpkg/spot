@@ -447,8 +447,9 @@ static int generate_nfa(size_t *regex_postfix, size_t rp_len,
         mgoto(clean_up);
 
     /*
-     * Number of states in final NFA will be rp_len, but double it to give some
-     * working space.
+     * Most elements of the postfix notation result in the creation of two
+     * states in the NFA. The exception is concatenation, which removes one
+     * state.
      */
     if (mof(rp_len, 2, SIZE_MAX))
         mgoto(clean_up);
