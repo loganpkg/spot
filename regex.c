@@ -100,6 +100,7 @@ static int preprocess_regex(const char *regex_str, int nl_sen,
     unsigned char *cs = NULL;
     size_t *rn = NULL;
     const unsigned char *p;
+    unsigned char u, h[2];
     int negate_set, j, add_concat;
 
     if (regex_str == NULL)
@@ -138,10 +139,39 @@ static int preprocess_regex(const char *regex_str, int nl_sen,
     while (*p != '\0') {
         if (*p == '\\') {
             ++p;                /* Eat backslash */
-            if (*p == '\0')
+            if ((u = *p) == '\0')
                 mgoto(clean_up);
 
-            set_cs(cs, i, *p);
+            switch (u) {
+            case 't':
+                u = '\t';
+                break;
+            case 'n':
+                u = '\n';
+                break;
+            case 'r':
+                u = '\r';
+                break;
+            case '0':
+                u = '\0';
+                break;
+            case 'x':
+                /* Two digit hex literal */
+                ++p;
+                if ((h[0] = *p) == '\0')
+                    mgoto(clean_up);
+
+                ++p;
+                if ((h[1] = *p) == '\0')
+                    mgoto(clean_up);
+
+                if (hex_to_val(h, &u))
+                    mgoto(clean_up);
+
+                break;
+            }
+
+            set_cs(cs, i, u);
 
             if (add_concat)
                 rn[k++] = CONCAT_CH;
@@ -374,7 +404,7 @@ static int shunting_yard_regex(size_t *regex_nums, size_t rn_len,
 
 
 /*
-void print_regex(unsigned char *char_sets,
+static void print_regex(unsigned char *char_sets,
                  size_t *regex_nums, size_t rn_len)
 {
     size_t k, x;
@@ -430,6 +460,7 @@ static int generate_nfa(size_t *regex_postfix, size_t rp_len,
                         struct nfa *state_machine,
                         struct state **state_array, size_t *sa_len)
 {
+    /* Thompson's construction */
     struct nfa *nfa_stack = NULL;
     struct state *sa = NULL;    /* State array */
     size_t n_i = 0;             /* NFA stack index */
@@ -823,9 +854,9 @@ static int run_nfa(struct regex_info ri, const char *mem,
 }
 
 
-static int regex_search(const char *mem, size_t mem_len,
-                        struct regex_info ri, int sol, int nl_sen,
-                        size_t *match_offset, size_t *match_len)
+static int regex_find(const char *mem, size_t mem_len,
+                      struct regex_info ri, int sol, int nl_sen,
+                      size_t *match_offset, size_t *match_len)
 {
     size_t m_len;
     const char *start;
@@ -872,6 +903,24 @@ static int regex_search(const char *mem, size_t mem_len,
 }
 
 
+int regex_search(const char *mem, size_t mem_len,
+                 const char *regex_find_str, int sol,
+                 int nl_sen, size_t *match_offset, size_t *match_len)
+{
+    struct regex_info ri;
+    int r;
+
+    if (compile_regex(regex_find_str, nl_sen, &ri))
+        mreturn(1);
+
+    r = regex_find(mem, mem_len, ri, sol, nl_sen, match_offset, match_len);
+
+    free_regex(ri);
+
+    mreturn(r);
+}
+
+
 int regex_replace(const char *mem, size_t mem_len,
                   const char *regex_find_str, const char *replace,
                   size_t replace_len, int nl_sen, char **res,
@@ -879,7 +928,7 @@ int regex_replace(const char *mem, size_t mem_len,
 {
     int ret = 1;
     struct regex_info ri;
-    int sol;                    /* Start of line */
+    int sol;
     struct obuf *b = NULL;
     int r;
     const char *m, *m_stop;
@@ -905,8 +954,8 @@ int regex_replace(const char *mem, size_t mem_len,
                 sol = 0;
         }
 
-        r = regex_search(m, m_stop - m, ri, sol, nl_sen, &match_offset,
-                         &match_len);
+        r = regex_find(m, m_stop - m, ri, sol, nl_sen, &match_offset,
+                       &match_len);
         if (!r) {
             /* Match */
             /* Add text before match */

@@ -41,6 +41,7 @@
  * include(filename)
  * dnl
  * tnl(str)
+ * regexreplace(text, regex_find, replace, [, nl_insensitive])
  * ifdef(`macro_name', `when_defined', `when_undefined')
  * ifelse(A, B, `when_same', `when_different')
  * dumpdef or dumpdef(`macro_name', ...)

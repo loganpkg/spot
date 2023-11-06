@@ -71,6 +71,30 @@ int str_to_size_t(const char *str, size_t *res)
     mreturn(0);
 }
 
+int hex_to_val(unsigned char h[2], unsigned char *res)
+{
+    unsigned char x;
+    size_t i;
+
+    x = 0;
+    for (i = 0; i < 2; ++i) {
+        if (i)
+            x *= 16;
+
+        if (!isxdigit(h[i]))
+            mreturn(1);
+
+        if (isdigit(h[i]))
+            x += h[i] - '0';
+        else if (islower(h[i]))
+            x += h[i] - 'a' + 10;
+        else if (isupper(h[i]))
+            x += h[i] - 'A' + 10;
+    }
+    *res = x;
+    mreturn(0);
+}
+
 int lop(long *a, long b, char op)
 {
     /* long operation. Checks for signed long overflow. */
