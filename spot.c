@@ -602,12 +602,12 @@ int main(int argc, char **argv)
         case C('s'):
             delete_gb(cl);
             cl_active = 1;
-            op = 's';           /* search */
+            op = 's';           /* regex_forward_search */
             break;
         case C('r'):
             delete_gb(cl);
             cl_active = 1;
-            op = 'R';           /* replace_region */
+            op = 'R';           /* regex_replace_region */
             break;
         case C('u'):
             delete_gb(cl);
@@ -643,7 +643,7 @@ int main(int argc, char **argv)
                 rv = match_bracket(z);
                 break;
             case 'n':
-                rv = search(b, cl);
+                rv = regex_forward_search(b, cl);
                 break;
             case 'w':
                 rv = copy_region(z, p, 0);
@@ -675,6 +675,9 @@ int main(int argc, char **argv)
         case C('x'):
             y = get_key();
             switch (y) {
+            case C('x'):
+                rv = swap_cursor_and_mark(z);
+                break;
             case C('c'):
                 running = 0;
                 break;
@@ -708,10 +711,10 @@ int main(int argc, char **argv)
             if (cl_active) {
                 switch (op) {
                 case 's':
-                    rv = search(b, cl);
+                    rv = regex_forward_search(b, cl);
                     break;
                 case 'R':
-                    rv = replace_region(b, cl);
+                    rv = regex_replace_region(b, cl);
                     break;
                 case 'r':
                     start_of_gb(cl);

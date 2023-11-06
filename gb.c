@@ -38,6 +38,7 @@
 #include "gen.h"
 #include "num.h"
 #include "fs.h"
+#include "regex.h"
 
 struct gb *init_gb(size_t s)
 {
@@ -112,6 +113,9 @@ static int grow_gap(struct gb *b, size_t will_use)
     unsigned char *t;
     size_t s, new_s, increase;
 
+    if (will_use <= b->c - b->g)
+        return 0;               /* Nothing to do */
+
     s = b->e + 1;               /* OK as in memory already */
 
     if (aof(s, will_use, SIZE_MAX))
@@ -166,6 +170,18 @@ int insert_str(struct gb *b, const char *str)
     while ((ch = *str++) != '\0')
         if (insert_ch(b, ch))
             return 1;
+
+    return 0;
+}
+
+int insert_mem(struct gb *b, const char *mem, size_t mem_len)
+{
+    while (mem_len) {
+        if (insert_ch(b, *mem++))
+            return 1;
+
+        --mem_len;
+    }
 
     return 0;
 }
@@ -418,7 +434,6 @@ int insert_hex(struct gb *b, struct gb *cl)
 {
     const unsigned char *str;
     unsigned char ch[2], x;
-    size_t i;
 
     start_of_gb(cl);
     str = cl->a + cl->c;
@@ -430,147 +445,107 @@ int insert_hex(struct gb *b, struct gb *cl)
 
         ++str;
 
-        x = 0;
-        for (i = 0; i < 2; ++i) {
-            if (i)
-                x *= 16;
-            if (!isxdigit(ch[i]))
-                return 1;
-            else if (isdigit(ch[i]))
-                x += ch[i] - '0';
-            else if (islower(ch[i]))
-                x += ch[i] - 'a' + 10;
-            else if (isupper(ch[i]))
-                x += ch[i] - 'A' + 10;
-        }
+        if (hex_to_val(ch, &x))
+            return 1;
+
         if (insert_ch(b, x))
             return 1;
     }
     return 0;
 }
 
-int search_str(struct gb *b, const char *find, int skip_immediate)
+int swap_cursor_and_mark(struct gb *b)
 {
-    /* Embedded \0 chars will terminate strings early */
-    const char *q;
-    size_t num;
-
-    if (b->c == b->e)
-        return 1;
-
-    if ((q =
-         strstr((const char *) b->a + b->c + (skip_immediate ? 1 : 0),
-                find)) == NULL)
-        return 1;
-
-    num = q - ((char *) b->a + b->c);
-    while (num--)
-        right_ch(b);
-
-    return 0;
-}
-
-int search(struct gb *b, struct gb *cl)
-{
-    start_of_gb(cl);
-    return search_str(b, (const char *) cl->a + cl->c, 1);
-}
-
-int replace_region(struct gb *b, struct gb *cl)
-{
-    /* Embedded \0 chars in b will terminate the string early (but not cl) */
-    unsigned char u, *find, *replace;
-    int escape_mode = 0, in_find = 1;
-    size_t count, find_len = 0, replace_len, region_size, g_start, n, i;
+    size_t m_orig, g_orig;
 
     if (!b->m_set)
         return 1;
 
-    start_of_gb(cl);
-    count = 0;
-    while (1) {
-        if (cl->c == cl->e)
-            break;
-
-        u = *(cl->a + cl->c);
-
-        if (u == '\0' || (u == '\\' && !escape_mode)) {
-            if (u == '\\')
-                escape_mode = 1;
-
-            delete_ch(cl);
-        } else if (u == '|' && !escape_mode && in_find) {
-            /* Separator between find and replace components */
-            *(cl->a + cl->c) = '\0';
-            find_len = count;
-            in_find = 0;
-            count = 0;
-            right_ch(cl);
-        } else {
-            if (escape_mode) {
-                switch (u) {
-                case 'n':
-                    *(cl->a + cl->c) = '\n';
-                    break;
-                case 't':
-                    *(cl->a + cl->c) = '\t';
-                    break;
-                case '\\':
-                case '|':
-                    break;      /* Literal */
-                default:
-                    return 1;   /* Invalid escape sequence */
-                }
-                escape_mode = 0;
-            }
-            ++count;
-            right_ch(cl);
-        }
-    }
-
-    if (!find_len || escape_mode)
-        return 1;
-
-    replace_len = count;
-
-    start_of_gb(cl);
-    find = cl->a + cl->c;
-    replace = cl->a + cl->e - replace_len;
-
-    /* Move cursor to start of region */
     if (b->c > b->m) {
-        region_size = b->g - b->m;
-        while (b->c != b->m)
+        m_orig = b->m;
+        b->m = b->c;
+        while (b->g != m_orig)
             left_ch(b);
     } else {
-        region_size = b->m - b->c;
-    }
+        g_orig = b->g;
+        while (b->c != b->m)
+            right_ch(b);
 
-    g_start = b->g;
-
-    while (!search_str(b, (const char *) find, 0)) {
-        if (b->g >= g_start + region_size) {
-            /* Out of original region */
-            while (b->g != g_start + region_size)
-                left_ch(b);     /* Go back */
-
-            break;
-        }
-
-        n = find_len;
-        while (n--)
-            delete_ch(b);
-
-        region_size -= find_len;
-
-        for (i = 0; i < replace_len; ++i)
-            if (insert_ch(b, *(replace + i)))
-                return 1;
-
-        region_size += replace_len;
+        b->m = g_orig;
     }
 
     return 0;
+}
+
+int regex_forward_search(struct gb *b, struct gb *cl)
+{
+    /* Moves cursor to after the match */
+    size_t match_offset, match_len, move;
+
+    start_of_gb(cl);
+
+    if (b->c == b->e)
+        return 1;
+
+    if (regex_search
+        ((char *) b->a + b->c + 1, b->e - (b->c + 1),
+         (char *) cl->a + cl->c, *(b->a + b->c) == '\n' ? 1 : 0, 1,
+         &match_offset, &match_len))
+        return 1;
+
+    move = 1 + match_offset + match_len;
+    while (move) {
+        right_ch(b);
+        --move;
+    }
+
+    return 0;
+}
+
+int regex_replace_region(struct gb *b, struct gb *cl)
+{
+    int ret = 1;
+    char delim, *find, *sep, *replace, *res = NULL;
+    size_t res_len;
+
+    if (!b->m_set)
+        goto clean_up;
+
+    start_of_gb(cl);
+    if (cl->c == cl->e)
+        goto clean_up;
+
+    delim = *(cl->a + cl->c);
+    find = (char *) cl->a + cl->c + 1;
+    if ((sep = memchr(find, delim, cl->e - (cl->c + 1))) == NULL)
+        goto clean_up;
+
+    *sep = '\0';
+    replace = sep + 1;
+
+    /* Move cursor to start of region */
+    if (b->c > b->m)
+        if (swap_cursor_and_mark(b))
+            goto clean_up;
+
+    if (regex_replace((char *) b->a + b->c, b->m - b->c, find, replace,
+                      (char *) cl->a + cl->e - replace, 1, &res, &res_len))
+        goto clean_up;
+
+    /* Delete region */
+    b->c = b->m;
+    b->m_set = 0;
+    b->m = 0;
+    b->mod = 1;
+
+    if (insert_mem(b, res, res_len))
+        goto clean_up;
+
+    ret = 0;
+  clean_up:
+    free(res);
+
+    return ret;
 }
 
 int match_bracket(struct gb *b)

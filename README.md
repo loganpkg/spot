@@ -162,7 +162,7 @@ Built-in macros
 
 I will now introduce the built-in macros.
 
-```
+```m4
 define(macro_name, macro_def)
 ```
 `define` is used to create user-defined macros. If the macro already exists,
@@ -176,13 +176,13 @@ expand into. It can take argument placeholders, `$0` to `$9`. `$0` is the
 macro name. `$1` to `$9` are the arguments collected when the macro is called.
 Omitted arguments are treated as empty strings.
 
-```
+```m4
 undefine(`macro_name')
 ```
 `undefine` removes a macro from the hash table. It is necessary to quote the
 macro name. Built-in macros cannot be retrieved once undefined.
 
-```
+```m4
 changequote(left_quote, right_quote)
 ```
 Sets the left and right quote characters. Please note that they must be
@@ -192,7 +192,7 @@ idea to pick characters that are not a commonly used in any downstream
 programming language. I often change the quote characters to `[` and `]` or
 `@` and `~`, as single quotes are commonly used.
 
-```
+```m4
 divert or divert(div_num)
 ```
 `divert` changes the active diversion. When called without arguments, the
@@ -200,7 +200,7 @@ default diversion of 0 is used (which is regularly flushed to `stdout`).
 Diversion -1 is discarded. It is often used when defining multiple macros, as
 the remaining newline characters are typically not wanted in the output.
 
-```
+```m4
 undivert or undivert(div_num, filename, ...)
 ```
 `undivert` appends the contents of a diversion or file into the current active
@@ -210,36 +210,42 @@ called without arguments (which is only allowed from diversion 0), diversions
 1 to 9 are all undiverted in order. It is important to note that no processing
 occurs during this, macros are not expanded.
 
-```
+```m4
 writediv(div_num, filename)
 ```
 `writediv` empties the specified diversion to file. Creates missing directories
 in the file path.
 
-```
+```m4
 divnum
 ```
 `divnum` pushes the active diversion number into the input.
 
-```
+```m4
 include(filename)
 ```
 `include` pushes the contents of a file into the input. Macros will be
 processed.
 
-```
+```m4
 dnl
 ```
 `dnl` deletes to (and including) the next newline character. Often used for
 single-line comments or for removing the newline character after a macro
 definition.
 
-```
+```m4
 tnl(str)
 ```
 `tnl` trims trailing newline characters from the end of the first argument.
 
+```m4
+regexreplace(text, regex_find, replace, [, nl_insensitive])
 ```
+`regexreplace` searches text for a regex pattern and replaces the matches.
+If the fourth argument is 1, then newline insensitive matching occurs.
+
+```m4
 ifdef(`macro_name', `when_defined', `when_undefined')
 ```
 `ifdef` checks to see if the first argument is a macro, and if so, pushes the
@@ -249,7 +255,7 @@ expanding during argument collection. Also, importantly, macros will be
 expanded and processed immediately during argument collection, _before_ the
 branch in logic. So, the second and third arguments should also be quoted.
 
-```
+```m4
 ifelse(A, B, `when_same', `when_different')
 ```
 `ifelse` compares the first and second arguments (after any expansions that
@@ -259,43 +265,43 @@ input. Remember that arguments will be expanded and processed during argument
 collection, which occurs _before_ the branch in logic. So, it is a good idea to
 quote the third and fourth arguments.
 
-```
+```m4
 dumpdef or dumpdef(`macro_name', )
 ```
 `dumpdef` prints the definitions of the marcos specified in the arguments
 (which should be quoted) to `stderr`. When called without arguments, all
 macro definitions are printed. Useful when debugging.
 
-```
+```m4
 errprint(error_message)
 ```
 `errprint` prints a message to `stderr`.
 
-```
+```m4
 incr(number)
 ```
 `incr` increments a number. The result is pushed into the input.
 
-```
+```m4
 eval(math)
 ```
 `eval` evaluates an arithmetic expression. It understands `(`, `)`, `^`,
 `*`, `/`, `%` (modulus), and _unary_ and binary `+` and `-`. Works with signed
 _long_ integers.
 
-```
+```m4
 sysval
 ```
 `sysval` pushes the return value of the last shell command run via `esyscmd`
 into the input.
 
-```
+```m4
 esyscmd(shell_command)
 ```
 `esyscmd` runs an operating system specific shell command and reads the
 `stdout` of that command into the input.
 
-```
+```m4
 m4exit(exit_value)
 ```
 `m4exit` allows the user to request early termination of m4, specifying the
@@ -303,7 +309,7 @@ desired exit value in the first argument (with the default being zero when
 called with no arguments). Please note that the specified exit value will be
 overwritten with 1 if an error occurs.
 
-```
+```m4
 recrm(path)
 ```
 `remove` recursively removes a path if it exists.
@@ -359,8 +365,8 @@ The keybindings are listed below. `^a` means pressing `Ctrl` plus `a`.
 | `^k`    | Cut to end of line                                        |
 | `^o`    | Insert shell command of logical line under the cursor +   |
 | `^t`    | Trim trailing white-space and remove non-printable chars  |
-| `^s`    | Forward search                                            |
-| `^r`    | Replace region (find and replace confined to the region)* |
+| `^s`    | Regex forward search                                      |
+| `^r`    | Regex replace region*                                     |
 | `^u`    | Go to line number                                         |
 | `^q`    | Insert hex                                                |
 | `Esc b` | Left word                                                 |
@@ -391,10 +397,9 @@ backslashes are removed from the logical line, as are `\n` characters.
 situations. If some `stderr` text comes through uncaptured, then it can be
 cleared by redrawing the screen (`^l`).
 
-`*` Replace region syntax is `find|replace` where `\` is used as the escape
-character and; `\n` is a line feed, `\t` is a tab, `\\` is a literal backslash,
-and `\|` is a literal pipe character (instead of being interpreted as the
-delimiter).
+`*` Regex replace region syntax is `_find_replace` where the first character
+(in this example, `_`) is the delimiter. The anchors, `^` and `$` are relative
+to the region, not the buffer.
 
 `^` Text editor will exit if it is the last gap buffer.
 
@@ -406,6 +411,40 @@ bc is a cross-platform basic calculator. It reads from `stdin` and works with
 signed _long_ integers. It understands `(`, `)`, `^`, `*`, `/`, `%` (modulus),
 and _unary_ and binary `+` and `-`.
 
+
+Regex syntax
+============
+
+Regular expression syntax:
+* Backslash outside of character set:
+    - `\t` Tab.
+    - `\n` Line feed.
+    - `\r` Carriage return.
+    - `\0` Null character.
+    - `\xAA` Two digit hex value.
+    - `\c` Any other character, `c`, is interpreted literally.
+* `[^a-b]` Character set.
+* `(` and `)` Grouping.
+* Anchors:
+    - `^` Start of line.
+    - `$` End of line.
+* Repetition operators:
+    - `*` Zero or more.
+    - `+` One or more.
+    - `?` Zero or one.
+* `|` Alternate.
+
+
+Character sets
+--------------
+
+* Most characters are treated literally inside a character set.
+* `^` immediately after the opening `[` negates the set and is not considered
+as a character.
+* `-` _between_ characters creates an inclusive range.
+* Characters sets cannot be empty.
+* The first character is always treated literally, so `[^]]` is
+the set of all characters except for `]`.
 
 Enjoy,
 Logan =)_
