@@ -933,12 +933,65 @@ int regex_replace(const char *mem, size_t mem_len,
     int r;
     const char *m, *m_stop;
     size_t match_offset, match_len;
+    char *nr = NULL, *q;        /* New replace */
+    size_t nr_len;
+    const char *p, *p_stop;
+    unsigned char h[2], u;
 
     if (compile_regex(regex_find_str, nl_sen, &ri))
         mreturn(1);
 
     if ((b = init_obuf(mem_len)) == NULL)
         mgoto(clean_up);
+
+    if ((nr = malloc(replace_len)) == NULL)
+        mgoto(clean_up);
+
+    p = replace;
+    p_stop = p + replace_len;
+    q = nr;
+    nr_len = 0;
+    while (p != p_stop) {
+        if ((u = *p) == '\\') {
+            ++p;                /* Eat backslash */
+            if ((u = *p) == '\0')
+                mgoto(clean_up);
+
+            switch (u) {
+            case 't':
+                u = '\t';
+                break;
+            case 'n':
+                u = '\n';
+                break;
+            case 'r':
+                u = '\r';
+                break;
+            case '0':
+                u = '\0';
+                break;
+            case 'x':
+                /* Two digit hex literal */
+                ++p;
+                if ((h[0] = *p) == '\0')
+                    mgoto(clean_up);
+
+                ++p;
+                if ((h[1] = *p) == '\0')
+                    mgoto(clean_up);
+
+                if (hex_to_val(h, &u))
+                    mgoto(clean_up);
+
+                break;
+            }
+        }
+        *q = u;
+        ++q;
+        ++nr_len;
+
+        ++p;
+    }
 
     m = mem;
     m_stop = m + mem_len;
@@ -963,7 +1016,7 @@ int regex_replace(const char *mem, size_t mem_len,
                 mgoto(clean_up);
 
             /* Add replacement text */
-            if (put_mem(b, replace, replace_len))
+            if (put_mem(b, nr, nr_len))
                 mgoto(clean_up);
 
             /* Advance */
@@ -1007,6 +1060,7 @@ int regex_replace(const char *mem, size_t mem_len,
 
   clean_up:
     free_regex(ri);
+    free(nr);
     if (ret) {
         free_obuf(b);
     } else {
