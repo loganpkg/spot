@@ -33,6 +33,10 @@ The applications are:
 * [spot](#spot): The text editor, and
 * [bc](#bc): A basic calculator.
 
+spot and m4 utilise the built-in regular expression module which understands
+the [syntax](#regex-syntax) listed in a later section.
+
+
 Install
 -------
 
@@ -240,9 +244,9 @@ tnl(str)
 `tnl` trims trailing newline characters from the end of the first argument.
 
 ```m4
-regexreplace(text, regex_find, replace, [, nl_insensitive])
+regexrep(text, regex_find, replace, [, nl_insensitive])
 ```
-`regexreplace` searches text for a regex pattern and replaces the matches.
+`regexrep` searches text for a regex pattern and replaces the matches.
 If the fourth argument is 1, then newline insensitive matching occurs.
 
 ```m4

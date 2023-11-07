@@ -41,7 +41,7 @@
  * include(filename)
  * dnl
  * tnl(str)
- * regexreplace(text, regex_find, replace, [, nl_insensitive])
+ * regexrep(text, regex_find, replace, [, nl_insensitive])
  * ifdef(`macro_name', `when_defined', `when_undefined')
  * ifelse(A, B, `when_same', `when_different')
  * dumpdef or dumpdef(`macro_name', ...)
@@ -590,9 +590,9 @@ int tnl(void *v)
     mreturn(0);
 }
 
-int regexreplace(void *v)
+int regexrep(void *v)
 {
-    /*@ regexreplace(text, regex_find, replace, [, nl_insensitive]) */
+    /*@ regexrep(text, regex_find, replace, [, nl_insensitive]) */
     M4ptr m4 = (M4ptr) v;
     char *res;
     size_t res_len;
@@ -988,7 +988,7 @@ int main(int argc, char **argv)
     if (upsert(m4->ht, "tnl", NULL, &tnl))
         mgoto(clean_up);
 
-    if (upsert(m4->ht, "regexreplace", NULL, &regexreplace))
+    if (upsert(m4->ht, "regexrep", NULL, &regexrep))
         mgoto(clean_up);
 
     if (upsert(m4->ht, "ifdef", NULL, &ifdef))
