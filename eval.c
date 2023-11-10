@@ -36,10 +36,13 @@
 
 #define INIT_BUF_SIZE 100
 
-static int process_operator(struct lbuf *x, char h)
+static int process_operator(struct lbuf *x, char h, int verbose)
 {
     if (!x->i)                  /* No operands */
         mreturn(1);
+
+    if (verbose)
+        printf("%c ", h);
 
     switch (h) {
     case 'p':                  /* Unary + */
@@ -63,7 +66,8 @@ static int process_operator(struct lbuf *x, char h)
     mreturn(0);
 }
 
-int eval(struct ibuf *input, int read_stdin, int *math_error, long *res)
+int eval(struct ibuf *input, int read_stdin, int *math_error, long *res,
+         int verbose)
 {
     /* res is OK to use if return value is not ERR (EOF is OK) */
     int ret;
@@ -103,7 +107,7 @@ int eval(struct ibuf *input, int read_stdin, int *math_error, long *res)
                 if (h == '(')
                     mgoto(math_err);
 
-                if (process_operator(x, h))
+                if (process_operator(x, h, verbose))
                     mgoto(math_err);
 
                 --y->i;
@@ -116,6 +120,9 @@ int eval(struct ibuf *input, int read_stdin, int *math_error, long *res)
         if (isdigit(t)) {
             if (str_to_num(token->a, LONG_MAX, &num))
                 mgoto(math_err);
+
+            if (verbose)
+                printf("%lu ", num);
 
             if (add_l(x, (long) num))
                 mgoto(error);
@@ -147,7 +154,7 @@ int eval(struct ibuf *input, int read_stdin, int *math_error, long *res)
                         break;
                     }
 
-                    if (process_operator(x, h))
+                    if (process_operator(x, h, verbose))
                         mgoto(math_err);
 
                     --y->i;
@@ -161,7 +168,7 @@ int eval(struct ibuf *input, int read_stdin, int *math_error, long *res)
                     if (h == '(' || (h != 'p' && h != 'm'))
                         break;
 
-                    if (process_operator(x, h))
+                    if (process_operator(x, h, verbose))
                         mgoto(math_err);
 
                     --y->i;
@@ -180,7 +187,7 @@ int eval(struct ibuf *input, int read_stdin, int *math_error, long *res)
                     if (h == '(' || h == '+' || h == '-')
                         break;
 
-                    if (process_operator(x, h))
+                    if (process_operator(x, h, verbose))
                         mgoto(math_err);
 
                     --y->i;
@@ -204,7 +211,7 @@ int eval(struct ibuf *input, int read_stdin, int *math_error, long *res)
                         if (h == '(')
                             break;
 
-                        if (process_operator(x, h))
+                        if (process_operator(x, h, verbose))
                             mgoto(math_err);
 
                         --y->i;
@@ -225,6 +232,8 @@ int eval(struct ibuf *input, int read_stdin, int *math_error, long *res)
         }
 
     }
+    if (verbose)
+        putchar('\n');
 
     ret = 0;
 
@@ -260,7 +269,7 @@ int eval(struct ibuf *input, int read_stdin, int *math_error, long *res)
     goto clean_up;
 }
 
-int eval_str(const char *math_str, long *res)
+int eval_str(const char *math_str, long *res, int verbose)
 {
     int ret = 1;
     struct ibuf *input = NULL;
@@ -272,7 +281,7 @@ int eval_str(const char *math_str, long *res)
     if (unget_str(input, math_str))
         mgoto(clean_up);
 
-    if (eval(input, 0, &math_error, res))
+    if (eval(input, 0, &math_error, res, verbose))
         mgoto(clean_up);
 
     ret = 0;
