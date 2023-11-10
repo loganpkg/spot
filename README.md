@@ -244,10 +244,12 @@ tnl(str)
 `tnl` trims trailing newline characters from the end of the first argument.
 
 ```m4
-regexrep(text, regex_find, replace, [, nl_insensitive])
+regexrep(text, regex_find, replace[, nl_insensitive[, verbose]])
 ```
 `regexrep` searches text for a regex pattern and replaces the matches.
 If the fourth argument is 1, then newline insensitive matching occurs.
+If verbose is 1, then the posfix form of the expression and the
+nondeterministic finite automaton (NFA) structure are printed to `stderr`.
 
 ```m4
 ifdef(`macro_name', `when_defined', `when_undefined')
@@ -287,11 +289,12 @@ incr(number)
 `incr` increments a number. The result is pushed into the input.
 
 ```m4
-eval(math)
+eval(math[, verbose])
 ```
 `eval` evaluates an arithmetic expression. It understands `(`, `)`, `^`,
 `*`, `/`, `%` (modulus), and _unary_ and binary `+` and `-`. Works with signed
-_long_ integers.
+_long_ integers. If verbose is 1, then the postfix form of the expression is
+printed to `stderr`.
 
 ```m4
 sysval

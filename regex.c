@@ -138,8 +138,8 @@ static int preprocess_regex(const char *regex_str, int nl_sen,
     add_concat = 0;
     while (*p != '\0') {
         if (*p == '\\') {
-            ++p;                /* Eat backslash */
-            if ((u = *p) == '\0')
+            /* Eat backslash */
+            if ((u = *++p) == '\0')
                 mgoto(clean_up);
 
             switch (u) {
@@ -157,12 +157,10 @@ static int preprocess_regex(const char *regex_str, int nl_sen,
                 break;
             case 'x':
                 /* Two digit hex literal */
-                ++p;
-                if ((h[0] = *p) == '\0')
+                if ((h[0] = *++p) == '\0')
                     mgoto(clean_up);
 
-                ++p;
-                if ((h[1] = *p) == '\0')
+                if ((h[1] = *++p) == '\0')
                     mgoto(clean_up);
 
                 if (hex_to_val(h, &u))
@@ -181,18 +179,24 @@ static int preprocess_regex(const char *regex_str, int nl_sen,
             add_concat = 1;
         } else if (*p == '[') {
             /* Gather set -- No escape sequences */
-            ++p;                /* Eat opening square bracket */
+            /* Eat opening square bracket */
+            if (*++p == '\0')
+                mgoto(clean_up);
 
             if (*p == '^') {
                 negate_set = 1;
-                ++p;            /* Eat caret */
+                /* Eat caret */
+                if (*++p == '\0')
+                    mgoto(clean_up);
             } else {
                 negate_set = 0;
             }
 
             /* Take any char literally in this position */
             set_cs(cs, i, *p);
-            ++p;                /* Eat first non-negation char */
+            /* Eat first non-negation char */
+            if (*++p == '\0')
+                mgoto(clean_up);
 
             while (*p != ']') {
                 if (*p == '-' && *(p + 1) != ']') {
@@ -200,11 +204,15 @@ static int preprocess_regex(const char *regex_str, int nl_sen,
                     for (j = *(p - 1); j <= *(p + 1); ++j)
                         set_cs(cs, i, j);
 
-                    ++p;        /* Eat range separator */
+                    /* Eat range separator */
+                    if (*++p == '\0')
+                        mgoto(clean_up);
                 } else {
                     set_cs(cs, i, *p);
                 }
-                ++p;            /* Advance */
+                /* Advance */
+                if (*++p == '\0')
+                    mgoto(clean_up);
             }
 
             if (negate_set)
@@ -276,7 +284,8 @@ static int preprocess_regex(const char *regex_str, int nl_sen,
                 break;
             };
         }
-        ++p;                    /* Advance */
+        /* Advance. \0 checked at top of while loop. */
+        ++p;
     }
 
     ret = 0;
@@ -403,32 +412,53 @@ static int shunting_yard_regex(size_t *regex_nums, size_t rn_len,
 }
 
 
-/*
 static void print_regex(unsigned char *char_sets,
-                 size_t *regex_nums, size_t rn_len)
+                        size_t *regex_nums, size_t rn_len)
 {
     size_t k, x;
     int j;
 
-    printf("\nRegex:\n");
-
-    for (k = 0; k < rn_len; ++k) {
-        x = regex_nums[k];
-        if (x == '^' || x == '$') {
-            printf("R status: %c\n", (unsigned char) x);
-        } else if (x <= UCHAR_MAX) {
-            printf("Operator: %c\n", (unsigned char) x);
-        } else {
-            printf("Char set: ");
+    fprintf(stderr, "\nCharacter sets:");
+    for (k = 0; k < rn_len; ++k)
+        if ((x = regex_nums[k]) > UCHAR_MAX) {
+            fprintf(stderr, "\n%lu: ", x);
             for (j = 0; j <= UCHAR_MAX; ++j)
                 if (is_set_cs(char_sets, x, j))
-                    isgraph(j) ? printf("%c ", j) : printf("%02X ", j);
+                    isgraph(j) ? fprintf(stderr, "%c ",
+                                         j) : fprintf(stderr, "%02X ", j);
+        }
 
-            putchar('\n');
+    fprintf(stderr, "\n\nRegex:\n");
+    for (k = 0; k < rn_len; ++k)
+        if ((x = regex_nums[k]) > UCHAR_MAX)
+            fprintf(stderr, "%lu ", x);
+        else
+            fprintf(stderr, "%c ", (unsigned char) x);
+
+    putc('\n', stderr);
+}
+
+
+static void print_nfa(struct regex_info ri)
+{
+    size_t i, t;
+
+    fprintf(stderr, "\nNFA:\ngraph LR\n");
+    for (i = 0; i < ri.sa_len; ++i) {
+        if ((t = ri.sa[i].t_a)) {
+            if (t > UCHAR_MAX)
+                fprintf(stderr, "%lu -- %lu --> %lu\n", i, t, ri.sa[i].a);
+            else
+                fprintf(stderr, "%lu -- %c --> %lu\n", i,
+                        (unsigned char) t, ri.sa[i].a);
+
+            if ((t = ri.sa[i].t_b))     /* Will always be 'e' if not zero */
+                fprintf(stderr, "%lu -- %c --> %lu\n", i,
+                        (unsigned char) t, ri.sa[i].b);
         }
     }
+    putc('\n', stderr);
 }
-*/
 
 
 static size_t get_s_i(int *reuse, size_t *s_i_reuse, size_t *s_i)
@@ -674,9 +704,8 @@ static void free_regex(struct regex_info ri)
     free(ri.sl_from);
 }
 
-
 static int compile_regex(const char *regex_str, int nl_sen,
-                         struct regex_info *ri)
+                         struct regex_info *ri, int verbose)
 {
     struct regex_info reg_i;
     size_t *rn = NULL, rn_len, *rp = NULL, rp_len;
@@ -696,6 +725,9 @@ static int compile_regex(const char *regex_str, int nl_sen,
     free(rn);
     rn = NULL;
 
+    if (verbose)
+        print_regex(reg_i.cs, rp, rp_len);
+
     if (generate_nfa(rp, rp_len, &reg_i.sm, &reg_i.sa, &reg_i.sa_len))
         mgoto(clean_up);
 
@@ -710,6 +742,9 @@ static int compile_regex(const char *regex_str, int nl_sen,
 
     if ((reg_i.sl_from = malloc(reg_i.sa_len)) == NULL)
         mgoto(clean_up);
+
+    if (verbose)
+        print_nfa(reg_i);
 
     *ri = reg_i;
 
@@ -910,7 +945,7 @@ int regex_search(const char *mem, size_t mem_len,
     struct regex_info ri;
     int r;
 
-    if (compile_regex(regex_find_str, nl_sen, &ri))
+    if (compile_regex(regex_find_str, nl_sen, &ri, 0))
         mreturn(1);
 
     r = regex_find(mem, mem_len, ri, sol, nl_sen, match_offset, match_len);
@@ -924,7 +959,7 @@ int regex_search(const char *mem, size_t mem_len,
 int regex_replace(const char *mem, size_t mem_len,
                   const char *regex_find_str, const char *replace,
                   size_t replace_len, int nl_sen, char **res,
-                  size_t *res_len)
+                  size_t *res_len, int verbose)
 {
     int ret = 1;
     struct regex_info ri;
@@ -938,7 +973,7 @@ int regex_replace(const char *mem, size_t mem_len,
     const char *p, *p_stop;
     unsigned char h[2], u;
 
-    if (compile_regex(regex_find_str, nl_sen, &ri))
+    if (compile_regex(regex_find_str, nl_sen, &ri, verbose))
         mreturn(1);
 
     if ((b = init_obuf(mem_len)) == NULL)

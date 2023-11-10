@@ -52,7 +52,7 @@ int main(void)
         mreturn(1);
 
     while (1) {
-        r = eval(input, 1, &math_error, &x);
+        r = eval(input, 1, &math_error, &x, 0);
         if (r)
             break;
 

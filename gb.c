@@ -529,7 +529,8 @@ int regex_replace_region(struct gb *b, struct gb *cl)
             goto clean_up;
 
     if (regex_replace((char *) b->a + b->c, b->m - b->c, find, replace,
-                      (char *) cl->a + cl->e - replace, 1, &res, &res_len))
+                      (char *) cl->a + cl->e - replace, 1, &res, &res_len,
+                      1))
         goto clean_up;
 
     /* Delete region */
