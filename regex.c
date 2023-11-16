@@ -83,11 +83,6 @@ struct regex_info {
     size_t sa_len;              /* State array length */
     unsigned char *sl;          /* (Active) state list */
     unsigned char *sl_next;     /* Next (active) state list */
-    /*
-     * List of states that have been transitioned from during a no-read
-     * operation. Used to detect recursive loops.
-     */
-    unsigned char *sl_from;
 };
 
 
@@ -701,7 +696,6 @@ static void free_regex(struct regex_info ri)
     free(ri.sa);
     free(ri.sl);
     free(ri.sl_next);
-    free(ri.sl_from);
 }
 
 static int compile_regex(const char *regex_str, int nl_sen,
@@ -714,7 +708,6 @@ static int compile_regex(const char *regex_str, int nl_sen,
     reg_i.sa = NULL;
     reg_i.sl = NULL;
     reg_i.sl_next = NULL;
-    reg_i.sl_from = NULL;
 
     if (preprocess_regex(regex_str, nl_sen, &reg_i.cs, &rn, &rn_len))
         mgoto(clean_up);
@@ -738,9 +731,6 @@ static int compile_regex(const char *regex_str, int nl_sen,
         mgoto(clean_up);
 
     if ((reg_i.sl_next = malloc(reg_i.sa_len)) == NULL)
-        mgoto(clean_up);
-
-    if ((reg_i.sl_from = malloc(reg_i.sa_len)) == NULL)
         mgoto(clean_up);
 
     if (verbose)
@@ -788,7 +778,7 @@ static int run_nfa(struct regex_info ri, const char *mem,
     const unsigned char *p, *p_stop, *p_max_match = NULL;
     unsigned char u;
     size_t t, i, x;
-    int run_again;
+    int diff;
     int eol;
 
     memset(ri.sl, '\0', ri.sa_len);
@@ -808,43 +798,45 @@ static int run_nfa(struct regex_info ri, const char *mem,
 
         /*
          * No read. Recursively follow epsilon transitions and read states.
+         * Accumulative in nature.
          * No elimination if cannot move.
          */
-        memset(ri.sl_from, '\0', ri.sa_len);
-        do {
+        while (1) {
             /* Clear next state list */
             memset(ri.sl_next, '\0', ri.sa_len);
-            run_again = 0;
             for (i = 0; i < ri.sa_len; ++i)
                 if (ri.sl[i]) {
+                    /* Always add current state, as accumulative. No elimination. */
+                    ri.sl_next[i] = 1;
                     if ((t = ri.sa[i].t_a) == 'e' || (sol && t == '^')
                         || (eol && t == '$')) {
-                        ri.sl_from[i] = 1;
                         x = ri.sa[i].a;
-                        if (ri.sl_from[x])
-                            mgoto(error);       /* Recursive loop */
-
-                        ri.sl_next[x] = 1;
-                        run_again = 1;
+                        ri.sl_next[x] = 1;      /* Add next state */
                         /* b is only used when it is an epsilon split */
                         if (ri.sa[i].t_b == 'e') {
                             x = ri.sa[i].b;
-                            if (ri.sl_from[x])
-                                mgoto(error);   /* Recursive loop */
-
-                            ri.sl_next[x] = 1;
+                            ri.sl_next[x] = 1;  /* Add next state */
                         }
-                    } else {
-                        /* Cannot move, so pass through. No elimination. */
-                        ri.sl_next[i] = 1;
                     }
                 }
+
+            /*
+             * Break when there is no difference. Cannot progress.
+             * Stops recursive loops.
+             */
+            diff = 0;
+            for (i = 0; i < ri.sa_len; ++i)
+                if (ri.sl[i] != ri.sl_next[i])
+                    diff = 1;
+
+            if (!diff)
+                break;
 
             /* Switch state lists */
             tmp = ri.sl;
             ri.sl = ri.sl_next;
             ri.sl_next = tmp;
-        } while (run_again);
+        }
 
         if (is_done(ri.sl, ri.sa_len, ri.sm.end, p, &p_max_match))
             break;
@@ -858,7 +850,7 @@ static int run_nfa(struct regex_info ri, const char *mem,
         /* Read char */
         u = *p++;
 
-        /* Read. Must move or be elimated. */
+        /* Read. Must move or be elimated. Not accumulative. */
 
         /* Clear next state list */
         memset(ri.sl_next, '\0', ri.sa_len);
@@ -881,11 +873,9 @@ static int run_nfa(struct regex_info ri, const char *mem,
     if (p_max_match != NULL) {
         *match_len = p_max_match - (unsigned char *) mem;
         mreturn(0);             /* Match */
-    } else {
-        mreturn(NO_MATCH);
     }
-  error:
-    mreturn(1);
+
+    mreturn(NO_MATCH);
 }
 
 
