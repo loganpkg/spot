@@ -27,6 +27,10 @@
 #define _XOPEN_SOURCE 500
 #endif
 
+#ifndef _WIN32
+#include <sys/wait.h>
+#endif
+
 #include <ctype.h>
 #include <errno.h>
 #include <stdint.h>

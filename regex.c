@@ -92,8 +92,8 @@ struct regex_info {
 
 
 static int preprocess_regex(const char *regex_str, int nl_sen,
-                            unsigned char **char_sets, size_t **regex_nums,
-                            size_t *rn_len)
+                            unsigned char **char_sets,
+                            size_t ** regex_nums, size_t * rn_len)
 {
     int ret = 1;
     size_t len, n, i, k;
@@ -300,8 +300,8 @@ static int preprocess_regex(const char *regex_str, int nl_sen,
 }
 
 
-static int shunting_yard_regex(size_t *regex_nums, size_t rn_len,
-                               size_t **regex_postfix, size_t *rp_len)
+static int shunting_yard_regex(size_t * regex_nums, size_t rn_len,
+                               size_t ** regex_postfix, size_t * rp_len)
 {
     int ret = 1;
     size_t *rp = NULL;
@@ -413,7 +413,7 @@ static int shunting_yard_regex(size_t *regex_nums, size_t rn_len,
 
 
 static void print_regex(unsigned char *char_sets,
-                        size_t *regex_nums, size_t rn_len)
+                        size_t * regex_nums, size_t rn_len)
 {
     size_t k, x;
     int j;
@@ -461,7 +461,7 @@ static void print_nfa(struct regex_info ri)
 }
 
 
-static size_t get_s_i(int *reuse, size_t *s_i_reuse, size_t *s_i)
+static size_t get_s_i(int *reuse, size_t * s_i_reuse, size_t * s_i)
 {
     /*
      * Gives the next state available, allowing for the reuse of a deleted
@@ -486,9 +486,9 @@ static size_t get_s_i(int *reuse, size_t *s_i_reuse, size_t *s_i)
 #define head_m1 nfa_stack[n_i - 2]
 
 
-static int generate_nfa(size_t *regex_postfix, size_t rp_len,
+static int generate_nfa(size_t * regex_postfix, size_t rp_len,
                         struct nfa *state_machine,
-                        struct state **state_array, size_t *sa_len)
+                        struct state **state_array, size_t * sa_len)
 {
     /* Thompson's construction */
     struct nfa *nfa_stack = NULL;
@@ -782,7 +782,7 @@ static int is_done(unsigned char *sl, size_t sa_len, size_t match_state,
 
 
 static int run_nfa(struct regex_info ri, const char *mem,
-                   size_t mem_len, int sol, int nl_sen, size_t *match_len)
+                   size_t mem_len, int sol, int nl_sen, size_t * match_len)
 {
     unsigned char *tmp;
     const unsigned char *p, *p_stop, *p_max_match = NULL;
@@ -891,7 +891,7 @@ static int run_nfa(struct regex_info ri, const char *mem,
 
 static int regex_find(const char *mem, size_t mem_len,
                       struct regex_info ri, int sol, int nl_sen,
-                      size_t *match_offset, size_t *match_len)
+                      size_t * match_offset, size_t * match_len)
 {
     size_t m_len;
     const char *start;
@@ -940,7 +940,7 @@ static int regex_find(const char *mem, size_t mem_len,
 
 int regex_search(const char *mem, size_t mem_len,
                  const char *regex_find_str, int sol,
-                 int nl_sen, size_t *match_offset, size_t *match_len)
+                 int nl_sen, size_t * match_offset, size_t * match_len)
 {
     struct regex_info ri;
     int r;
@@ -959,7 +959,7 @@ int regex_search(const char *mem, size_t mem_len,
 int regex_replace(const char *mem, size_t mem_len,
                   const char *regex_find_str, const char *replace,
                   size_t replace_len, int nl_sen, char **res,
-                  size_t *res_len, int verbose)
+                  size_t * res_len, int verbose)
 {
     int ret = 1;
     struct regex_info ri;
