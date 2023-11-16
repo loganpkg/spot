@@ -967,7 +967,7 @@ int regex_replace(const char *mem, size_t mem_len,
     struct obuf *b = NULL;
     int r;
     const char *m, *m_stop;
-    size_t match_offset, match_len;
+    size_t match_offset, match_len, prev_match_len;
     char *nr = NULL, *q;        /* New replace */
     size_t nr_len;
     const char *p, *p_stop;
@@ -1031,7 +1031,7 @@ int regex_replace(const char *mem, size_t mem_len,
     m = mem;
     m_stop = m + mem_len;
     sol = 1;
-
+    prev_match_len = 0;
     while (1) {
         /* sol is always 1 at the start */
         if (m != mem) {
@@ -1051,12 +1051,15 @@ int regex_replace(const char *mem, size_t mem_len,
                 mgoto(clean_up);
 
             /* Add replacement text */
-            if (put_mem(b, nr, nr_len))
+            if ((match_len || (!match_len && !prev_match_len))
+                && put_mem(b, nr, nr_len))
                 mgoto(clean_up);
 
             /* Advance */
             m += match_offset;
             m += match_len;
+
+            prev_match_len = match_len;
 
             /* Stop when the end is reached from advancing a match */
             if (m == m_stop)
