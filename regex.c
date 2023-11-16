@@ -748,29 +748,6 @@ static int compile_regex(const char *regex_str, int nl_sen,
 }
 
 
-static int is_done(unsigned char *sl, size_t sa_len, size_t match_state,
-                   const unsigned char *p,
-                   const unsigned char **p_max_match)
-{
-    /* Check for a match */
-    size_t i, active_count;
-
-    if (sl[match_state])
-        *p_max_match = p;
-
-    /* Check for none left */
-    active_count = 0;
-    for (i = 0; i < sa_len; ++i)
-        if (sl[i])
-            ++active_count;
-
-    if (!active_count)
-        return 1;
-
-    return 0;
-}
-
-
 static int run_nfa(struct regex_info ri, const char *mem,
                    size_t mem_len, int sol, int nl_sen, size_t * match_len)
 {
@@ -778,7 +755,7 @@ static int run_nfa(struct regex_info ri, const char *mem,
     const unsigned char *p, *p_stop, *p_max_match = NULL;
     unsigned char u;
     size_t t, i, x;
-    int diff;
+    int diff, active_count;
     int eol;
 
     memset(ri.sl, '\0', ri.sa_len);
@@ -838,7 +815,17 @@ static int run_nfa(struct regex_info ri, const char *mem,
             ri.sl_next = tmp;
         }
 
-        if (is_done(ri.sl, ri.sa_len, ri.sm.end, p, &p_max_match))
+        /* Update match. Want the longest. */
+        if (ri.sl[ri.sm.end])
+            p_max_match = p;
+
+        /* Check for none left */
+        active_count = 0;
+        for (i = 0; i < ri.sa_len; ++i)
+            if (ri.sl[i])
+                ++active_count;
+
+        if (!active_count)
             break;
 
         if (p == p_stop)
@@ -866,8 +853,10 @@ static int run_nfa(struct regex_info ri, const char *mem,
         ri.sl = ri.sl_next;
         ri.sl_next = tmp;
 
-        if (is_done(ri.sl, ri.sa_len, ri.sm.end, p, &p_max_match))
-            break;
+        /*
+         * No need to check for the final match here, as doing the "no read"
+         * transitions will not cause any problems.
+         */
     }
 
     if (p_max_match != NULL) {
