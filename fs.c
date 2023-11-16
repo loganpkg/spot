@@ -97,7 +97,7 @@ FILE *fopen_w(const char *fn)
 
 
 int walk_dir_inner(const char *dir,
-                   int (*func_p)(const char *, unsigned char))
+                   int (*func_p) (const char *, unsigned char))
 {
     /* Does not execute the function on dir itself */
     int ret = 1;
@@ -214,7 +214,7 @@ int walk_dir_inner(const char *dir,
     mreturn(ret);
 }
 
-int walk_dir(const char *dir, int (*func_p)(const char *, unsigned char))
+int walk_dir(const char *dir, int (*func_p) (const char *, unsigned char))
 {
     /* Executes the function on dir itself too */
     unsigned char type;

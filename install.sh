@@ -53,7 +53,7 @@ cd "$build_dir" || exit 1
 rm -f err
 
 find . -type f \( -name '*.h' -o -name '*.c' \) \
-    -exec "$indent" -nut -kr -bad '{}' \; 2> err
+    -exec "$indent" -nut -kr '{}' \; 2> err
 
 if [ -s err ]
 then
@@ -79,7 +79,11 @@ cc $flags -o m4 m4.o gen.o num.o buf.o eval.o ht.o fs.o regex.o
 cc $flags -o spot spot.o gen.o num.o buf.o gb.o fs.o regex.o
 cc $flags -o bc bc.o gen.o num.o buf.o eval.o fs.o
 
-cp -p m4 spot bc "$install_dir"
+mkdir -p "$install_dir"
+
+cp -p m4 "$install_dir"/
+cp -p spot "$install_dir"/
+cp -p bc "$install_dir"/
 
 m4 test.m4 > .k
 /usr/bin/m4 test.m4 > .k2
