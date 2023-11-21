@@ -27,13 +27,14 @@
 #include <fcntl.h>
 #endif
 
+#include <limits.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-/* #include "gen.h" */
+#include "gen.h"
 #include "debug.h"
 #include "buf.h"
 #include "num.h"
@@ -93,4 +94,46 @@ char *concat(const char *str, ...)
     free(b);                    /* Free struct only, not memory inside */
 
     mreturn(res);
+}
+
+void *quick_search(const void *mem, size_t mem_len, const void *find,
+                   size_t find_len)
+{
+    /*
+     * Sunday's Quick Search algoritm.
+     * Exact match.
+     */
+    size_t b[UCHAR_MAX + 1];
+    unsigned char *p, *p_last, *x, *q, *q_stop;
+    size_t i;
+
+    if (find_len > mem_len)
+        return NULL;
+
+    for (i = 0; i < UCHAR_MAX + 1; ++i)
+        b[i] = find_len + 1;
+
+    q = (unsigned char *) find;
+    q_stop = q + find_len;      /* Exclusive */
+
+    for (i = 0; i < find_len; ++i)
+        b[q[i]] = find_len - i;
+
+    p = (unsigned char *) mem;
+    p_last = p + mem_len - find_len;    /* Inclusive */
+
+    while (p <= p_last) {
+        x = p;
+        q = (unsigned char *) find;
+        while (1) {
+            if (q == q_stop)
+                return p;       /* Full match */
+
+            if (*x++ != *q++)
+                break;
+        }
+
+        p += b[p[find_len]];
+    }
+    return NULL;
 }

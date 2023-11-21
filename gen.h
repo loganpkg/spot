@@ -25,6 +25,9 @@
 #ifndef GEN_H
 #define GEN_H
 
+/* For: size_t */
+#include <stddef.h>
+
 /* To stop empty translation unit error */
 typedef int gen_dummy;
 
