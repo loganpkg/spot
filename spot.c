@@ -453,6 +453,9 @@ int main(int argc, char **argv)
     struct gb *b = NULL;        /* Text buffers linked together */
     struct gb *p = NULL;        /* Paste buffer */
     struct gb *cl = NULL;       /* Command line buffer */
+    struct gb *sb = NULL;       /* Search buffer */
+    struct gb *tmp_b;           /* For switching gap buffers */
+    char search_type = ' ';     /* s = Exact search, z = Regex search */
     int cl_active = 0;          /* Cursor is in the command line */
     char op = ' ';              /* The cl operation which is in progress */
 
@@ -521,6 +524,8 @@ int main(int argc, char **argv)
     if ((cl = init_gb(INIT_GB_SIZE)) == NULL)
         goto clean_up;
 
+    if ((sb = init_gb(INIT_GB_SIZE)) == NULL)
+        goto clean_up;
 
     while (running) {
         if (draw(b, cl, &s, cl_active, rv, es_set, es))
@@ -602,22 +607,27 @@ int main(int argc, char **argv)
         case C('s'):
             delete_gb(cl);
             cl_active = 1;
-            op = 's';           /* regex_forward_search */
+            op = 's';
+            break;
+        case C('z'):
+            delete_gb(cl);
+            cl_active = 1;
+            op = 'z';
             break;
         case C('r'):
             delete_gb(cl);
             cl_active = 1;
-            op = 'R';           /* regex_replace_region */
+            op = 'r';
             break;
         case C('u'):
             delete_gb(cl);
             cl_active = 1;
-            op = 'g';           /* goto_row */
+            op = 'u';
             break;
         case C('q'):
             delete_gb(cl);
             cl_active = 1;
-            op = 'h';           /* insert_hex */
+            op = 'q';
             break;
         case ESC:
             y = get_key();
@@ -643,7 +653,14 @@ int main(int argc, char **argv)
                 rv = match_bracket(z);
                 break;
             case 'n':
-                rv = regex_forward_search(b, cl);
+                /* Repeat last search */
+                if (search_type == 'E')
+                    rv = exact_forward_search(b, sb);
+                else if (search_type == 'R')
+                    rv = regex_forward_search(b, sb);
+                else
+                    rv = 1;
+
                 break;
             case 'w':
                 rv = copy_region(z, p, 0);
@@ -657,7 +674,7 @@ int main(int argc, char **argv)
             case '=':
                 delete_gb(cl);
                 cl_active = 1;
-                op = 'r';       /* rename_gb */
+                op = '=';
                 break;
             case '$':
                 delete_gb(cl);
@@ -687,12 +704,12 @@ int main(int argc, char **argv)
             case C('f'):
                 delete_gb(cl);
                 cl_active = 1;
-                op = 'n';       /* new_gb */
+                op = 'f';
                 break;
             case 'i':
                 delete_gb(cl);
                 cl_active = 1;
-                op = 'i';       /* insert_file */
+                op = 'i';
                 break;
             case LEFT_KEY:
                 if (b->prev != NULL)
@@ -711,22 +728,37 @@ int main(int argc, char **argv)
             if (cl_active) {
                 switch (op) {
                 case 's':
-                    rv = regex_forward_search(b, cl);
+                    /* Swap gap buffers */
+                    tmp_b = sb;
+                    sb = cl;
+                    cl = tmp_b;
+                    delete_gb(cl);
+                    search_type = op;
+                    rv = exact_forward_search(b, sb);
                     break;
-                case 'R':
-                    rv = regex_replace_region(b, cl);
+                case 'z':
+                    /* Swap gap buffers */
+                    tmp_b = sb;
+                    sb = cl;
+                    cl = tmp_b;
+                    delete_gb(cl);
+                    search_type = op;
+                    rv = regex_forward_search(b, sb);
                     break;
                 case 'r':
+                    rv = regex_replace_region(b, cl);
+                    break;
+                case '=':
                     start_of_gb(cl);
                     rv = rename_gb(b, (const char *) cl->a + cl->c);
                     break;
-                case 'g':
+                case 'u':
                     rv = goto_row(b, cl);
                     break;
-                case 'h':
+                case 'q':
                     rv = insert_hex(b, cl);
                     break;
-                case 'n':
+                case 'f':
                     start_of_gb(cl);
                     rv = new_gb(&b, (const char *) cl->a + cl->c,
                                 INIT_GB_SIZE);
@@ -776,6 +808,7 @@ int main(int argc, char **argv)
     free_gb_list(b);
     free_gb(p);
     free_gb(cl);
+    free_gb(sb);
 
     return ret;
 }

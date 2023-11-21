@@ -372,7 +372,8 @@ The keybindings are listed below. `^a` means pressing `Ctrl` plus `a`.
 | `^k`    | Cut to end of line                                        |
 | `^o`    | Insert shell command of logical line under the cursor +   |
 | `^t`    | Trim trailing white-space and remove non-printable chars  |
-| `^s`    | Regex forward search                                      |
+| `^s`    | Exact forward search (moves cursor to start of the match) |
+| `^z`    | Regex forward search (moves cursor to after the match)    |
 | `^r`    | Regex replace region*                                     |
 | `^u`    | Go to line number                                         |
 | `^q`    | Insert hex                                                |

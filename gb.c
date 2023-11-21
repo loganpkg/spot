@@ -481,6 +481,29 @@ int swap_cursor_and_mark(struct gb *b)
     return 0;
 }
 
+int exact_forward_search(struct gb *b, struct gb *cl)
+{
+    /* Moves cursor to the start of the match */
+    const unsigned char *q;
+    size_t num;
+
+    start_of_gb(cl);
+
+    if (b->c == b->e)
+        return 1;
+
+    if ((q =
+         quick_search(b->a + b->c + 1, b->e - (b->c + 1), cl->a + cl->c,
+                      cl->e - cl->c)) == NULL)
+        return 1;
+
+    num = q - (b->a + b->c);
+    while (num--)
+        right_ch(b);
+
+    return 0;
+}
+
 int regex_forward_search(struct gb *b, struct gb *cl)
 {
     /* Moves cursor to after the match */
