@@ -34,7 +34,7 @@ The applications are:
 * [bc](#bc): A basic calculator.
 
 spot and m4 utilise the built-in regular expression module which understands
-the [syntax](#regex-syntax) listed in a later section.
+the [regex syntax](#regex-syntax) listed in a later section.
 
 
 Install
