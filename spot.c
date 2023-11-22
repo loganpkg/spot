@@ -654,9 +654,9 @@ int main(int argc, char **argv)
                 break;
             case 'n':
                 /* Repeat last search */
-                if (search_type == 'E')
+                if (search_type == 's')
                     rv = exact_forward_search(b, sb);
-                else if (search_type == 'R')
+                else if (search_type == 'z')
                     rv = regex_forward_search(b, sb);
                 else
                     rv = 1;
