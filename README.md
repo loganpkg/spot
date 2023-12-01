@@ -388,7 +388,7 @@ The keybindings are listed below. `^a` means pressing `Ctrl` plus `a`.
 | `Esc !` | Remove current gap buffer without saving ^                |
 | `Esc =` | Rename gap buffer                                         |
 | `Esc $` | Insert shell command from the command line                |
-|``Esc` ``| Insert shell command of logical line under the cursor +   |
+|``Esc ```| Insert shell command of logical line under the cursor +   |
 | `Esc <` | Start of gap buffer                                       |
 | `Esc >` | End of gap buffer                                         |
 | `^x ^c` | Close editor without saving any buffers                   |
