@@ -784,7 +784,7 @@ int main(int argc, char **argv)
                 cl_active = 1;
                 op = '$';       /* insert_shell_cmd */
                 break;
-            case '#':
+            case '`':
                 rv = shell_line(z, tmp, &es);
                 if (!rv)
                     es_set = 1;
