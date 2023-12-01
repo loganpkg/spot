@@ -49,6 +49,11 @@
 #include "num.h"
 
 
+#define SET_DIR(u) ((u) |= 1)
+#define SET_SLINK(u) ((u) |= 1 << 1)
+#define SET_DOTDIR(u) ((u) |= 1 << 2)
+
+
 FILE *fopen_w(const char *fn)
 {
     /* Creates missing directories and opens a file for writing */
@@ -87,17 +92,46 @@ FILE *fopen_w(const char *fn)
     mreturn(fopen(fn, "wb"));
 }
 
-#define IS_DIR(u) ((u) & 1)
-#define IS_SLINK(u) ((u) & 1 << 1)
-#define IS_DOTDIR(u) ((u) & 1 << 2)
 
-#define SET_DIR(u) ((u) |= 1)
-#define SET_SLINK(u) ((u) |= 1 << 1)
-#define SET_DOTDIR(u) ((u) |= 1 << 2)
+int get_path_type(const char *path, unsigned char *type)
+{
+    unsigned char t = '\0';
+#ifdef _WIN32
+    DWORD file_attr;
+#else
+    struct stat st;
+#endif
+
+#ifdef _WIN32
+    if ((file_attr = GetFileAttributes(path)) == INVALID_FILE_ATTRIBUTES)
+        mreturn(1);
+
+    if (file_attr & FILE_ATTRIBUTE_DIRECTORY)
+        SET_DIR(t);
+
+    if (file_attr & FILE_ATTRIBUTE_REPARSE_POINT)
+        SET_SLINK(t);
+#else
+    if (lstat(path, &st))
+        mreturn(1);
+
+    if (S_ISDIR(st.st_mode))
+        SET_DIR(t);
+
+    if (S_ISLNK(st.st_mode))
+        SET_SLINK(t);
+#endif
+
+    if (!strcmp(path, ".") || !strcmp(path, ".."))
+        SET_DOTDIR(t);
+
+    *type = t;
+    mreturn(0);
+}
 
 
-int walk_dir_inner(const char *dir,
-                   int (*func_p) (const char *, unsigned char))
+int walk_dir_inner(const char *dir, int (*func_p) (const char *,
+                                                   unsigned char))
 {
     /* Does not execute the function on dir itself */
     int ret = 1;
@@ -109,7 +143,6 @@ int walk_dir_inner(const char *dir,
 #else
     DIR *h = NULL;
     struct dirent *d;
-    struct stat st;
 #endif
     const char *fn;
     char *path = NULL;
@@ -155,16 +188,10 @@ int walk_dir_inner(const char *dir,
         if (d->d_type == DT_LNK)
             SET_SLINK(type);
 
-        if (d->d_type == DT_UNKNOWN) {
-            if (lstat(path, &st))
+        if (d->d_type == DT_UNKNOWN)
+            if (get_path_type(path, &type))
                 mgoto(clean_up);
 
-            if (S_ISDIR(st.st_mode))
-                SET_DIR(type);
-
-            if (S_ISLNK(st.st_mode))
-                SET_SLINK(type);
-        }
 #endif
         if (!strcmp(fn, ".") || !strcmp(fn, ".."))
             SET_DOTDIR(type);
@@ -179,7 +206,6 @@ int walk_dir_inner(const char *dir,
 
         free(path);
         path = NULL;
-
 #ifdef _WIN32
         if (!FindNextFile(h, &d))
             break;
@@ -232,21 +258,6 @@ int walk_dir(const char *dir, int (*func_p) (const char *, unsigned char))
         mreturn(1);
 
     mreturn(0);
-}
-
-static int print_path(const char *path, unsigned char type)
-{
-    if (IS_DIR(type))
-        printf("D|%s\n", path);
-    else
-        printf("F|%s\n", path);
-
-    mreturn(0);
-}
-
-int rec_ls(const char *dir)
-{
-    mreturn(walk_dir(dir, &print_path));
 }
 
 static int rm_path(const char *path, unsigned char type)

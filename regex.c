@@ -783,7 +783,10 @@ static int run_nfa(struct regex_info ri, const char *mem,
             memset(ri.sl_next, '\0', ri.sa_len);
             for (i = 0; i < ri.sa_len; ++i)
                 if (ri.sl[i]) {
-                    /* Always add current state, as accumulative. No elimination. */
+                    /*
+                     * Always add current state, as accumulative.
+                     * No elimination.
+                     */
                     ri.sl_next[i] = 1;
                     if ((t = ri.sa[i].t_a) == 'e' || (sol && t == '^')
                         || (eol && t == '$')) {

@@ -28,6 +28,11 @@
 /* For: FILE */
 #include <stdio.h>
 
+
+#define IS_DIR(u) ((u) & 1)
+#define IS_SLINK(u) ((u) & 1 << 1)
+#define IS_DOTDIR(u) ((u) & 1 << 2)
+
 #ifndef _WIN32
 #define mkdir(dir) mkdir(dir, S_IRWXU)
 #endif

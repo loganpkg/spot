@@ -370,13 +370,13 @@ The keybindings are listed below. `^a` means pressing `Ctrl` plus `a`.
 | `^w`    | Cut region                                                |
 | `^y`    | Paste                                                     |
 | `^k`    | Cut to end of line                                        |
-| `^o`    | Insert shell command of logical line under the cursor +   |
 | `^t`    | Trim trailing white-space and remove non-printable chars  |
 | `^s`    | Exact forward search (moves cursor to start of the match) |
 | `^z`    | Regex forward search (moves cursor to after the match)    |
 | `^r`    | Regex replace region*                                     |
 | `^u`    | Go to line number                                         |
 | `^q`    | Insert hex                                                |
+| `^o`    | Open file or directory under the cursor                   |
 | `Esc b` | Left word                                                 |
 | `Esc f` | Right word                                                |
 | `Esc l` | Lowercase word                                            |
@@ -388,6 +388,7 @@ The keybindings are listed below. `^a` means pressing `Ctrl` plus `a`.
 | `Esc !` | Remove current gap buffer without saving ^                |
 | `Esc =` | Rename gap buffer                                         |
 | `Esc $` | Insert shell command from the command line                |
+| `Esc #` | Insert shell command of logical line under the cursor +   |
 | `Esc <` | Start of gap buffer                                       |
 | `Esc >` | End of gap buffer                                         |
 | `^x ^c` | Close editor without saving any buffers                   |
