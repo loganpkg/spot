@@ -44,6 +44,8 @@
 #include <conio.h>
 /* For terminal functions */
 #include <Windows.h>
+/* For chdir and getcwd */
+#include <direct.h>
 #else
 #include <sys/ioctl.h>
 #include <termios.h>
@@ -61,6 +63,18 @@
 #include "gen.h"
 #include "num.h"
 #include "gb.h"
+#include "fs.h"
+
+#ifdef _WIN32
+#define LS_CMD "dir /a"
+#define APP_PDF "\"\""
+#define APP_JPG "\"\""
+#else
+#define LS_CMD "ls -a"
+#define APP_PDF "mupdf"
+#define APP_JPG "feh --fullscreen --start-at"
+#endif
+
 
 #define INIT_GB_SIZE 512
 
@@ -439,6 +453,82 @@ int draw(struct gb *b, struct gb *cl, struct screen *s, int cl_active,
 
 #undef print_ch
 
+
+
+int open_file_or_dir(struct gb **b, struct gb *tmp, char **cwd)
+{
+    unsigned char type;
+    const char *fn, *ext;
+    size_t len;
+    char *new_wd = NULL, *d, *app = NULL, *cmd = NULL;
+    int es;
+
+    if (word_under_cursor(*b, tmp))
+        return 1;
+
+    fn = (const char *) tmp->a + tmp->c;
+
+    if (get_path_type(fn, &type))
+        return 1;
+
+    if (IS_DIR(type)) {
+        if ((new_wd = concat(*cwd, "/", fn, NULL)) == NULL)
+            return 1;
+
+        if (chdir(new_wd)) {
+            free(new_wd);
+            return 1;
+        }
+
+        free(new_wd);
+        new_wd = NULL;
+
+        if ((d = getcwd(NULL, 0)) == NULL)
+            return 1;
+
+        if (*cwd != NULL)
+            free(*cwd);
+
+        *cwd = d;
+
+        if ((*b)->fn == NULL) {
+            /* Safety mechanism */
+            delete_gb(*b);
+            if (insert_shell_cmd(*b, LS_CMD, &es) || es)
+                return 1;
+
+            start_of_gb(*b);
+        }
+    } else {
+        len = strlen(fn);
+        if (len > 4 && (!strcmp((ext = fn + len - 4), ".pdf")
+                        || !strcmp(ext, ".PDF")))
+            app = APP_PDF;
+        else if (len > 4 && (!strcmp((ext = fn + len - 4), ".jpg")
+                             || !strcmp(ext, ".JPG")))
+            app = APP_JPG;
+
+        if (app != NULL) {
+#ifdef _WIN32
+            if ((cmd = concat("start ", app, " ", fn, NULL)) == NULL)
+                return 1;
+#else
+            if ((cmd = concat(app, " ", fn, " &", NULL)) == NULL)
+                return 1;
+#endif
+            system(cmd);
+
+            free(cmd);
+        } else {
+            if (new_gb(b, *cwd, fn, INIT_GB_SIZE))
+                return 1;
+        }
+
+    }
+    return 0;
+}
+
+
 #define z (cl_active ? cl : b)
 
 int main(int argc, char **argv)
@@ -450,11 +540,13 @@ int main(int argc, char **argv)
     int es = 0;                 /* Exit status of last shell command */
     int i, x, y;
     struct screen s;
+    char *cwd = NULL;           /* Current working directory */
     struct gb *b = NULL;        /* Text buffers linked together */
     struct gb *p = NULL;        /* Paste buffer */
     struct gb *cl = NULL;       /* Command line buffer */
     struct gb *sb = NULL;       /* Search buffer */
-    struct gb *tmp_b;           /* For switching gap buffers */
+    struct gb *tmp = NULL;      /* Temporary buffer */
+    struct gb *t;               /* For switching gap buffers */
     char search_type = ' ';     /* s = Exact search, z = Regex search */
     int cl_active = 0;          /* Cursor is in the command line */
     char op = ' ';              /* The cl operation which is in progress */
@@ -506,15 +598,18 @@ int main(int argc, char **argv)
 
 #endif
 
+    if ((cwd = getcwd(NULL, 0)) == NULL)
+        goto clean_up;
+
     if (argc > 1) {
         for (i = 1; i < argc; ++i) {
-            if (new_gb(&b, *(argv + i), INIT_GB_SIZE))
+            if (new_gb(&b, cwd, *(argv + i), INIT_GB_SIZE))
                 goto clean_up;
         }
         while (b->prev)
             b = b->prev;
     } else {
-        if (new_gb(&b, NULL, INIT_GB_SIZE))
+        if (new_gb(&b, NULL, NULL, INIT_GB_SIZE))
             goto clean_up;
     }
 
@@ -525,6 +620,9 @@ int main(int argc, char **argv)
         goto clean_up;
 
     if ((sb = init_gb(INIT_GB_SIZE)) == NULL)
+        goto clean_up;
+
+    if ((tmp = init_gb(INIT_GB_SIZE)) == NULL)
         goto clean_up;
 
     while (running) {
@@ -579,6 +677,7 @@ int main(int argc, char **argv)
                 z->m_set = 0;
                 z->m = 0;
             } else if (cl_active) {
+                delete_gb(cl);
                 cl_active = 0;
             }
             break;
@@ -594,12 +693,6 @@ int main(int argc, char **argv)
             break;
         case C('k'):
             rv = cut_to_eol(z, p);
-            break;
-        case C('o'):
-            rv = shell_line(z, p, &es);
-            if (!rv)
-                es_set = 1;
-
             break;
         case C('t'):
             trim_clean(z);
@@ -628,6 +721,13 @@ int main(int argc, char **argv)
             delete_gb(cl);
             cl_active = 1;
             op = 'q';
+            break;
+        case C('o'):
+            if (cl_active)
+                rv = 1;         /* Do not allow in the command line */
+            else
+                rv = open_file_or_dir(&b, tmp, &cwd);
+
             break;
         case ESC:
             y = get_key();
@@ -673,6 +773,9 @@ int main(int argc, char **argv)
                 break;
             case '=':
                 delete_gb(cl);
+                if (b->fn != NULL && insert_str(cl, b->fn))
+                    delete_gb(cl);
+
                 cl_active = 1;
                 op = '=';
                 break;
@@ -680,6 +783,12 @@ int main(int argc, char **argv)
                 delete_gb(cl);
                 cl_active = 1;
                 op = '$';       /* insert_shell_cmd */
+                break;
+            case '#':
+                rv = shell_line(z, tmp, &es);
+                if (!rv)
+                    es_set = 1;
+
                 break;
             case '<':
                 start_of_gb(z);
@@ -729,18 +838,18 @@ int main(int argc, char **argv)
                 switch (op) {
                 case 's':
                     /* Swap gap buffers */
-                    tmp_b = sb;
+                    t = sb;
                     sb = cl;
-                    cl = tmp_b;
+                    cl = t;
                     delete_gb(cl);
                     search_type = op;
                     rv = exact_forward_search(b, sb);
                     break;
                 case 'z':
                     /* Swap gap buffers */
-                    tmp_b = sb;
+                    t = sb;
                     sb = cl;
-                    cl = tmp_b;
+                    cl = t;
                     delete_gb(cl);
                     search_type = op;
                     rv = regex_forward_search(b, sb);
@@ -750,7 +859,7 @@ int main(int argc, char **argv)
                     break;
                 case '=':
                     start_of_gb(cl);
-                    rv = rename_gb(b, (const char *) cl->a + cl->c);
+                    rv = rename_gb(b, cwd, (const char *) cl->a + cl->c);
                     break;
                 case 'u':
                     rv = goto_row(b, cl);
@@ -760,7 +869,7 @@ int main(int argc, char **argv)
                     break;
                 case 'f':
                     start_of_gb(cl);
-                    rv = new_gb(&b, (const char *) cl->a + cl->c,
+                    rv = new_gb(&b, cwd, (const char *) cl->a + cl->c,
                                 INIT_GB_SIZE);
                     break;
                 case 'i':
@@ -802,6 +911,7 @@ int main(int argc, char **argv)
         ret = 1;
 #endif
 
+    free(cwd);
     free(s.vs_c);
     free(s.vs_n);
 
@@ -809,6 +919,7 @@ int main(int argc, char **argv)
     free_gb(p);
     free_gb(cl);
     free_gb(sb);
+    free_gb(tmp);
 
     return ret;
 }

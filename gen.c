@@ -74,14 +74,14 @@ char *concat(const char *str, ...)
 
     va_start(v, str);
 
-    do {
+    while (1) {
         if (put_str(b, p)) {
             free_obuf(b);
             mreturn(NULL);
         }
         if ((p = va_arg(v, const char *)) == NULL)
             break;
-    } while (1);
+    }
 
     va_end(v);
 

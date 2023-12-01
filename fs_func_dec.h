@@ -1,3 +1,3 @@
 FILE *fopen_w(const char *fn);
-int rec_ls(const char *dir);
+int get_path_type(const char *path, unsigned char *type);
 int rec_rm(const char *path);

@@ -764,7 +764,49 @@ int cut_to_sol(struct gb *b, struct gb *p)
     return copy_region(b, p, 1);
 }
 
-int copy_logical_line(struct gb *b, struct gb *p)
+int word_under_cursor(struct gb *b, struct gb *tmp)
+{
+    unsigned char *p, *p_stop, u;
+    p = b->a + b->c;
+    p_stop = b->a + b->e;       /* Exclusive */
+    delete_gb(tmp);
+
+    if ((u = *p) == ' ' || u == '\t')
+        return 1;               /* Invalid character */
+
+    while ((u = *p) != ' ' && u != '\n' && u != '\t' && p != p_stop) {
+        if (u && insert_ch(tmp, u))     /* Skip embedded \0 chars */
+            return 1;
+
+        ++p;
+    }
+
+    start_of_gb(tmp);
+    if (b->g) {
+        p = b->a + b->g - 1;
+        while (1) {
+            if ((u = *p) != ' ' && u != '\n' && u != '\t') {
+                if (u) {
+                    /* Skip embedded \0 chars */
+                    if (insert_ch(tmp, u))
+                        return 1;
+
+                    if (left_ch(tmp))
+                        return 1;
+                }
+            } else {
+                break;
+            }
+            if (p == b->a)
+                break;
+
+            --p;
+        }
+    }
+    return 0;
+}
+
+int copy_logical_line(struct gb *b, struct gb *tmp)
 {
     /*
      * A backslash at the end of a line continues the logical line.
@@ -783,25 +825,25 @@ int copy_logical_line(struct gb *b, struct gb *p)
            && b->c != b->e)
         right_ch(b);
 
-    if (copy_region(b, p, 0))
+    if (copy_region(b, tmp, 0))
         return 1;
 
     /* Delete backslash at the end of lines and combine lines */
-    start_of_gb(p);
-    while (p->c != p->e) {
-        switch (*(p->a + p->c)) {
+    start_of_gb(tmp);
+    while (tmp->c != tmp->e) {
+        switch (*(tmp->a + tmp->c)) {
         case '\\':
-            if (p->c + 1 == p->e || *(p->a + p->c + 1) == '\n') {
-                delete_ch(p);   /* Remove backslash */
+            if (tmp->c + 1 == tmp->e || *(tmp->a + tmp->c + 1) == '\n') {
+                delete_ch(tmp); /* Remove backslash */
             } else {
-                right_ch(p);
+                right_ch(tmp);
             }
             break;
         case '\n':
-            delete_ch(p);
+            delete_ch(tmp);
             break;
         default:
-            right_ch(p);
+            right_ch(tmp);
             break;
         }
     }
@@ -846,19 +888,19 @@ int insert_shell_cmd(struct gb *b, const char *cmd, int *es)
     return 0;
 }
 
-int shell_line(struct gb *b, struct gb *p, int *es)
+int shell_line(struct gb *b, struct gb *tmp, int *es)
 {
-    if (copy_logical_line(b, p))
+    if (copy_logical_line(b, tmp))
         return 1;
 
-    end_of_gb(p);
-    if (insert_str(p, " 2>&1"))
+    end_of_gb(tmp);
+    if (insert_str(tmp, " 2>&1"))
         return 1;
 
     /* Embedded \0 will terminate string early */
-    start_of_gb(p);
+    start_of_gb(tmp);
 
-    if (insert_shell_cmd(b, (const char *) p->a + p->c, es))
+    if (insert_shell_cmd(b, (const char *) tmp->a + tmp->c, es))
         return 1;
 
     return 0;
@@ -906,20 +948,30 @@ int save(struct gb *b)
     return 0;
 }
 
-int rename_gb(struct gb *b, const char *fn)
+int rename_gb(struct gb *b, const char *cwd, const char *fn)
 {
-    char *fn_copy;
+    char *path;
 
-    if ((fn_copy = strdup(fn)) == NULL)
+    if (cwd == NULL || fn == NULL)
         return 1;
 
+    if (*fn == '/' || (*fn && *(fn + 1) == ':' && *(fn + 2) == '\\')) {
+        /* Already absolute */
+        if ((path = strdup(fn)) == NULL)
+            return 1;
+    } else {
+        /* Make relative path absolute */
+        if ((path = concat(cwd, "/", fn, NULL)) == NULL)
+            return 1;
+    }
+
     free(b->fn);
-    b->fn = fn_copy;
+    b->fn = path;
     b->mod = 1;
     return 0;
 }
 
-int new_gb(struct gb **b, const char *fn, size_t s)
+int new_gb(struct gb **b, const char *cwd, const char *fn, size_t s)
 {
     struct gb *t = NULL;
 
@@ -932,7 +984,7 @@ int new_gb(struct gb **b, const char *fn, size_t s)
             free_gb(t);
             return 1;
         }
-        if (rename_gb(t, fn)) {
+        if (rename_gb(t, cwd, fn)) {
             free_gb(t);
             return 1;
         }
