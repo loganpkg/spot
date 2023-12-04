@@ -536,7 +536,10 @@ int open_file_or_dir(struct gb **b, struct gb *tmp, char **cwd)
             if ((cmd = concat(app, " ", fn, " &", NULL)) == NULL)
                 return 1;
 #endif
-            system(cmd);
+            if (system(cmd) == -1) {
+                free(cmd);
+                return 1;
+            }
 
             free(cmd);
         } else {
