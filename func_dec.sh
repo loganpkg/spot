@@ -32,7 +32,7 @@ source="$mod".c
 
 if [ -s "$source" ]
 then
-    < "$source" tr '\n' '~' | grep -E -o '~[a-zA-Z]+[^()]+\([^()]+\)~{' \
+    < "$source" tr '\n' '~' | grep -E -o '~[a-zA-Z_][^()~]+\([^()]+\)~\{' \
         | grep -E -v '~static ' | sed -E 's/^~(.+)~\{/\1;/' | tr '~' '\n' \
         > "$mod"_func_dec.h
 fi

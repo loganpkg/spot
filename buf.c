@@ -486,3 +486,66 @@ int add_l(struct lbuf *b, long x)
     ++b->i;
     mreturn(0);
 }
+
+
+struct pbuf *init_pbuf(size_t n)
+{
+    struct pbuf *b;
+
+    if ((b = malloc(sizeof(struct pbuf))) == NULL)
+        mreturn(NULL);
+
+    if (mof(n, sizeof(void *), SIZE_MAX))
+        mreturn(NULL);
+
+    if ((b->a = malloc(n * sizeof(void *))) == NULL)
+        mreturn(NULL);
+
+    b->i = 0;
+    b->n = n;
+    mreturn(b);
+}
+
+void free_pbuf(struct pbuf *b)
+{
+    if (b != NULL) {
+        free(b->a);
+        free(b);
+    }
+}
+
+static int grow_pbuf(struct pbuf *b, size_t will_use)
+{
+    void **t;
+    size_t new_n;
+
+    if (aof(b->n, will_use, SIZE_MAX))
+        mreturn(1);
+
+    new_n = b->n + will_use;
+
+    if (mof(new_n, 2, SIZE_MAX))
+        mreturn(1);
+
+    new_n *= 2;
+
+    if (mof(new_n, sizeof(void *), SIZE_MAX))
+        mreturn(1);
+
+    if ((t = realloc(b->a, new_n * sizeof(void *))) == NULL)
+        mreturn(1);
+
+    b->a = t;
+    b->n = new_n;
+    mreturn(0);
+}
+
+int add_p(struct pbuf *b, void *ptr)
+{
+    if (b->i == b->n && grow_pbuf(b, 1))
+        mreturn(1);
+
+    *(b->a + b->i) = ptr;
+    ++b->i;
+    mreturn(0);
+}

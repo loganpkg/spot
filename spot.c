@@ -66,13 +66,16 @@
 #include "fs.h"
 
 #ifdef _WIN32
-#define LS_CMD "dir /a"
-#define APP_PDF "\"\""
-#define APP_JPG "\"\""
+#define DEFAULT_APP "\"\""
+#define APP_PDF DEFAULT_APP
+#define APP_JPG DEFAULT_APP
+#define APP_MOV DEFAULT_APP
+#define APP_MP4 DEFAULT_APP
 #else
-#define LS_CMD "ls -a"
 #define APP_PDF "mupdf"
 #define APP_JPG "feh --fullscreen --start-at"
+#define APP_MOV "vlc"
+#define APP_MP4 "vlc"
 #endif
 
 
@@ -461,7 +464,6 @@ int open_file_or_dir(struct gb **b, struct gb *tmp, char **cwd)
     const char *fn, *ext;
     size_t len;
     char *new_wd = NULL, *d, *app = NULL, *cmd = NULL;
-    int es;
 
     if (word_under_cursor(*b, tmp))
         return 1;
@@ -472,16 +474,24 @@ int open_file_or_dir(struct gb **b, struct gb *tmp, char **cwd)
         return 1;
 
     if (IS_DIR(type)) {
-        if ((new_wd = concat(*cwd, "/", fn, NULL)) == NULL)
-            return 1;
+        if (*fn == '/' || (*fn && *(fn + 1) == ':' && *(fn + 2) == '\\')) {
+            /* Already absolute */
+            if (chdir(fn))
+                return 1;
 
-        if (chdir(new_wd)) {
+        } else {
+            /* Make relative path absolute */
+            if ((new_wd = concat(*cwd, "/", fn, NULL)) == NULL)
+                return 1;
+
+            if (chdir(new_wd)) {
+                free(new_wd);
+                return 1;
+            }
+
             free(new_wd);
-            return 1;
+            new_wd = NULL;
         }
-
-        free(new_wd);
-        new_wd = NULL;
 
         if ((d = getcwd(NULL, 0)) == NULL)
             return 1;
@@ -491,14 +501,18 @@ int open_file_or_dir(struct gb **b, struct gb *tmp, char **cwd)
 
         *cwd = d;
 
+        /* Only delete the buffer contents if it has no name */
         if ((*b)->fn == NULL) {
-            /* Safety mechanism */
             delete_gb(*b);
-            if (insert_shell_cmd(*b, LS_CMD, &es) || es)
+        } else {
+            if (new_gb(b, *cwd, NULL, INIT_GB_SIZE))
                 return 1;
-
-            start_of_gb(*b);
         }
+        if (insert_ls(*b, "."))
+            return 1;
+
+        start_of_gb(*b);
+
     } else {
         len = strlen(fn);
         if (len > 4 && (!strcmp((ext = fn + len - 4), ".pdf")
@@ -507,6 +521,12 @@ int open_file_or_dir(struct gb **b, struct gb *tmp, char **cwd)
         else if (len > 4 && (!strcmp((ext = fn + len - 4), ".jpg")
                              || !strcmp(ext, ".JPG")))
             app = APP_JPG;
+        else if (len > 4 && (!strcmp((ext = fn + len - 4), ".mov")
+                             || !strcmp(ext, ".MOV")))
+            app = APP_MOV;
+        else if (len > 4 && (!strcmp((ext = fn + len - 4), ".mp4")
+                             || !strcmp(ext, ".MP4")))
+            app = APP_MP4;
 
         if (app != NULL) {
 #ifdef _WIN32
@@ -609,8 +629,15 @@ int main(int argc, char **argv)
         while (b->prev)
             b = b->prev;
     } else {
+        /* No args */
         if (new_gb(&b, NULL, NULL, INIT_GB_SIZE))
             goto clean_up;
+
+        /* Show directory listing */
+        if (insert_ls(b, "."))
+            goto clean_up;
+
+        start_of_gb(b);
     }
 
     if ((p = init_gb(INIT_GB_SIZE)) == NULL)

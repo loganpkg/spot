@@ -47,11 +47,21 @@
 #include "debug.h"
 #include "gen.h"
 #include "num.h"
+#include "buf.h"
+
+
+#define INIT_LS_ENTRY_NUM 512
 
 
 #define SET_DIR(u) ((u) |= 1)
 #define SET_SLINK(u) ((u) |= 1 << 1)
 #define SET_DOTDIR(u) ((u) |= 1 << 2)
+
+
+struct ls_info {
+    struct pbuf *d;             /* To store pointers to directory names */
+    struct pbuf *f;             /* To store pointers to filenames */
+};
 
 
 FILE *fopen_w(const char *fn)
@@ -130,8 +140,8 @@ int get_path_type(const char *path, unsigned char *type)
 }
 
 
-int walk_dir_inner(const char *dir, int (*func_p) (const char *,
-                                                   unsigned char))
+int walk_dir_inner(const char *dir, int rec, void *info,
+                   int (*func_p) (const char *, unsigned char, void *info))
 {
     /* Does not execute the function on dir itself */
     int ret = 1;
@@ -196,12 +206,11 @@ int walk_dir_inner(const char *dir, int (*func_p) (const char *,
         if (!strcmp(fn, ".") || !strcmp(fn, ".."))
             SET_DOTDIR(type);
 
-
-        if (IS_DIR(type) && !IS_SLINK(type) && !IS_DOTDIR(type))
-            if (walk_dir_inner(path, func_p))   /* Recurse */
+        if (rec && IS_DIR(type) && !IS_SLINK(type) && !IS_DOTDIR(type))
+            if (walk_dir_inner(path, rec, info, func_p))        /* Recurse */
                 mgoto(clean_up);
 
-        if ((*func_p) (path, type))
+        if ((*func_p) (rec ? path : fn, type, info))
             mgoto(clean_up);
 
         free(path);
@@ -240,12 +249,13 @@ int walk_dir_inner(const char *dir, int (*func_p) (const char *,
     mreturn(ret);
 }
 
-int walk_dir(const char *dir, int (*func_p) (const char *, unsigned char))
+int walk_dir(const char *dir, int rec, void *info,
+             int (*func_p) (const char *, unsigned char, void *info))
 {
     /* Executes the function on dir itself too */
     unsigned char type;
 
-    if (walk_dir_inner(dir, func_p))
+    if (walk_dir_inner(dir, rec, info, func_p))
         mreturn(1);
 
     /* Process outer directory */
@@ -254,14 +264,17 @@ int walk_dir(const char *dir, int (*func_p) (const char *, unsigned char))
     if (!strcmp(dir, ".") || !strcmp(dir, ".."))
         SET_DOTDIR(type);
 
-    if ((*func_p) (dir, type))
+    if ((*func_p) (dir, type, info))
         mreturn(1);
 
     mreturn(0);
 }
 
-static int rm_path(const char *path, unsigned char type)
+static int rm_path(const char *path, unsigned char type, void *info)
 {
+    if (info != NULL)           /* Not used in this function */
+        mreturn(1);
+
     if (!IS_DOTDIR(type)) {
         if (IS_DIR(type)) {
             if (rmdir(path))
@@ -283,5 +296,97 @@ int rec_rm(const char *path)
     if (errno == ENOENT)
         mreturn(0);
 
-    mreturn(walk_dir(path, &rm_path));
+    mreturn(walk_dir(path, 1, NULL, &rm_path));
+}
+
+static int add_fn(const char *fn, unsigned char type, void *info)
+{
+    struct ls_info *lsi;
+    char *fn_copy;
+    lsi = (struct ls_info *) info;
+
+    if ((fn_copy = strdup(fn)) == NULL)
+        mreturn(1);
+
+    if (IS_DIR(type)) {
+        if (add_p(lsi->d, fn_copy)) {
+            free(fn_copy);
+            mreturn(1);
+        }
+    } else {
+        if (add_p(lsi->f, fn_copy)) {
+            free(fn_copy);
+            mreturn(1);
+        }
+    }
+
+    mreturn(0);
+}
+
+static int order_func(const void *a, const void *b)
+{
+    return strcmp(*(const char **) a, *(const char **) b);
+}
+
+int insert_ls(struct gb *b, const char *dir)
+{
+    int ret = 1;
+    struct ls_info *lsi = NULL;
+    size_t j;
+
+    if ((lsi = calloc(1, sizeof(struct ls_info))) == NULL)
+        mgoto(clean_up);
+
+    if ((lsi->d = init_pbuf(INIT_LS_ENTRY_NUM)) == NULL)
+        mgoto(clean_up);
+
+    if ((lsi->f = init_pbuf(INIT_LS_ENTRY_NUM)) == NULL)
+        mgoto(clean_up);
+
+    if (walk_dir_inner(dir, 0, lsi, &add_fn))
+        mgoto(clean_up);
+
+    /* Sort the results */
+    qsort((char *) lsi->d->a, lsi->d->i, sizeof(const char *), order_func);
+
+    qsort((char *) lsi->f->a, lsi->f->i, sizeof(const char *), order_func);
+
+    for (j = 0; j < lsi->d->i; ++j) {
+        if (insert_str(b, *(lsi->d->a + j)))
+            mgoto(clean_up);
+
+        if (insert_ch(b, '\n'))
+            mgoto(clean_up);
+    }
+
+    if (insert_str(b, "----------\n"))
+        mgoto(clean_up);
+
+    for (j = 0; j < lsi->f->i; ++j) {
+        if (insert_str(b, *(lsi->f->a + j)))
+            mgoto(clean_up);
+
+        if (insert_ch(b, '\n'))
+            mgoto(clean_up);
+    }
+
+    ret = 0;
+  clean_up:
+    if (lsi != NULL) {
+        if (lsi->d != NULL) {
+            for (j = 0; j < lsi->d->i; ++j)
+                free(*(lsi->d->a + j));
+
+            free_pbuf(lsi->d);
+        }
+        if (lsi->f != NULL) {
+            for (j = 0; j < lsi->f->i; ++j)
+                free(*(lsi->f->a + j));
+
+            free_pbuf(lsi->f);
+        }
+        free(lsi);
+    }
+
+    mreturn(ret);
 }
