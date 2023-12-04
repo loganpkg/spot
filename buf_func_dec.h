@@ -19,3 +19,6 @@ int flush_obuf(struct obuf *b);
 struct lbuf *init_lbuf(size_t n);
 void free_lbuf(struct lbuf *b);
 int add_l(struct lbuf *b, long x);
+struct pbuf *init_pbuf(size_t n);
+void free_pbuf(struct pbuf *b);
+int add_p(struct pbuf *b, void *ptr);

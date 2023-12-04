@@ -57,6 +57,13 @@ struct lbuf {
     size_t n;                   /* Number of elements, not bytes */
 };
 
+/* Buffer of pointers */
+struct pbuf {
+    void **a;                   /* Array of pointers */
+    size_t i;                   /* Write index */
+    size_t n;                   /* Number of elements, not bytes */
+};
+
 #include "buf_func_dec.h"
 
 #endif

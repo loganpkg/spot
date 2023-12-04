@@ -28,6 +28,7 @@
 /* For: FILE */
 #include <stdio.h>
 
+#include "gb.h"
 
 #define IS_DIR(u) ((u) & 1)
 #define IS_SLINK(u) ((u) & 1 << 1)
