@@ -141,7 +141,7 @@ int get_path_type(const char *path, unsigned char *type)
 
 
 int walk_dir_inner(const char *dir, int rec, void *info,
-                   int (*func_p) (const char *, unsigned char, void *info))
+                   int (*func_p)(const char *, unsigned char, void *info))
 {
     /* Does not execute the function on dir itself */
     int ret = 1;
@@ -250,7 +250,7 @@ int walk_dir_inner(const char *dir, int rec, void *info,
 }
 
 int walk_dir(const char *dir, int rec, void *info,
-             int (*func_p) (const char *, unsigned char, void *info))
+             int (*func_p)(const char *, unsigned char, void *info))
 {
     /* Executes the function on dir itself too */
     unsigned char type;

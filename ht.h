@@ -29,7 +29,7 @@
 
 
 
-typedef int (*Fptr) (void *);
+typedef int (*Fptr)(void *);
 
 
 /* Hash table entry */
