@@ -48,4 +48,6 @@ cl %flags% spot.obj gen.obj num.obj buf.obj gb.obj fs.obj regex.obj || exit 1
 cl %flags% bc.obj gen.obj num.obj buf.obj gb.obj eval.obj fs.obj regex.obj ^
     || exit 1
 
+if not exist %install_dir% mkdir %install_dir%
+
 copy /y *.exe %install_dir% || exit 1
