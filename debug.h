@@ -55,5 +55,4 @@ typedef int debug_dummy;
 #define mgoto(lab) goto lab
 #endif
 
-
 #endif
