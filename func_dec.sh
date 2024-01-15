@@ -40,5 +40,7 @@ then
 
     printf '\n#endif\n' >> "$header"~
 
+    chmod 600 "$header"~
+
     mv "$header"~ "$header"
 fi
