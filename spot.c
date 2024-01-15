@@ -62,19 +62,6 @@
 #include "num.h"
 #include "gb.h"
 
-#ifdef _WIN32
-#define DEFAULT_APP "\"\""
-#define APP_PDF DEFAULT_APP
-#define APP_JPG DEFAULT_APP
-#define APP_MOV DEFAULT_APP
-#define APP_MP4 DEFAULT_APP
-#else
-#define APP_PDF "mupdf"
-#define APP_JPG "feh --fullscreen --start-at"
-#define APP_MOV "vlc"
-#define APP_MP4 "vlc"
-#endif
-
 
 #define INIT_GB_SIZE 512
 
