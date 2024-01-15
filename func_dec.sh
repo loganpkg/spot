@@ -32,7 +32,13 @@ source="$mod".c
 
 if [ -s "$source" ]
 then
+    sed -E '/^\/\* Function declarations \*\/$/q' "$header" > "$header"~
+
     < "$source" tr '\n' '~' | grep -E -o '~[a-zA-Z_][^()~]+\([^()]+\)~\{' \
         | grep -E -v '~static ' | sed -E 's/^~(.+)~\{/\1;/' | tr '~' '\n' \
-        > "$mod"_func_dec.h
+        >> "$header"~
+
+    printf '\n#endif\n' >> "$header"~
+
+    mv "$header"~ "$header"
 fi
