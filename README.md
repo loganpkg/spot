@@ -110,7 +110,6 @@ The keybindings are listed below. `^a` means pressing `Ctrl` plus `a`.
 | `^r`    | Regex replace region *                                    |
 | `^u`    | Go to line number                                         |
 | `^q`    | Insert hex                                                |
-| `^o`    | Open file or directory that is under the cursor -         |
 | `^[ b`  | Left word                                                 |
 | `^[ f`  | Right word                                                |
 | `^[ l`  | Lowercase word                                            |
@@ -145,13 +144,6 @@ cleared by redrawing the screen (`^l`).
 to the region, not the buffer.
 
 `^` Text editor will exit if it is the last gap buffer.
-
-`-` When the name under the cursor is a directory, then the current working
-directory is changed and a directory listing is displayed. This occurs in a new
-buffer if the current buffer has a name, otherwise the contents of the current
-buffer is replaced. If the name under the cursor has a recognised file
-extension, then the designated application will be launched. Otherwise, the
-file will be opened into a new buffer inside the text editor.
 
 
 m4
@@ -415,11 +407,6 @@ m4exit(exit_value)
 desired exit value in the first argument (with the default being zero when
 called with no arguments). Please note that the specified exit value will be
 overwritten with 1 if an error occurs.
-
-```m4
-recrm(path)
-```
-`remove` recursively removes a path if it exists.
 
 
 bc

@@ -36,17 +36,15 @@ cl /c %flags% buf.c || exit 1
 cl /c %flags% eval.c || exit 1
 cl /c %flags% ht.c || exit 1
 cl /c %flags% gb.c || exit 1
-cl /c %flags% fs.c || exit 1
 cl /c %flags% m4.c || exit 1
 cl /c %flags% spot.c || exit 1
 cl /c %flags% bc.c || exit 1
 cl /c %flags% regex.c || exit 1
 
-cl %flags% m4.obj gen.obj num.obj buf.obj gb.obj eval.obj ht.obj fs.obj ^
-regex.obj || exit 1
-cl %flags% spot.obj gen.obj num.obj buf.obj gb.obj fs.obj regex.obj || exit 1
-cl %flags% bc.obj gen.obj num.obj buf.obj gb.obj eval.obj fs.obj regex.obj ^
+cl %flags% m4.obj gen.obj num.obj buf.obj gb.obj eval.obj ht.obj regex.obj ^
     || exit 1
+cl %flags% spot.obj gen.obj num.obj buf.obj gb.obj regex.obj || exit 1
+cl %flags% bc.obj gen.obj num.obj buf.obj gb.obj eval.obj regex.obj || exit 1
 
 if not exist %install_dir% mkdir %install_dir%
 

@@ -41,7 +41,6 @@
 #include "gb.h"
 #include "gen.h"
 #include "num.h"
-#include "fs.h"
 #include "regex.h"
 
 struct gb *init_gb(size_t s)
@@ -948,30 +947,23 @@ int save(struct gb *b)
     return 0;
 }
 
-int rename_gb(struct gb *b, const char *cwd, const char *fn)
+int rename_gb(struct gb *b, const char *fn)
 {
-    char *path;
+    char *new_fn;
 
-    if (cwd == NULL || fn == NULL)
+    if (fn == NULL)
         return 1;
 
-    if (*fn == '/' || (*fn && *(fn + 1) == ':' && *(fn + 2) == '\\')) {
-        /* Already absolute */
-        if ((path = strdup(fn)) == NULL)
-            return 1;
-    } else {
-        /* Make relative path absolute */
-        if ((path = concat(cwd, "/", fn, NULL)) == NULL)
-            return 1;
-    }
+    if ((new_fn = strdup(fn)) == NULL)
+        return 1;
 
     free(b->fn);
-    b->fn = path;
+    b->fn = new_fn;
     b->mod = 1;
     return 0;
 }
 
-int new_gb(struct gb **b, const char *cwd, const char *fn, size_t s)
+int new_gb(struct gb **b, const char *fn, size_t s)
 {
     struct gb *t = NULL;
 
@@ -984,7 +976,7 @@ int new_gb(struct gb **b, const char *cwd, const char *fn, size_t s)
             free_gb(t);
             return 1;
         }
-        if (rename_gb(t, cwd, fn)) {
+        if (rename_gb(t, fn)) {
             free_gb(t);
             return 1;
         }

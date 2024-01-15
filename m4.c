@@ -50,7 +50,6 @@
 #include "buf.h"
 #include "eval.h"
 #include "ht.h"
-#include "fs.h"
 #include "regex.h"
 
 
@@ -861,28 +860,6 @@ int m4exit(void *v)
     mreturn(0);
 }
 
-int recrm(void *v)
-{
-    /*@ recrm(path) */
-    /* Recursively removes a path if it exists */
-    M4ptr m4 = (M4ptr) v;
-
-    if (m4->stack->active_arg == 0) {
-        m4->pass_through = 1;
-        mreturn(0);
-    }
-    if (m4->stack->active_arg != 1)
-        mreturn(1);
-
-    if (*arg(1) == '\0')
-        mreturn(1);
-
-    if (rec_rm(arg(1)))
-        mreturn(1);
-
-    mreturn(0);
-}
-
 int end_macro(M4ptr m4)
 {
     if (m4->stack->mfp != NULL) {
@@ -1004,9 +981,6 @@ int main(int argc, char **argv)
         mgoto(clean_up);
 
     if (upsert(m4->ht, "m4exit", NULL, &m4exit))
-        mgoto(clean_up);
-
-    if (upsert(m4->ht, "recrm", NULL, &recrm))
         mgoto(clean_up);
 
 

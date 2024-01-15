@@ -32,7 +32,6 @@
 #include "debug.h"
 #include "gen.h"
 #include "num.h"
-#include "fs.h"
 
 struct ibuf *init_ibuf(size_t s)
 {
