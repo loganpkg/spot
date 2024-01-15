@@ -28,6 +28,9 @@
 /* For: size_t */
 #include <stddef.h>
 
+/* For: FILE */
+#include <stdio.h>
+
 /* To stop empty translation unit error */
 typedef int gen_dummy;
 
@@ -39,6 +42,10 @@ typedef int gen_dummy;
 #ifdef _WIN32
 #define popen _popen
 #define pclose _pclose
+#endif
+
+#ifndef _WIN32
+#define mkdir(dir) mkdir(dir, S_IRWXU)
 #endif
 
 #include "gen_func_dec.h"

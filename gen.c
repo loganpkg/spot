@@ -22,11 +22,21 @@
 
 /* Generic module */
 
-#ifdef _WIN32
-#include <io.h>
-#include <fcntl.h>
+#ifdef __linux__
+/* For: strdup */
+#define _XOPEN_SOURCE 500
 #endif
 
+#ifdef _WIN32
+#include <direct.h>
+#include <io.h>
+#include <fcntl.h>
+#else
+#include <sys/stat.h>
+#include <sys/types.h>
+#endif
+
+#include <errno.h>
 #include <limits.h>
 #include <stdarg.h>
 #include <stdint.h>
@@ -136,4 +146,42 @@ void *quick_search(const void *mem, size_t mem_len, const void *find,
         p += b[p[find_len]];
     }
     return NULL;
+}
+
+FILE *fopen_w(const char *fn)
+{
+    /* Creates missing directories and opens a file for writing */
+    FILE *fp;
+    char *p, *q, ch;
+
+    errno = 0;
+    fp = fopen(fn, "wb");
+    if (fp != NULL)
+        mreturn(fp);
+
+    if (fp == NULL && errno != ENOENT)
+        mreturn(NULL);
+
+    /* Try to make missing directories */
+    if ((p = strdup(fn)) == NULL)
+        mreturn(NULL);
+
+    q = p;
+
+    while ((ch = *q) != '\0') {
+        if (ch == '/' || ch == '\\') {
+            *q = '\0';
+            errno = 0;
+            if (mkdir(p) && errno != EEXIST) {
+                free(p);
+                mreturn(NULL);
+            }
+            *q = ch;
+        }
+        ++q;
+    }
+
+    free(p);
+
+    mreturn(fopen(fn, "wb"));
 }

@@ -44,8 +44,6 @@
 #include <conio.h>
 /* For terminal functions */
 #include <Windows.h>
-/* For chdir and getcwd */
-#include <direct.h>
 #else
 #include <sys/ioctl.h>
 #include <termios.h>
@@ -63,7 +61,6 @@
 #include "gen.h"
 #include "num.h"
 #include "gb.h"
-#include "fs.h"
 
 #ifdef _WIN32
 #define DEFAULT_APP "\"\""
@@ -457,101 +454,6 @@ int draw(struct gb *b, struct gb *cl, struct screen *s, int cl_active,
 #undef print_ch
 
 
-
-int open_file_or_dir(struct gb **b, struct gb *tmp, char **cwd)
-{
-    unsigned char type;
-    const char *fn, *ext;
-    size_t len;
-    char *new_wd = NULL, *d, *app = NULL, *cmd = NULL;
-
-    if (word_under_cursor(*b, tmp))
-        return 1;
-
-    fn = (const char *) tmp->a + tmp->c;
-
-    if (get_path_type(fn, &type))
-        return 1;
-
-    if (IS_DIR(type)) {
-        if (*fn == '/' || (*fn && *(fn + 1) == ':' && *(fn + 2) == '\\')) {
-            /* Already absolute */
-            if (chdir(fn))
-                return 1;
-
-        } else {
-            /* Make relative path absolute */
-            if ((new_wd = concat(*cwd, "/", fn, NULL)) == NULL)
-                return 1;
-
-            if (chdir(new_wd)) {
-                free(new_wd);
-                return 1;
-            }
-
-            free(new_wd);
-            new_wd = NULL;
-        }
-
-        if ((d = getcwd(NULL, 0)) == NULL)
-            return 1;
-
-        if (*cwd != NULL)
-            free(*cwd);
-
-        *cwd = d;
-
-        /* Only delete the buffer contents if it has no name */
-        if ((*b)->fn == NULL) {
-            delete_gb(*b);
-        } else {
-            if (new_gb(b, *cwd, NULL, INIT_GB_SIZE))
-                return 1;
-        }
-        if (insert_ls(*b, "."))
-            return 1;
-
-        start_of_gb(*b);
-
-    } else {
-        len = strlen(fn);
-        if (len > 4 && (!strcmp((ext = fn + len - 4), ".pdf")
-                        || !strcmp(ext, ".PDF")))
-            app = APP_PDF;
-        else if (len > 4 && (!strcmp((ext = fn + len - 4), ".jpg")
-                             || !strcmp(ext, ".JPG")))
-            app = APP_JPG;
-        else if (len > 4 && (!strcmp((ext = fn + len - 4), ".mov")
-                             || !strcmp(ext, ".MOV")))
-            app = APP_MOV;
-        else if (len > 4 && (!strcmp((ext = fn + len - 4), ".mp4")
-                             || !strcmp(ext, ".MP4")))
-            app = APP_MP4;
-
-        if (app != NULL) {
-#ifdef _WIN32
-            if ((cmd = concat("start ", app, " ", fn, NULL)) == NULL)
-                return 1;
-#else
-            if ((cmd = concat(app, " ", fn, " &", NULL)) == NULL)
-                return 1;
-#endif
-            if (system(cmd) == -1) {
-                free(cmd);
-                return 1;
-            }
-
-            free(cmd);
-        } else {
-            if (new_gb(b, *cwd, fn, INIT_GB_SIZE))
-                return 1;
-        }
-
-    }
-    return 0;
-}
-
-
 #define z (cl_active ? cl : b)
 
 int main(int argc, char **argv)
@@ -563,7 +465,6 @@ int main(int argc, char **argv)
     int es = 0;                 /* Exit status of last shell command */
     int i, x, y;
     struct screen s;
-    char *cwd = NULL;           /* Current working directory */
     struct gb *b = NULL;        /* Text buffers linked together */
     struct gb *p = NULL;        /* Paste buffer */
     struct gb *cl = NULL;       /* Command line buffer */
@@ -621,26 +522,17 @@ int main(int argc, char **argv)
 
 #endif
 
-    if ((cwd = getcwd(NULL, 0)) == NULL)
-        goto clean_up;
-
     if (argc > 1) {
         for (i = 1; i < argc; ++i) {
-            if (new_gb(&b, cwd, *(argv + i), INIT_GB_SIZE))
+            if (new_gb(&b, *(argv + i), INIT_GB_SIZE))
                 goto clean_up;
         }
         while (b->prev)
             b = b->prev;
     } else {
         /* No args */
-        if (new_gb(&b, NULL, NULL, INIT_GB_SIZE))
+        if (new_gb(&b, NULL, INIT_GB_SIZE))
             goto clean_up;
-
-        /* Show directory listing */
-        if (insert_ls(b, "."))
-            goto clean_up;
-
-        start_of_gb(b);
     }
 
     if ((p = init_gb(INIT_GB_SIZE)) == NULL)
@@ -751,13 +643,6 @@ int main(int argc, char **argv)
             delete_gb(cl);
             cl_active = 1;
             op = 'q';
-            break;
-        case C('o'):
-            if (cl_active)
-                rv = 1;         /* Do not allow in the command line */
-            else
-                rv = open_file_or_dir(&b, tmp, &cwd);
-
             break;
         case ESC:
             y = get_key();
@@ -889,7 +774,7 @@ int main(int argc, char **argv)
                     break;
                 case '=':
                     start_of_gb(cl);
-                    rv = rename_gb(b, cwd, (const char *) cl->a + cl->c);
+                    rv = rename_gb(b, (const char *) cl->a + cl->c);
                     break;
                 case 'u':
                     rv = goto_row(b, cl);
@@ -899,7 +784,7 @@ int main(int argc, char **argv)
                     break;
                 case 'f':
                     start_of_gb(cl);
-                    rv = new_gb(&b, cwd, (const char *) cl->a + cl->c,
+                    rv = new_gb(&b, (const char *) cl->a + cl->c,
                                 INIT_GB_SIZE);
                     break;
                 case 'i':
@@ -941,7 +826,6 @@ int main(int argc, char **argv)
         ret = 1;
 #endif
 
-    free(cwd);
     free(s.vs_c);
     free(s.vs_n);
 

@@ -33,6 +33,6 @@ int insert_shell_cmd(struct gb *b, const char *cmd, int *es);
 int shell_line(struct gb *b, struct gb *tmp, int *es);
 int paste(struct gb *b, struct gb *p);
 int save(struct gb *b);
-int rename_gb(struct gb *b, const char *cwd, const char *fn);
-int new_gb(struct gb **b, const char *cwd, const char *fn, size_t s);
+int rename_gb(struct gb *b, const char *fn);
+int new_gb(struct gb **b, const char *fn, size_t s);
 void remove_gb(struct gb **b);
