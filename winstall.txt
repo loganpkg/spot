@@ -26,7 +26,7 @@
 set install_dir=%HOMEDRIVE%%HOMEPATH%\bin
 set flags=/Od /Zi /MT /Qspectre /Wall
 
-set build_dir=../.m4_build
+set build_dir=../.spot_build
 
 robocopy . %build_dir% /mir /a-:SH /xd ".git"
 cd %build_dir% || exit 1
