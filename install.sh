@@ -75,9 +75,11 @@ find . -type f ! -path '*.git*' -name '*.h' ! -name '*_func_dec.h' \
 find . -type f ! -path '*.git*' -name '*.c' \
     -exec cc -c $flags '{}' \;
 
-cc $flags -o m4 m4.o gen.o num.o buf.o gb.o eval.o ht.o regex.o
-cc $flags -o spot spot.o gen.o num.o buf.o gb.o regex.o
-cc $flags -o bc bc.o gen.o num.o buf.o gb.o eval.o regex.o
+ld -r gen.o num.o buf.o gb.o eval.o ht.o regex.o -o toucanlib.o
+
+cc $flags -o m4 m4.o toucanlib.o
+cc $flags -o spot spot.o toucanlib.o
+cc $flags -o bc bc.o toucanlib.o
 
 mkdir -p "$install_dir"
 

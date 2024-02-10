@@ -41,10 +41,11 @@ cl /c %flags% spot.c || exit 1
 cl /c %flags% bc.c || exit 1
 cl /c %flags% regex.c || exit 1
 
-cl %flags% m4.obj gen.obj num.obj buf.obj gb.obj eval.obj ht.obj regex.obj ^
-    || exit 1
-cl %flags% spot.obj gen.obj num.obj buf.obj gb.obj regex.obj || exit 1
-cl %flags% bc.obj gen.obj num.obj buf.obj gb.obj eval.obj regex.obj || exit 1
+lib gen.obj num.obj buf.obj gb.obj eval.obj ht.obj regex.obj /OUT:toucanlib.lib
+
+cl %flags% m4.obj toucanlib.lib || exit 1
+cl %flags% spot.obj toucanlib.lib || exit 1
+cl %flags% bc.obj toucanlib.lib || exit 1
 
 if not exist %install_dir% mkdir %install_dir%
 
