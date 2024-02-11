@@ -58,10 +58,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "gen.h"
-#include "num.h"
-#include "gb.h"
-
+#include "toucanlib.h"
 
 #define INIT_GB_SIZE 512
 

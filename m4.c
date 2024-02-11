@@ -44,13 +44,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "debug.h"
-#include "gen.h"
-#include "num.h"
-#include "buf.h"
-#include "eval.h"
-#include "ht.h"
-#include "regex.h"
+#include "toucanlib.h"
 
 
 /* Number of buckets in hash table */
