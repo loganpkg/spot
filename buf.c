@@ -22,16 +22,8 @@
 
 /* Buffer module */
 
-#include <ctype.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include "toucanlib.h"
 
-#include "buf.h"
-#include "debug.h"
-#include "gen.h"
-#include "num.h"
 
 struct ibuf *init_ibuf(size_t s)
 {

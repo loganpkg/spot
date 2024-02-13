@@ -28,22 +28,6 @@
  */
 
 
-#ifdef __linux__
-/* For: snprintf */
-#define _XOPEN_SOURCE 500
-#endif
-
-#ifndef _WIN32
-#include <sys/wait.h>
-#endif
-
-#include <ctype.h>
-#include <limits.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
 #include "toucanlib.h"
 
 

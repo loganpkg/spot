@@ -22,15 +22,8 @@
 
 /* Number module */
 
-#include <ctype.h>
-#include <limits.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <stdint.h>
-#include <string.h>
+#include "toucanlib.h"
 
-#include "num.h"
-#include "debug.h"
 
 int str_to_num(const char *str, unsigned long max_val, unsigned long *res)
 {

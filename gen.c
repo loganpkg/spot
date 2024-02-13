@@ -22,32 +22,8 @@
 
 /* Generic module */
 
-#ifdef __linux__
-/* For: strdup */
-#define _XOPEN_SOURCE 500
-#endif
+#include "toucanlib.h"
 
-#ifdef _WIN32
-#include <direct.h>
-#include <io.h>
-#include <fcntl.h>
-#else
-#include <sys/stat.h>
-#include <sys/types.h>
-#endif
-
-#include <errno.h>
-#include <limits.h>
-#include <stdarg.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-#include "gen.h"
-#include "debug.h"
-#include "buf.h"
-#include "num.h"
 
 #define INIT_CONCAT_BUF 512
 

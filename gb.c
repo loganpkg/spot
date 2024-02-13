@@ -22,26 +22,8 @@
 
 /* Gap buffer module */
 
-#ifdef __linux__
-/* For: strdup */
-#define _XOPEN_SOURCE 500
-#endif
+#include "toucanlib.h"
 
-#ifndef _WIN32
-#include <sys/wait.h>
-#endif
-
-#include <ctype.h>
-#include <errno.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-#include "gb.h"
-#include "gen.h"
-#include "num.h"
-#include "regex.h"
 
 struct gb *init_gb(size_t s)
 {

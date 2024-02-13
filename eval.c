@@ -22,16 +22,7 @@
 
 /* Evaluate arithmetic expression module */
 
-#include <ctype.h>
-#include <limits.h>
-#include <stdio.h>
-#include <string.h>
-
-#include "eval.h"
-#include "debug.h"
-#include "gen.h"
-#include "num.h"
-#include "buf.h"
+#include "toucanlib.h"
 
 
 #define INIT_BUF_SIZE 100
