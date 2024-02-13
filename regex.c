@@ -29,17 +29,8 @@
  *                                      John 13:34-35 GNT
  */
 
-#include <ctype.h>
-#include <limits.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 
-#include "regex.h"
-#include "debug.h"
-#include "num.h"
-#include "buf.h"
+#include "toucanlib.h"
 
 
 #define NO_MATCH 2

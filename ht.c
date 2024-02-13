@@ -20,19 +20,9 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-#ifdef __linux__
-/* For: strdup */
-#define _XOPEN_SOURCE 500
-#endif
+/* Hash table module */
 
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-#include "ht.h"
-#include "debug.h"
-#include "num.h"
+#include "toucanlib.h"
 
 
 static struct entry *init_entry(void)

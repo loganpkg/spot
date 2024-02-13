@@ -66,10 +66,9 @@ fi
 find . -type f ! -path '*.git*' ! -name '*~' \
     -exec grep -H -n -E '.{80}' '{}' \;
 
-find . -type f ! -path '*.git*' -name '*.h' \
-    -exec ./func_dec.sh '{}' \;
+./func_dec.sh gen.c num.c buf.c gb.c eval.c ht.c regex.c
 
-find . -type f ! -path '*.git*' -name '*.h' ! -name '*_func_dec.h' \
+find . -type f ! -path '*.git*' -name '*.h' \
     -exec cc $flags '{}' \;
 
 find . -type f ! -path '*.git*' -name '*.c' \

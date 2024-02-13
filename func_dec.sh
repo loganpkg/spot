@@ -26,21 +26,23 @@ set -e
 set -u
 set -x
 
-header="$1"
-mod=$(printf '%s' "$header" | sed -E 's/\.h$//')
-source="$mod".c
+source="$1"
+header='toucanlib.h'
 
-if [ -s "$source" ]
-then
-    sed -E '/^\/\* Function declarations \*\/$/q' "$header" > "$header"~
+sed -E '/^\/\* Function declarations \*\/$/q' "$header" > "$header"~
 
-    < "$source" tr '\n' '~' | grep -E -o '~[a-zA-Z_][^()~]+\([^()]+\)~\{' \
-        | grep -E -v '~static ' | sed -E 's/^~(.+)~\{/\1;/' | tr '~' '\n' \
-        >> "$header"~
+for source
+do
+    if [ -s "$source" ]
+    then
+        < "$source" tr '\n' '~' | grep -E -o '~[a-zA-Z_][^()~]+\([^()]+\)~\{' \
+            | grep -E -v '~static ' | sed -E 's/^~(.+)~\{/\1;/' | tr '~' '\n' \
+            >> "$header"~
+    fi
+done
 
-    printf '\n#endif\n' >> "$header"~
+printf '\n#endif\n' >> "$header"~
 
-    chmod 600 "$header"~
+chmod 600 "$header"~
 
-    mv "$header"~ "$header"
-fi
+mv "$header"~ "$header"

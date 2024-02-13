@@ -29,10 +29,8 @@
  */
 
 
-#include <stdio.h>
-#include <string.h>
-
 #include "toucanlib.h"
+
 
 #define INIT_BUF_SIZE 100
 

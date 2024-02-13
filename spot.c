@@ -31,34 +31,9 @@
  *                                                          John 4:13-14 GNT
  */
 
-#ifdef __linux__
-/* For: snprintf */
-#define _XOPEN_SOURCE 500
-/* For: cfmakeraw */
-#define _DEFAULT_SOURCE
-#endif
-
-#ifdef _WIN32
-#define WIN32_LEAN_AND_MEAN
-/* For: _getch */
-#include <conio.h>
-/* For terminal functions */
-#include <Windows.h>
-#else
-#include <sys/ioctl.h>
-#include <termios.h>
-#include <unistd.h>
-#endif
-
-#include <ctype.h>
-#include <errno.h>
-#include <limits.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 
 #include "toucanlib.h"
+
 
 #define INIT_GB_SIZE 512
 
