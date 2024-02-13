@@ -66,7 +66,7 @@ fi
 find . -type f ! -path '*.git*' ! -name '*~' \
     -exec grep -H -n -E '.{80}' '{}' \;
 
-./func_dec.sh gen.c num.c buf.c gb.c eval.c ht.c regex.c
+./func_dec.sh gen.c num.c buf.c gb.c eval.c ht.c regex.c curses.c
 
 find . -type f ! -path '*.git*' -name '*.h' \
     -exec cc $flags '{}' \;
@@ -74,7 +74,7 @@ find . -type f ! -path '*.git*' -name '*.h' \
 find . -type f ! -path '*.git*' -name '*.c' \
     -exec cc -c $flags '{}' \;
 
-ld -r gen.o num.o buf.o gb.o eval.o ht.o regex.o -o toucanlib.o
+ld -r gen.o num.o buf.o gb.o eval.o ht.o regex.o curses.o -o toucanlib.o
 
 cc $flags -o m4 m4.o toucanlib.o
 cc $flags -o spot spot.o toucanlib.o

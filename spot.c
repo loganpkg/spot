@@ -37,213 +37,19 @@
 
 #define INIT_GB_SIZE 512
 
-#define LEFT_KEY  (UCHAR_MAX + 1)
-#define RIGHT_KEY (UCHAR_MAX + 2)
-#define UP_KEY    (UCHAR_MAX + 3)
-#define DOWN_KEY  (UCHAR_MAX + 4)
-#define DEL_KEY   (UCHAR_MAX + 5)
-#define HOME_KEY  (UCHAR_MAX + 6)
-#define END_KEY   (UCHAR_MAX + 7)
-
-#define ESC 27
-
-#define C(l) ((l) - 'a' + 1)
-
-#define phy_move(pos) printf("\x1B[%lu;%luH", \
-    (unsigned long) ((pos) / s->w + 1),       \
-    (unsigned long) ((pos) % s->w + 1))
-
-#define phy_hl_off() printf("\x1B[m")
-
-/* Does not toggle */
-#define phy_hl_on() printf("\x1B[7m")
-
-#define phy_clear() printf("\x1B[2J\x1B[1;1H")
-
-struct screen {
-#ifdef _WIN32
-    HANDLE term_handle;
-#endif
-    size_t h;                   /* Physical screen heigth */
-    size_t w;                   /* Physical screen width */
-    unsigned char *vs_c;        /* Current virtual screen */
-    unsigned char *vs_n;        /* Next virtual screen */
-    size_t vs_s;                /* Size of each virtual screen */
-    int clear;                  /* Clear physical screen */
-    int centre;                 /* Draw cursor on the centre row */
-};
-
-
-int get_key(void)
-{
-    int x, y;
-
-#ifdef _WIN32
-    while (1) {
-        x = _getch();
-        if (x == 0) {
-            y = _getch();
-            if (y == 3)
-                return 0;       /* Ctrl 2 */
-        } else if (x == 224) {
-            y = _getch();
-            switch (y) {
-            case 'K':
-                return LEFT_KEY;
-            case 'M':
-                return RIGHT_KEY;
-            case 'H':
-                return UP_KEY;
-            case 'P':
-                return DOWN_KEY;
-            case 'S':
-                return DEL_KEY;
-            case 'G':
-                return HOME_KEY;
-            case 'O':
-                return END_KEY;
-            }
-        } else {
-            return x;
-        }
-    }
-
-#else
-
-    int z, w;
-
-    while (1) {
-        x = getchar();
-        if (x == ESC) {
-            y = getchar();
-            if (y == '[') {
-                z = getchar();
-                if (!isdigit(z)) {
-                    switch (z) {
-                    case 'D':
-                        return LEFT_KEY;
-                    case 'C':
-                        return RIGHT_KEY;
-                    case 'A':
-                        return UP_KEY;
-                    case 'B':
-                        return DOWN_KEY;
-                    case 'H':
-                        return HOME_KEY;
-                    case 'F':
-                        return END_KEY;
-                    }
-                } else {
-                    if (z == '3' && getchar() == '~') {
-                        return DEL_KEY;
-                    } else {
-                        /* Eat to end */
-                        while ((w = getchar()) != '~'
-                               && (isdigit(w) || w == ';'));
-                    }
-                }
-            } else if (y == 'O') {
-                getchar();      /* Eat */
-            } else {
-                if (ungetc(y, stdin) == EOF)
-                    return EOF;
-
-                return ESC;
-            }
-        } else {
-            return x;
-        }
-    }
-
-#endif
-}
-
-int get_screen_size(struct screen *s)
-{
-#ifdef _WIN32
-    CONSOLE_SCREEN_BUFFER_INFO si;
-
-    if (!GetConsoleScreenBufferInfo(s->term_handle, &si))
-        return 1;
-
-    s->h = si.srWindow.Bottom - si.srWindow.Top + 1;
-    s->w = si.srWindow.Right - si.srWindow.Left + 1;
-#else
-    struct winsize ws;
-
-    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1)
-        return 1;
-
-    s->h = ws.ws_row;
-    s->w = ws.ws_col;
-#endif
-    return 0;
-}
-
-#define print_ch(b) do {                                  \
-    ch = *((b)->a + i);                                   \
-    if (ch == '\n') {                                     \
-        *(s->vs_n + j) = v_hl ? ' ' | '\x80' : ' ';       \
-        ++j;                                              \
-        if (j % s->w)                                     \
-            j = (j / s->w + 1) * s->w;                    \
-    } else {                                              \
-        if (ch == '\0')                                   \
-            new_ch = '~';                                 \
-        else if (ch == '\t')                              \
-            new_ch = '>';                                 \
-        else if (!isprint(ch))                            \
-            new_ch = '?';                                 \
-        else                                              \
-            new_ch = ch;                                  \
-                                                          \
-        *(s->vs_n + j) = v_hl ? new_ch | '\x80' : new_ch; \
-        ++j;                                              \
-    }                                                     \
-    ++i;                                                  \
-} while (0)
 
 int draw(struct gb *b, struct gb *cl, struct screen *s, int cl_active,
          int rv, int es_set, int es)
 {
-    size_t new_s_s, up, target_up, ts, i, j, cursor_pos, k;
-    int v_hl, have_centred = 0;
-    unsigned char *t, ch, new_ch, *sb;
+    size_t up, target_up, ts, i, cursor_pos, k;
+    int have_centred = 0;
+    unsigned char ch, *sb;
     char num_str[NUM_BUF_SIZE];
     int r, len;
 
-    if (get_screen_size(s))
-        return 1;
-
-    if (mof(s->h, s->w, SIZE_MAX))
-        return 1;
-
-    new_s_s = s->h * s->w;      /* New screen size */
-
-    if (!new_s_s)
-        return 0;
-
   start:
-
-    if (s->clear || new_s_s != s->vs_s) {
-        if (new_s_s != s->vs_s) {
-            if ((t = realloc(s->vs_c, new_s_s)) == NULL)
-                return 1;
-
-            s->vs_c = t;
-            if ((t = realloc(s->vs_n, new_s_s)) == NULL)
-                return 1;
-
-            s->vs_n = t;
-            s->vs_s = new_s_s;
-        }
-        memset(s->vs_c, ' ', s->vs_s);
-        phy_hl_off();
-        phy_clear();
-        s->clear = 0;
-    }
-    memset(s->vs_n, ' ', s->vs_s);
-
+    if (erase_screen(s))
+        return 1;
 
     if (b->d > b->g || s->centre) {
         /* Does not consider long lines that wrap */
@@ -267,23 +73,24 @@ int draw(struct gb *b, struct gb *cl, struct screen *s, int cl_active,
     /* Size of the text portion of the screen */
     ts = s->vs_s - (s->h >= 2 ? s->w : 0) - (s->h >= 3 ? s->w : 0);
 
-    v_hl = 0;
+    s->v_hl = 0;
 
     /* Region commenced before draw start */
     if (b->m_set && b->m < b->d)
-        v_hl = 1;
+        s->v_hl = 1;
 
     /* Before the gap */
     i = b->d;
-    j = 0;
-    while (i < b->g && j < ts) {
+    while (i < b->g && s->v_i < ts) {
         if (b->m_set && b->m == i)
-            v_hl = 1;
+            s->v_hl = 1;
 
-        print_ch(b);
+        ch = *((b)->a + i);
+        print_ch(s, ch);
+        ++i;
     }
 
-    if (j == ts) {
+    if (s->v_i == ts) {
         /* Off screen */
         if (!have_centred)
             s->centre = 1;
@@ -293,21 +100,23 @@ int draw(struct gb *b, struct gb *cl, struct screen *s, int cl_active,
     }
 
     /* At the cursor */
-    cursor_pos = j;
+    cursor_pos = s->v_i;
     if (b->m_set) {
         if (b->m < b->c)
-            v_hl = 0;           /* End of region */
+            s->v_hl = 0;        /* End of region */
         else
-            v_hl = 1;           /* Start of region */
+            s->v_hl = 1;        /* Start of region */
     }
 
     /* After the gap (from the cursor onwards) */
     i = b->c;
-    while (i <= b->e && j < ts) {
+    while (i <= b->e && s->v_i < ts) {
         if (b->m_set && b->m == i)
-            v_hl = 0;
+            s->v_hl = 0;
 
-        print_ch(b);
+        ch = *((b)->a + i);
+        print_ch(s, ch);
+        ++i;
     }
 
     if (s->h >= 2) {
@@ -351,66 +160,53 @@ int draw(struct gb *b, struct gb *cl, struct screen *s, int cl_active,
                 cl->d = cl->g;
         }
 
-        v_hl = 0;
+        s->v_hl = 0;
 
         if (cl->m_set && cl->m < cl->d)
-            v_hl = 1;
+            s->v_hl = 1;
 
         /* Start of last line in virtual screen */
-        j = (s->h - 1) * s->w;
+        s->v_i = (s->h - 1) * s->w;
 
         /* Before the gap */
         i = cl->d;
-        while (i < cl->g && j < s->vs_s) {
+        while (i < cl->g && s->v_i < s->vs_s) {
             if (cl->m_set && cl->m == i)
-                v_hl = 1;
+                s->v_hl = 1;
 
-            print_ch(cl);
+            ch = *((cl)->a + i);
+            print_ch(s, ch);
+            ++i;
         }
 
         /* At the cursor */
         if (cl_active)
-            cursor_pos = j;
+            cursor_pos = s->v_i;
 
         if (cl->m_set) {
             if (cl->m < cl->c)
-                v_hl = 0;       /* End of region */
+                s->v_hl = 0;    /* End of region */
             else
-                v_hl = 1;       /* Start of region */
+                s->v_hl = 1;    /* Start of region */
         }
 
         /* After the gap (from the cursor onwards) */
         i = cl->c;
-        while (i <= cl->e && j < s->vs_s) {
+        while (i <= cl->e && s->v_i < s->vs_s) {
             if (cl->m_set && cl->m == i)
-                v_hl = 0;
+                s->v_hl = 0;
 
-            print_ch(cl);
+            ch = *((cl)->a + i);
+            print_ch(s, ch);
+            ++i;
         }
     }
 
-    /* Diff */
-    for (k = 0; k < s->vs_s; ++k) {
-        if ((ch = *(s->vs_n + k)) != *(s->vs_c + k)) {
-            phy_move(k);
-            if (ch & '\x80')
-                phy_hl_on();
-            else
-                phy_hl_off();
+    s->v_i = cursor_pos;
+    refresh_screen(s);
 
-            putchar(ch & '\x7F');
-        }
-    }
-    phy_move(cursor_pos);
-
-    /* Swap */
-    t = s->vs_c;
-    s->vs_c = s->vs_n;
-    s->vs_n = t;
     return 0;
 }
-
-#undef print_ch
 
 
 #define z (cl_active ? cl : b)
@@ -423,7 +219,7 @@ int main(int argc, char **argv)
     int es_set = 0;
     int es = 0;                 /* Exit status of last shell command */
     int i, x, y;
-    struct screen s;
+    struct screen *s = NULL;
     struct gb *b = NULL;        /* Text buffers linked together */
     struct gb *p = NULL;        /* Paste buffer */
     struct gb *cl = NULL;       /* Command line buffer */
@@ -434,52 +230,10 @@ int main(int argc, char **argv)
     int cl_active = 0;          /* Cursor is in the command line */
     char op = ' ';              /* The cl operation which is in progress */
 
-#ifdef _WIN32
-    DWORD term_orig, term_new;
-#else
-    struct termios term_orig;
-    struct termios term_new;
-#endif
 
-    /* Init some screen variables */
-    s.vs_c = NULL;
-    s.vs_n = NULL;
-    s.vs_s = 0;
-    s.clear = 1;
-    s.centre = 0;
-
-    if (sane_io())
+    if ((s = init_screen()) == NULL)
         return 1;
 
-/* Setup terminal */
-#ifdef _WIN32
-    if ((s.term_handle =
-         GetStdHandle(STD_OUTPUT_HANDLE)) == INVALID_HANDLE_VALUE)
-        return 1;
-
-    if (!GetConsoleMode(s.term_handle, &term_orig))
-        return 1;
-
-    term_new =
-        term_orig | ENABLE_PROCESSED_OUTPUT |
-        ENABLE_VIRTUAL_TERMINAL_PROCESSING;
-
-    if (!SetConsoleMode(s.term_handle, term_new))
-        return 1;
-
-#else
-
-    if (tcgetattr(STDIN_FILENO, &term_orig))
-        return 1;
-
-    term_new = term_orig;
-
-    cfmakeraw(&term_new);
-
-    if (tcsetattr(STDIN_FILENO, TCSANOW, &term_new))
-        return 1;
-
-#endif
 
     if (argc > 1) {
         for (i = 1; i < argc; ++i) {
@@ -507,7 +261,7 @@ int main(int argc, char **argv)
         goto clean_up;
 
     while (running) {
-        if (draw(b, cl, &s, cl_active, rv, es_set, es))
+        if (draw(b, cl, s, cl_active, rv, es_set, es))
             goto clean_up;
 
         rv = 0;
@@ -563,8 +317,8 @@ int main(int argc, char **argv)
             }
             break;
         case C('l'):
-            s.centre = 1;
-            s.clear = 1;
+            s->centre = 1;
+            s->clear = 1;
             break;
         case C('w'):
             rv = copy_region(z, p, 1);
@@ -775,18 +529,8 @@ int main(int argc, char **argv)
 
 
   clean_up:
-    phy_hl_off();
-    phy_clear();
-#ifdef _WIN32
-    if (!SetConsoleMode(s.term_handle, term_orig))
+    if (free_screen(s))
         ret = 1;
-#else
-    if (tcsetattr(STDIN_FILENO, TCSANOW, &term_orig))
-        ret = 1;
-#endif
-
-    free(s.vs_c);
-    free(s.vs_n);
 
     free_gb_list(b);
     free_gb(p);
