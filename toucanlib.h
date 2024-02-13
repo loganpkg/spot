@@ -83,6 +83,17 @@
 /* For printing a number as a string */
 #define NUM_BUF_SIZE 32
 
+#define LEFT_KEY  (UCHAR_MAX + 1)
+#define RIGHT_KEY (UCHAR_MAX + 2)
+#define UP_KEY    (UCHAR_MAX + 3)
+#define DOWN_KEY  (UCHAR_MAX + 4)
+#define DEL_KEY   (UCHAR_MAX + 5)
+#define HOME_KEY  (UCHAR_MAX + 6)
+#define END_KEY   (UCHAR_MAX + 7)
+
+#define ESC 27
+
+
 #ifdef DEBUG
 #define mreturn(ret) do {                                                    \
     if (!strcmp(#ret, "1") || !strcmp(#ret, "NULL") || !strcmp(#ret, "ERR")) \
@@ -112,6 +123,33 @@
 
 #define start_of_gb(b) while (!left_ch(b))
 #define end_of_gb(b) while (!right_ch(b))
+
+
+#define C(l) ((l) - 'a' + 1)
+
+#define phy_move(pos) printf("\x1B[%lu;%luH", \
+    (unsigned long) ((pos) / s->w + 1),       \
+    (unsigned long) ((pos) % s->w + 1))
+
+#define phy_hl_off() printf("\x1B[m")
+
+/* Does not toggle */
+#define phy_hl_on() printf("\x1B[7m")
+
+#define phy_clear() printf("\x1B[2J\x1B[1;1H")
+
+#define C(l) ((l) - 'a' + 1)
+
+#define phy_move(pos) printf("\x1B[%lu;%luH", \
+    (unsigned long) ((pos) / s->w + 1),       \
+    (unsigned long) ((pos) % s->w + 1))
+
+#define phy_hl_off() printf("\x1B[m")
+
+/* Does not toggle */
+#define phy_hl_on() printf("\x1B[7m")
+
+#define phy_clear() printf("\x1B[2J\x1B[1;1H")
 
 typedef int (*Fptr)(void *);
 
@@ -177,6 +215,26 @@ struct entry {
 struct ht {
     struct entry **b;           /* Buckets */
     size_t n;                   /* Number of buckets */
+};
+
+struct screen {
+#ifdef _WIN32
+    HANDLE term_handle;
+    DWORD term_orig;
+    DWORD term_new;
+#else
+    struct termios term_orig;
+    struct termios term_new;
+#endif
+    size_t h;                   /* Physical screen heigth */
+    size_t w;                   /* Physical screen width */
+    unsigned char *vs_c;        /* Current virtual screen */
+    unsigned char *vs_n;        /* Next virtual screen */
+    size_t vs_s;                /* Size of each virtual screen */
+    size_t v_i;                 /* Virtual cursor index (print location) */
+    int v_hl;                   /* Virtual highlight mode indicator */
+    int clear;                  /* Clear physical screen */
+    int centre;                 /* Draw cursor on the centre row */
 };
 
 
@@ -268,5 +326,11 @@ int regex_replace(const char *mem, size_t mem_len,
                   const char *regex_find_str, const char *replace,
                   size_t replace_len, int nl_sen, char **res,
                   size_t *res_len, int verbose);
+struct screen *init_screen(void);
+int free_screen(struct screen *s);
+int get_key(void);
+int erase_screen(struct screen *s);
+void refresh_screen(struct screen *s);
+int print_ch(struct screen *s, unsigned char ch);
 
 #endif
