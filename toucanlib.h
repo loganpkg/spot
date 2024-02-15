@@ -27,7 +27,7 @@
 #ifdef __linux__
 /* For: strdup and snprintf */
 #define _XOPEN_SOURCE 500
-/* For: cfmakeraw */
+/* For: cfmakeraw and DT_DIR and DT_UNKNOWN */
 #define _DEFAULT_SOURCE
 #endif
 
@@ -45,6 +45,7 @@
 #include <sys/types.h>
 #include <sys/ioctl.h>
 #include <sys/wait.h>
+#include <dirent.h>
 #include <termios.h>
 #include <unistd.h>
 #endif
@@ -69,6 +70,12 @@
 
 #ifndef _WIN32
 #define mkdir(dir) mkdir(dir, S_IRWXU)
+#endif
+
+#ifdef _WIN32
+#define DIR_SEP_STR "\\"
+#else
+#define DIR_SEP_STR "/"
 #endif
 
 /* Comment out to turn off debugging */
@@ -113,6 +120,12 @@
 #else
 #define mgoto(lab) goto lab
 #endif
+
+
+#define IS_DIR(u) ((u) & 1)
+#define IS_SLINK(u) ((u) & 1 << 1)
+#define IS_DOTDIR(u) ((u) & 1 << 2)
+
 
 /* Unsigned overflow tests */
 /* Addition */
@@ -332,5 +345,8 @@ int get_key(void);
 int erase_screen(struct screen *s);
 void refresh_screen(struct screen *s);
 int print_ch(struct screen *s, unsigned char ch);
+int get_path_type(const char *path, unsigned char *type);
+int rec_rm(const char *path);
+int insert_ls(struct gb *b, const char *dir);
 
 #endif
