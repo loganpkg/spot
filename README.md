@@ -408,6 +408,11 @@ desired exit value in the first argument (with the default being zero when
 called with no arguments). Please note that the specified exit value will be
 overwritten with 1 if an error occurs.
 
+```m4
+recrm(path)
+```
+`remove` recursively removes a path if it exists.
+
 
 bc
 ==
