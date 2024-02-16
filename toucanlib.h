@@ -280,6 +280,7 @@ int put_obuf(struct obuf *b, struct obuf *t);
 int put_file(struct obuf *b, const char *fn);
 int write_obuf(struct obuf *b, const char *fn);
 int flush_obuf(struct obuf *b);
+char *obuf_to_str(struct obuf **b);
 struct lbuf *init_lbuf(size_t n);
 void free_lbuf(struct lbuf *b);
 int add_l(struct lbuf *b, long x);
@@ -347,6 +348,6 @@ void refresh_screen(struct screen *s);
 int print_ch(struct screen *s, unsigned char ch);
 int get_path_type(const char *path, unsigned char *type);
 int rec_rm(const char *path);
-int insert_ls(struct gb *b, const char *dir);
+char *ls_dir(const char *dir);
 
 #endif

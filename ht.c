@@ -84,6 +84,7 @@ void free_ht(struct ht *ht)
                     e = e_next;
                 }
             }
+            free(ht->b);
         }
         free(ht);
     }

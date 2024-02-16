@@ -415,6 +415,19 @@ int flush_obuf(struct obuf *b)
     mreturn(0);
 }
 
+char *obuf_to_str(struct obuf **b)
+{
+    char *str;
+    if (put_ch(*b, '\0'))
+        mreturn(NULL);
+
+    /* Success */
+    str = (*b)->a;
+    free(*b);
+    *b = NULL;
+    mreturn(str);
+}
+
 struct lbuf *init_lbuf(size_t n)
 {
     struct lbuf *b;
