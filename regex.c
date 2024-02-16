@@ -945,6 +945,8 @@ int regex_replace(const char *mem, size_t mem_len,
     size_t nr_len;
     const char *p, *p_stop;
     unsigned char h[2], u;
+    char *t = NULL;
+    size_t t_len;
 
     if (compile_regex(regex_find_str, nl_sen, &ri, verbose))
         mreturn(1);
@@ -1063,8 +1065,10 @@ int regex_replace(const char *mem, size_t mem_len,
     if (put_mem(b, m, m_stop - m))
         mgoto(clean_up);
 
-    /* \0 terminate in case used as a string */
-    if (put_ch(b, '\0'))
+    /* Not counting terminating \0, as this is added by obuf_to_str */
+    t_len = b->i;
+
+    if ((t = obuf_to_str(&b)) == NULL)
         mgoto(clean_up);
 
     ret = 0;
@@ -1072,13 +1076,12 @@ int regex_replace(const char *mem, size_t mem_len,
   clean_up:
     free_regex(ri);
     free(nr);
+    free_obuf(b);
     if (ret) {
-        free_obuf(b);
+        free(t);
     } else {
-        *res = b->a;
-        *res_len = b->i - 1;    /* Not counting terminating \0 */
-        /* Just free the wrapper struct */
-        free(b);
+        *res = t;
+        *res_len = t_len;
     }
 
     mreturn(ret);

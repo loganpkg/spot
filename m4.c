@@ -304,9 +304,10 @@ int dump_stack(M4ptr m4)
 
 /* ********** Built-in macros ********** */
 
+/* See README.md for the syntax of the built-in macros */
+
 int define(void *v)
 {
-    /*@ define(macro_name, macro_def) */
     M4ptr m4 = (M4ptr) v;
 
     if (m4->stack->active_arg == 0) {
@@ -326,7 +327,6 @@ int define(void *v)
 
 int undefine(void *v)
 {
-    /*@ undefine(`macro_name') */
     M4ptr m4 = (M4ptr) v;
 
     if (m4->stack->active_arg == 0) {
@@ -345,7 +345,6 @@ int undefine(void *v)
 
 int changequote(void *v)
 {
-    /*@ changequote(left_quote, right_quote) */
     M4ptr m4 = (M4ptr) v;
     char l_ch, r_ch;
 
@@ -373,7 +372,6 @@ int changequote(void *v)
 
 int divert(void *v)
 {
-    /*@ divert or divert(div_num) */
     M4ptr m4 = (M4ptr) v;
 
     if (m4->stack->active_arg == 0) {
@@ -396,7 +394,6 @@ int divert(void *v)
 
 int undivert(void *v)
 {
-    /*@ undivert or undivert(div_num, filename, ...) */
     M4ptr m4 = (M4ptr) v;
     char ch;
     size_t i, x;
@@ -433,7 +430,6 @@ int undivert(void *v)
 
 int writediv(void *v)
 {
-    /*@ writediv(div_num, filename) */
     M4ptr m4 = (M4ptr) v;
     char ch;
 
@@ -459,7 +455,6 @@ int writediv(void *v)
 
 int divnum(void *v)
 {
-    /*@ divnum */
     M4ptr m4 = (M4ptr) v;
     char ch;
 
@@ -482,7 +477,6 @@ int divnum(void *v)
 
 int include(void *v)
 {
-    /*@ include(filename) */
     M4ptr m4 = (M4ptr) v;
 
     if (m4->stack->active_arg == 0) {
@@ -500,8 +494,6 @@ int include(void *v)
 
 int dnl(void *v)
 {
-    /*@ dnl */
-    /* Delete to NewLine (inclusive) */
     M4ptr m4 = (M4ptr) v;
 
     if (m4->stack->active_arg != 0)
@@ -512,8 +504,6 @@ int dnl(void *v)
 
 int tnl(void *v)
 {
-    /*@ tnl(str) */
-    /* Trim NewLine chars at the end of the first argument */
     M4ptr m4 = (M4ptr) v;
     char *p, *q, ch;
 
@@ -547,7 +537,6 @@ int tnl(void *v)
 
 int regexrep(void *v)
 {
-    /*@ regexrep(text, regex_find, replace[, nl_insensitive[, verbose]]) */
     M4ptr m4 = (M4ptr) v;
     char *res;
     size_t res_len;
@@ -573,15 +562,44 @@ int regexrep(void *v)
                       verbose))
         mreturn(1);
 
-    if (unget_str(m4->input, res))
+    if (unget_str(m4->input, res)) {
+        free(res);
         mreturn(1);
+    }
+
+    free(res);
+
+    mreturn(0);
+}
+
+int lsdir(void *v)
+{
+    M4ptr m4 = (M4ptr) v;
+    char *res;
+
+    if (m4->stack->active_arg == 0) {
+        m4->pass_through = 1;
+        mreturn(0);
+    }
+
+    if (m4->stack->active_arg != 1)
+        mreturn(1);
+
+    if ((res = ls_dir(arg(1))) == NULL)
+        mreturn(1);
+
+    if (unget_str(m4->input, res)) {
+        free(res);
+        mreturn(1);
+    }
+
+    free(res);
 
     mreturn(0);
 }
 
 int ifdef(void *v)
 {
-    /*@ ifdef(`macro_name', `when_defined', `when_undefined') */
     M4ptr m4 = (M4ptr) v;
     struct entry *e;
 
@@ -605,7 +623,6 @@ int ifdef(void *v)
 
 int ifelse(void *v)
 {
-    /*@ ifelse(A, B, `when_same', `when_different') */
     M4ptr m4 = (M4ptr) v;
 
     if (m4->stack->active_arg == 0) {
@@ -627,7 +644,6 @@ int ifelse(void *v)
 
 int dumpdef(void *v)
 {
-    /*@ dumpdef or dumpdef(`macro_name', ...) */
     M4ptr m4 = (M4ptr) v;
     size_t i;
     struct entry *e;
@@ -660,7 +676,6 @@ int dumpdef(void *v)
 
 int errprint(void *v)
 {
-    /*@ errprint(error_message) */
     M4ptr m4 = (M4ptr) v;
 
     if (m4->stack->active_arg == 0) {
@@ -676,7 +691,6 @@ int errprint(void *v)
 
 int incr(void *v)
 {
-    /*@ incr(number) */
     M4ptr m4 = (M4ptr) v;
     size_t x;
     char num[NUM_BUF_SIZE];
@@ -706,7 +720,6 @@ int incr(void *v)
 
 int eval_math(void *v)
 {
-    /*@ eval(math[, verbose]) */
     M4ptr m4 = (M4ptr) v;
     long x;
     char num[NUM_BUF_SIZE];
@@ -738,7 +751,6 @@ int eval_math(void *v)
 
 int sysval(void *v)
 {
-    /*@ sysval */
     M4ptr m4 = (M4ptr) v;
 
     if (m4->stack->active_arg != 0)
@@ -752,7 +764,6 @@ int sysval(void *v)
 
 int esyscmd(void *v)
 {
-    /*@ esyscmd(shell_command) */
     M4ptr m4 = (M4ptr) v;
     struct entry *e;
     FILE *fp;
@@ -816,7 +827,6 @@ int esyscmd(void *v)
 
 int m4exit(void *v)
 {
-    /*@ m4exit or m4exit(exit_value) */
     M4ptr m4 = (M4ptr) v;
     size_t x;
 
@@ -840,8 +850,6 @@ int m4exit(void *v)
 
 int recrm(void *v)
 {
-    /*@ recrm(path) */
-    /* Recursively removes a path if it exists */
     M4ptr m4 = (M4ptr) v;
 
     if (m4->stack->active_arg == 0) {
@@ -954,6 +962,9 @@ int main(int argc, char **argv)
         mgoto(clean_up);
 
     if (upsert(m4->ht, "regexrep", NULL, &regexrep))
+        mgoto(clean_up);
+
+    if (upsert(m4->ht, "lsdir", NULL, &lsdir))
         mgoto(clean_up);
 
     if (upsert(m4->ht, "ifdef", NULL, &ifdef))

@@ -344,6 +344,12 @@ If verbose is 1, then the posfix form of the expression and the
 nondeterministic finite automaton (NFA) structure are printed to `stderr`.
 
 ```m4
+lsdir(dir_name)
+```
+`lsdir` inserts a directory listing, with a line of hyphens separating
+the directories (shown first) from the files (shown second).
+
+```m4
 ifdef(`macro_name', `when_defined', `when_undefined')
 ```
 `ifdef` checks to see if the first argument is a macro, and if so, pushes the

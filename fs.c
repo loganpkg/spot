@@ -26,6 +26,7 @@
 
 
 #define INIT_LS_ENTRY_NUM 512
+#define INIT_BUF_SIZE 1024
 
 
 #define SET_DIR(u) ((u) |= 1)
@@ -264,10 +265,12 @@ static int order_func(const void *a, const void *b)
     return strcmp(*(const char **) a, *(const char **) b);
 }
 
-int insert_ls(struct gb *b, const char *dir)
+char *ls_dir(const char *dir)
 {
-    int ret = 1;
+    int err = 1;
     struct ls_info *lsi = NULL;
+    struct obuf *b = NULL;
+    char *t = NULL;
     size_t j;
 
     if ((lsi = calloc(1, sizeof(struct ls_info))) == NULL)
@@ -279,6 +282,9 @@ int insert_ls(struct gb *b, const char *dir)
     if ((lsi->f = init_pbuf(INIT_LS_ENTRY_NUM)) == NULL)
         mgoto(clean_up);
 
+    if ((b = init_obuf(INIT_BUF_SIZE)) == NULL)
+        mgoto(clean_up);
+
     if (walk_dir_inner(dir, 0, lsi, &add_fn))
         mgoto(clean_up);
 
@@ -288,25 +294,28 @@ int insert_ls(struct gb *b, const char *dir)
     qsort((char *) lsi->f->a, lsi->f->i, sizeof(const char *), order_func);
 
     for (j = 0; j < lsi->d->i; ++j) {
-        if (insert_str(b, *(lsi->d->a + j)))
+        if (put_str(b, *(lsi->d->a + j)))
             mgoto(clean_up);
 
-        if (insert_ch(b, '\n'))
+        if (put_ch(b, '\n'))
             mgoto(clean_up);
     }
 
-    if (insert_str(b, "----------\n"))
+    if (put_str(b, "----------\n"))
         mgoto(clean_up);
 
     for (j = 0; j < lsi->f->i; ++j) {
-        if (insert_str(b, *(lsi->f->a + j)))
+        if (put_str(b, *(lsi->f->a + j)))
             mgoto(clean_up);
 
-        if (insert_ch(b, '\n'))
+        if (put_ch(b, '\n'))
             mgoto(clean_up);
     }
 
-    ret = 0;
+    if ((t = obuf_to_str(&b)) == NULL)
+        mgoto(clean_up);
+
+    err = 0;
   clean_up:
     if (lsi != NULL) {
         if (lsi->d != NULL) {
@@ -324,5 +333,12 @@ int insert_ls(struct gb *b, const char *dir)
         free(lsi);
     }
 
-    mreturn(ret);
+    free_obuf(b);
+
+    if (err) {
+        free(t);
+        mreturn(NULL);
+    } else {
+        mreturn(t);
+    }
 }
