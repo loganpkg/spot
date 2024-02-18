@@ -130,7 +130,6 @@ int unget_file(struct ibuf *b, const char *fn)
 {
     int ret = 1;
     FILE *fp = NULL;
-    long fs_l;
     size_t fs, j;
     char *p;
     int x;
@@ -141,19 +140,11 @@ int unget_file(struct ibuf *b, const char *fn)
     if ((fp = fopen(fn, "rb")) == NULL)
         mgoto(clean_up);
 
-    if (fseek(fp, 0L, SEEK_END))
+    if (get_file_size(fn, &fs))
         mgoto(clean_up);
 
-    if ((fs_l = ftell(fp)) == -1 || fs_l < 0)
-        mgoto(clean_up);
-
-    if (fseek(fp, 0L, SEEK_SET))
-        mgoto(clean_up);
-
-    if (!fs_l)
+    if (!fs)
         mgoto(done);
-
-    fs = (size_t) fs_l;
 
     if (fs > b->s - b->i && grow_ibuf(b, fs))
         mgoto(clean_up);
@@ -337,7 +328,6 @@ int put_file(struct obuf *b, const char *fn)
 {
     int ret = 1;
     FILE *fp = NULL;
-    long fs_l;
     size_t fs;
 
     if (fn == NULL || *fn == '\0')
@@ -346,19 +336,11 @@ int put_file(struct obuf *b, const char *fn)
     if ((fp = fopen(fn, "rb")) == NULL)
         mgoto(clean_up);
 
-    if (fseek(fp, 0L, SEEK_END))
+    if (get_file_size(fn, &fs))
         mgoto(clean_up);
 
-    if ((fs_l = ftell(fp)) == -1 || fs_l < 0)
-        mgoto(clean_up);
-
-    if (fseek(fp, 0L, SEEK_SET))
-        mgoto(clean_up);
-
-    if (!fs_l)
+    if (!fs)
         mgoto(done);
-
-    fs = (size_t) fs_l;
 
     if (fs > b->s - b->i && grow_obuf(b, fs))
         mgoto(clean_up);

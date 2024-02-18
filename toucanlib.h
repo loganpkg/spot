@@ -33,6 +33,12 @@
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
+#endif
+
+#include <sys/types.h>
+#include <sys/stat.h>
+
+#ifdef _WIN32
 /* For: _getch */
 #include <conio.h>
 /* For terminal functions */
@@ -41,11 +47,11 @@
 #include <io.h>
 #include <fcntl.h>
 #else
-#include <sys/stat.h>
-#include <sys/types.h>
+#include <sys/mman.h>
 #include <sys/ioctl.h>
 #include <sys/wait.h>
 #include <dirent.h>
+#include <fcntl.h>
 #include <termios.h>
 #include <unistd.h>
 #endif
@@ -68,9 +74,30 @@
 #define pclose _pclose
 #endif
 
+#ifdef _WIN32
+#define stat_f _stat64
+#define stat_s __stat64
+#else
+#define stat_f stat
+#define stat_s stat
+#endif
+
+#ifndef S_ISREG
+#define S_ISREG(m) (((m) & S_IFMT) == S_IFREG)
+#endif
+
+#ifndef S_ISDIR
+#define S_ISDIR(m) (((m) & S_IFMT) == S_IFDIR)
+#endif
+
+#ifndef S_ISLNK
+#define S_ISLNK(m) (((m) & S_IFMT) == S_IFLNK)
+#endif
+
 #ifndef _WIN32
 #define mkdir(dir) mkdir(dir, S_IRWXU)
 #endif
+
 
 #ifdef _WIN32
 #define DIR_SEP_STR "\\"
@@ -346,8 +373,11 @@ int get_key(void);
 int erase_screen(struct screen *s);
 void refresh_screen(struct screen *s);
 int print_ch(struct screen *s, unsigned char ch);
+int get_file_size(const char *fn, size_t *fs);
 int get_path_type(const char *path, unsigned char *type);
 int rec_rm(const char *path);
 char *ls_dir(const char *dir);
+void *mmap_file_ro(const char *fn, size_t *fs);
+int un_mmap(void *p, size_t s);
 
 #endif

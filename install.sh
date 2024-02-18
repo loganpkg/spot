@@ -79,12 +79,11 @@ ld -r gen.o num.o buf.o gb.o eval.o ht.o regex.o curses.o fs.o -o toucanlib.o
 cc $flags -o m4 m4.o toucanlib.o
 cc $flags -o spot spot.o toucanlib.o
 cc $flags -o bc bc.o toucanlib.o
+cc $flags -o freq freq.o toucanlib.o
 
 mkdir -p "$install_dir"
 
-cp -p m4 "$install_dir"/
-cp -p spot "$install_dir"/
-cp -p bc "$install_dir"/
+cp -p m4 spot bc freq "$install_dir"/
 
 m4 test.m4 > .k
 /usr/bin/m4 test.m4 > .k2
