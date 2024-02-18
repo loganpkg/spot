@@ -175,7 +175,6 @@ int insert_file(struct gb *b, const char *fn)
 {
     int ret = 1;
     FILE *fp = NULL;
-    long fs_l;
     size_t fs;
 
     errno = 0;
@@ -186,19 +185,11 @@ int insert_file(struct gb *b, const char *fn)
             return 1;
     }
 
-    if (fseek(fp, 0L, SEEK_END))
+    if (get_file_size(fn, &fs))
         goto clean_up;
 
-    if ((fs_l = ftell(fp)) == -1 || fs_l < 0)
-        goto clean_up;
-
-    if (fseek(fp, 0L, SEEK_SET))
-        goto clean_up;
-
-    if (!fs_l)
+    if (!fs)
         goto done;
-
-    fs = (size_t) fs_l;
 
     if (fs > b->c - b->g && grow_gap(b, fs))
         goto clean_up;

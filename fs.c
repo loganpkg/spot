@@ -39,6 +39,22 @@ struct ls_info {
     struct pbuf *f;             /* To store pointers to filenames */
 };
 
+int get_file_size(const char *fn, size_t *fs)
+{
+    struct stat_s st;
+    if (stat_f(fn, &st) == -1)
+        mreturn(1);
+
+    if (!S_ISREG(st.st_mode))
+        mreturn(1);
+
+    if (st.st_size < 0)
+        mreturn(1);
+
+    *fs = (size_t) st.st_size;
+
+    mreturn(0);
+}
 
 int get_path_type(const char *path, unsigned char *type)
 {
@@ -46,7 +62,7 @@ int get_path_type(const char *path, unsigned char *type)
 #ifdef _WIN32
     DWORD file_attr;
 #else
-    struct stat st;
+    struct stat_s st;
 #endif
 
 #ifdef _WIN32
@@ -341,4 +357,83 @@ char *ls_dir(const char *dir)
     } else {
         mreturn(t);
     }
+}
+
+void *mmap_file_ro(const char *fn, size_t *fs)
+{
+    size_t s;
+#ifdef _WIN32
+    int ret = 1;
+    HANDLE file_h = INVALID_HANDLE_VALUE;
+    HANDLE map_h = NULL;
+    LPVOID p = NULL;
+#else
+    int fd;
+    void *p;
+#endif
+
+    if (get_file_size(fn, &s))
+        mreturn(NULL);
+
+#ifdef _WIN32
+
+    /* Open existing file read only */
+    if ((file_h =
+         CreateFile(fn, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING,
+                    FILE_ATTRIBUTE_NORMAL, NULL)) == INVALID_HANDLE_VALUE)
+        mgoto(clean_up);
+
+    if ((map_h =
+         CreateFileMapping(file_h, NULL, PAGE_READONLY, 0, 0,
+                           NULL)) == NULL)
+        mgoto(clean_up);
+
+    if ((p = MapViewOfFile(map_h, FILE_MAP_READ, 0, 0, 0)) == NULL)
+        mgoto(clean_up);
+
+    ret = 0;
+  clean_up:
+    if (file_h != INVALID_HANDLE_VALUE && !CloseHandle(file_h))
+        ret = 1;
+
+    if (map_h != NULL && !CloseHandle(map_h))
+        ret = 1;
+
+    if (ret) {
+        UnmapViewOfFile(p);
+        mreturn(NULL);
+    }
+
+#else
+
+    if ((fd = open(fn, O_RDONLY)) == -1)
+        mreturn(NULL);
+
+    if ((p = mmap(NULL, s, PROT_READ, MAP_PRIVATE, fd, 0)) == MAP_FAILED) {
+        close(fd);
+        mreturn(NULL);
+    }
+
+    if (close(fd)) {
+        munmap(p, s);
+        mreturn(NULL);
+    }
+
+#endif
+
+    *fs = s;
+    mreturn(p);
+}
+
+int un_mmap(void *p, size_t s)
+{
+#ifdef _WIN32
+
+    if (!UnmapViewOfFile(p))
+        mreturn(1);
+#else
+    if (munmap(p, s))
+        mreturn(1);
+#endif
+    mreturn(0);
 }
