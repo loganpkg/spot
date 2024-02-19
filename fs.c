@@ -400,7 +400,9 @@ void *mmap_file_ro(const char *fn, size_t *fs)
         ret = 1;
 
     if (ret) {
-        UnmapViewOfFile(p);
+        if (p != NULL)
+            UnmapViewOfFile(p);
+
         mreturn(NULL);
     }
 

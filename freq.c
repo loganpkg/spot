@@ -38,6 +38,9 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    if (sane_io())
+        return 1;
+
     if ((p = mmap_file_ro(*(argv + 1), &fs)) == NULL)
         return 1;
 
