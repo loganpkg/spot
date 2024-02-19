@@ -26,7 +26,7 @@ spot monorepo
 =============
 
 Welcome to the _spot monorepo_ where multiple applications share code via
-modules.
+_toucanlib_.
 
 The applications are:
 * [spot](#spot): The text editor,
@@ -34,9 +34,20 @@ The applications are:
 * [bc](#bc): A basic calculator, and
 * [freq](#freq): Determines the character frequency in a file.
 
-spot and m4 utilise the built-in regular expression module which understands
-the [regex syntax](#regex-syntax) listed in a later section.
+spot and m4 utilise the built-in regular expression module in toucanlib which
+understands the [regex syntax](#regex-syntax) listed in a later section.
 
+toucanlib has a monolithic interface to make usage easy, but multiple modules
+to make maintenance easy. Currently, the modules include:
+* gen: Generic functions,
+* num: Number functions,
+* buf: Various buffers,
+* gb: Gap buffers,
+* eval: Evaluate arithmetic expression,
+* ht: Hash table,
+* regex: Regular expression,
+* curses: Curses (terminal graphics), and
+* fs: File system related functions.
 
 Install
 -------
