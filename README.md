@@ -30,8 +30,9 @@ modules.
 
 The applications are:
 * [spot](#spot): The text editor,
-* [m4](#m4): An implementation of the m4 macro processor, and
-* [bc](#bc): A basic calculator.
+* [m4](#m4): An implementation of the m4 macro processor,
+* [bc](#bc): A basic calculator, and
+* [freq](#freq): Determines the character frequency in a file.
 
 spot and m4 utilise the built-in regular expression module which understands
 the [regex syntax](#regex-syntax) listed in a later section.
@@ -426,6 +427,19 @@ bc
 bc is a cross-platform basic calculator. It reads from `stdin` and works with
 signed _long_ integers. It understands `(`, `)`, `^`, `*`, `/`, `%` (modulus),
 and _unary_ and binary `+` and `-`.
+
+
+freq
+====
+
+`freq` determines the character frequency in a file. Non-graph characters are
+displayed using their hex value. A character and its count are separated by
+a space, and only characters present in the file are reported.
+
+Usage:
+```
+freq file
+```
 
 
 Regex syntax
