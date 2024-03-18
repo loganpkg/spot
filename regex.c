@@ -33,7 +33,6 @@
 #include "toucanlib.h"
 
 
-#define NO_MATCH 2
 #define CONCAT_CH '.'
 
 #define set_cs(cs, i, u)   *((cs) + (i) * 32 + (u) / 8) |=   1 << (u) % 8

@@ -195,6 +195,54 @@ int get_ch(struct ibuf *input, char *ch, int read_stdin)
     mreturn(0);
 }
 
+int eat_str_if_match(struct ibuf *input, const char *str, int read_stdin)
+{
+    /*
+     * Checks for str at the start of input and eats it if there is a match.
+     * Cannot check the buffer directly as stdin may not have been read yet.
+     * Returns MATCH, NO_MATCH, or ERR.
+     * (EOF is considered as NO_MATCH).
+     */
+    int r;
+    char x, ch;
+    size_t i;
+
+    i = 0;
+    while (1) {
+        x = *(str + i);
+        if (x == '\0')
+            break;
+
+        r = get_ch(input, &ch, read_stdin);
+        if (r == ERR)
+            mreturn(ERR);
+        else if (r == EOF)
+            mgoto(no_match);
+
+        if (x != ch) {
+            if (unget_ch(input, ch))
+                mreturn(ERR);
+
+            mgoto(no_match);
+        }
+
+        ++i;
+    }
+
+    mreturn(MATCH);
+
+  no_match:
+    /* Return the read characters */
+    while (i) {
+        if (unget_ch(input, *(str + i - 1)))
+            mreturn(ERR);
+
+        --i;
+    }
+
+    mreturn(NO_MATCH);
+}
+
 int get_word(struct ibuf *input, struct obuf *token, int read_stdin)
 {
     int r;
