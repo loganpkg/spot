@@ -36,6 +36,10 @@
 
 #define INIT_BUF_SIZE 512
 
+/* Do not change */
+#define DEFAULT_LEFT_QUOTE "`"
+#define DEFAULT_RIGHT_QUOTE "'"
+
 /*
  * Do not change.
  * Diversion 0 continuously flushes to stdout.
@@ -49,7 +53,6 @@
  * Only arguments 1 to 9 are allowed.
  */
 #define NUM_ARGS 10
-
 
 /*
  * When there is no stack, the output will be the active diversion.
@@ -86,8 +89,6 @@ struct m4_info {
     /* There is only one input. Characters are stored in reverse order. */
     struct ibuf *input;
     struct obuf *token;
-    /* Used to read the next token to see if it is an open bracket */
-    struct obuf *next_token;
     struct obuf *store;         /* Stores strings referenced by the stack */
     struct macro_call *stack;
     /* Pass through macro name to output (only use when called with no args) */
@@ -95,8 +96,8 @@ struct m4_info {
     struct obuf *tmp;           /* Used for substituting arguments */
     struct obuf *div[NUM_DIVS];
     size_t active_div;
-    char left_quote[2];
-    char right_quote[2];
+    char *left_quote;
+    char *right_quote;
     size_t quote_depth;
 };
 
@@ -199,12 +200,14 @@ void free_m4(M4ptr m4)
         free_ht(m4->ht);
         free_ibuf(m4->input);
         free_obuf(m4->token);
-        free_obuf(m4->next_token);
         free_obuf(m4->store);
         free_mc_stack(&m4->stack);
         free_obuf(m4->tmp);
         for (i = 0; i < NUM_DIVS; ++i)
             free_obuf(m4->div[i]);
+
+        free(m4->left_quote);
+        free(m4->right_quote);
 
         free(m4);
     }
@@ -222,7 +225,6 @@ M4ptr init_m4(void)
     m4->ht = NULL;
     m4->input = NULL;
     m4->token = NULL;
-    m4->next_token = NULL;
     m4->store = NULL;
     m4->stack = NULL;
     /* Used for substituting arguments */
@@ -239,9 +241,6 @@ M4ptr init_m4(void)
         mgoto(error);
 
     if ((m4->token = init_obuf(INIT_BUF_SIZE)) == NULL)
-        mgoto(error);
-
-    if ((m4->next_token = init_obuf(INIT_BUF_SIZE)) == NULL)
         mgoto(error);
 
     if ((m4->store = init_obuf(INIT_BUF_SIZE)) == NULL)
@@ -261,11 +260,12 @@ M4ptr init_m4(void)
             mgoto(error);
 
     m4->active_div = 0;
-    m4->left_quote[0] = '`';
-    m4->left_quote[1] = '\0';
-    m4->right_quote[0] = '\'';
-    m4->right_quote[1] = '\0';
-    m4->quote_depth = 0;
+
+    if ((m4->left_quote = strdup(DEFAULT_LEFT_QUOTE)) == NULL)
+        mgoto(error);
+
+    if ((m4->right_quote = strdup(DEFAULT_RIGHT_QUOTE)) == NULL)
+        mgoto(error);
 
     mreturn(m4);
 
@@ -299,6 +299,29 @@ int dump_stack(M4ptr m4)
     --m4->store->i;
 
     return 0;
+}
+
+int validate_quote(const char *quote)
+{
+    size_t i;
+    char ch;
+    i = 0;
+    while (1) {
+        ch = *(quote + i);
+        if (ch == '\0')
+            break;
+
+        /* All chars must be graph non-comma and non-parentheses */
+        if (!isgraph(ch) || ch == ',' || ch == '(' || ch == ')')
+            mreturn(1);
+
+        ++i;
+    }
+    /* Empty quote */
+    if (!i)
+        mreturn(1);
+
+    mreturn(0);
 }
 
 
@@ -346,26 +369,42 @@ int undefine(void *v)
 int changequote(void *v)
 {
     M4ptr m4 = (M4ptr) v;
-    char l_ch, r_ch;
 
     if (m4->stack->active_arg == 0) {
         /* Called without arguments, so restore the defaults */
-        m4->left_quote[0] = '`';
-        m4->right_quote[0] = '\'';
+        free(m4->left_quote);
+        m4->left_quote = NULL;
+        free(m4->right_quote);
+        m4->right_quote = NULL;
+
+        if ((m4->left_quote = strdup(DEFAULT_LEFT_QUOTE)) == NULL)
+            mreturn(1);
+
+        if ((m4->right_quote = strdup(DEFAULT_RIGHT_QUOTE)) == NULL)
+            mreturn(1);
+
         mreturn(0);
     }
     if (m4->stack->active_arg != 2)
         mreturn(1);
 
-    l_ch = *arg(1);
-    r_ch = *arg(2);
-
-    if (!isgraph(l_ch) || !isgraph(r_ch) || l_ch == r_ch
-        || strlen(arg(1)) != 1 || strlen(arg(2)) != 1)
+    if (validate_quote(arg(1)) || validate_quote(arg(2)))
         mreturn(1);
 
-    m4->left_quote[0] = l_ch;
-    m4->right_quote[0] = r_ch;
+    /* Quotes cannot be the same */
+    if (!strcmp(arg(1), arg(2)))
+        mreturn(1);
+
+    free(m4->left_quote);
+    m4->left_quote = NULL;
+    free(m4->right_quote);
+    m4->right_quote = NULL;
+
+    if ((m4->left_quote = strdup(arg(1))) == NULL)
+        mreturn(1);
+
+    if ((m4->right_quote = strdup(arg(2))) == NULL)
+        mreturn(1);
 
     mreturn(0);
 }
@@ -1011,6 +1050,8 @@ int main(int argc, char **argv)
      * or an error occurs.
      */
     while (1) {
+      top:
+
         /* Need to copy as used after free of m4 */
         if ((req_exit_val = m4->req_exit_val) != -1)
             break;
@@ -1020,24 +1061,40 @@ int main(int argc, char **argv)
 
         m4->div[NUM_ARGS]->i = 0;
 
+        r = eat_str_if_match(m4->input, m4->left_quote, m4->read_stdin);
+        if (r == ERR)
+            mgoto(clean_up);
+
+        if (r == MATCH) {
+            if (m4->quote_depth && put_str(output, m4->left_quote))
+                mgoto(clean_up);
+
+            ++m4->quote_depth;
+            mgoto(top);         /* As might have multiple quotes in a row */
+        }
+
+        r = eat_str_if_match(m4->input, m4->right_quote, m4->read_stdin);
+        if (r == ERR)
+            mgoto(clean_up);
+
+        if (r == MATCH) {
+            if (m4->quote_depth != 1 && put_str(output, m4->right_quote))
+                mgoto(clean_up);
+
+            if (m4->quote_depth)
+                --m4->quote_depth;
+
+            mgoto(top);         /* As might have multiple quotes in a row */
+        }
+
+        /* Not a quote, so read a token */
         r = get_word(m4->input, m4->token, m4->read_stdin);
         if (r == ERR)
             mgoto(clean_up);
         else if (r == EOF)
             break;
 
-        if (!strcmp(m4->token->a, m4->left_quote)) {
-            if (m4->quote_depth && put_str(output, m4->token->a))
-                mgoto(clean_up);
-
-            ++m4->quote_depth;
-        } else if (!strcmp(m4->token->a, m4->right_quote)) {
-            if (m4->quote_depth != 1 && put_str(output, m4->token->a))
-                mgoto(clean_up);
-
-            if (m4->quote_depth)
-                --m4->quote_depth;
-        } else if (m4->quote_depth) {
+        if (m4->quote_depth) {
             /* Quoted */
             if (put_str(output, m4->token->a))
                 mgoto(clean_up);
@@ -1088,10 +1145,6 @@ int main(int argc, char **argv)
                     mgoto(clean_up);
             } else {
                 /*  Macro */
-                /* See if called with or without brackets */
-                r = get_word(m4->input, m4->next_token, m4->read_stdin);
-                if (r == ERR)
-                    mgoto(clean_up);
 
                 if (stack_mc(&m4->stack))
                     mgoto(clean_up);
@@ -1122,12 +1175,14 @@ int main(int argc, char **argv)
                 if (put_ch(m4->store, '\0'))
                     mgoto(clean_up);
 
-                if (r == EOF || strcmp(m4->next_token->a, "(")) {
-                    /* Called without arguments */
-                    if (r != EOF
-                        && unget_str(m4->input, m4->next_token->a))
-                        mgoto(clean_up);
+                /* See if called with or without brackets */
+                if ((r =
+                     eat_str_if_match(m4->input, "(",
+                                      m4->read_stdin)) == ERR)
+                    mgoto(clean_up);
 
+                if (r == NO_MATCH) {
+                    /* Called without arguments */
                     if (end_macro(m4))
                         mgoto(clean_up);
                 } else {
@@ -1160,8 +1215,11 @@ int main(int argc, char **argv)
         flush_obuf(m4->div[i]);
 
   clean_up:
-    if (ret)
+    if (ret) {
+        fprintf(stderr, "left_quote: %s\n", m4->left_quote);
+        fprintf(stderr, "right_quote: %s\n", m4->right_quote);
         dump_stack(m4);
+    }
 
     free_m4(m4);
 

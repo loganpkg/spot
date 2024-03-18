@@ -114,6 +114,9 @@
 /* EOF cannot be 1, so OK */
 #define ERR 1
 
+#define MATCH 0
+#define NO_MATCH 2
+
 /* For printing a number as a string */
 #define NUM_BUF_SIZE 32
 
@@ -298,6 +301,7 @@ int put_ch(struct obuf *b, char ch);
 int unget_str(struct ibuf *b, const char *str);
 int unget_file(struct ibuf *b, const char *fn);
 int get_ch(struct ibuf *input, char *ch, int read_stdin);
+int eat_str_if_match(struct ibuf *input, const char *str, int read_stdin);
 int get_word(struct ibuf *input, struct obuf *token, int read_stdin);
 int eat_whitespace(struct ibuf *input, int read_stdin);
 int delete_to_nl(struct ibuf *input, int read_stdin);

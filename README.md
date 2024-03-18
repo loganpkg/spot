@@ -220,7 +220,7 @@ quotation.
 Example
 -------
 
-In the example below, the quote characters are changed to `[` and `]`. Then a
+In the example below, the quotes are changed to `[` and `]`. Then a
 new macro called `world` is created with a defining text of `cool`. `world` is
 then shown to expand to `cool`, as expected.
 
@@ -293,12 +293,12 @@ macro name. Built-in macros cannot be retrieved once undefined.
 ```m4
 changequote(left_quote, right_quote)
 ```
-Sets the left and right quote characters. Please note that they must be
-different, single graph characters. The defaults of backtick and
+Sets the left and right quote strings. Please note that they must be different,
+non-empty strings that can only contain graph, non-comma, non-parentheses
+characters. The defaults of backtick and
 single quote are restored when called without arguments. It is normally a good
-idea to pick characters that are not a commonly used in any downstream
-programming language. I often change the quote characters to `[` and `]` or
-`@` and `~`, as single quotes are commonly used.
+idea to pick strings that are not a commonly used in any downstream
+programming language.
 
 ```m4
 divert or divert(div_num)
