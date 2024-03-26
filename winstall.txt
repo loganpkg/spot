@@ -44,6 +44,7 @@ cl /c %flags% m4.c || exit 1
 cl /c %flags% spot.c || exit 1
 cl /c %flags% bc.c || exit 1
 cl /c %flags% freq.c || exit 1
+cl /c %flags% tornado_dodge.c || exit 1
 
 lib gen.obj num.obj buf.obj gb.obj eval.obj ht.obj regex.obj curses.obj ^
     fs.obj /OUT:toucanlib.lib
@@ -52,6 +53,7 @@ cl %flags% m4.obj toucanlib.lib || exit 1
 cl %flags% spot.obj toucanlib.lib || exit 1
 cl %flags% bc.obj toucanlib.lib || exit 1
 cl %flags% freq.obj toucanlib.lib || exit 1
+cl %flags% tornado_dodge.obj toucanlib.lib || exit 1
 
 if not exist %install_dir% mkdir %install_dir%
 

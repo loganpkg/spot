@@ -339,6 +339,7 @@ M4ptr init_m4(void)
 
     m4->quote_depth = 0;
     m4->error_exit = 0;
+    m4->help = 0;
 
     return m4;
 
