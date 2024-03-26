@@ -80,7 +80,7 @@ static int preprocess_regex(const char *regex_str, int nl_sen,
                             unsigned char **char_sets,
                             size_t **regex_nums, size_t *rn_len)
 {
-    int ret = 1;
+    int ret = ERR;
     size_t len, n, i, k;
     unsigned char *cs = NULL;
     size_t *rn = NULL;
@@ -88,34 +88,58 @@ static int preprocess_regex(const char *regex_str, int nl_sen,
     unsigned char u, h[2];
     int negate_set, j, add_concat;
 
-    if (regex_str == NULL)
-        mgoto(clean_up);
+    if (regex_str == NULL) {
+        ret = ERR;
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        goto clean_up;
+    }
 
     len = strlen(regex_str);
 
-    if (aof(len, UCHAR_MAX + 1, SIZE_MAX))
-        mgoto(clean_up);
+    if (aof(len, UCHAR_MAX + 1, SIZE_MAX)) {
+        ret = ERR;
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        goto clean_up;
+    }
 
-    if (mof(len, 32, SIZE_MAX))
-        mgoto(clean_up);
+    if (mof(len, 32, SIZE_MAX)) {
+        ret = ERR;
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        goto clean_up;
+    }
 
-    if ((cs = calloc(len * 32, 1)) == NULL)
-        mgoto(clean_up);
+    if ((cs = calloc(len * 32, 1)) == NULL) {
+        ret = ERR;
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        goto clean_up;
+    }
 
-    if (mof(len, sizeof(size_t), SIZE_MAX))
-        mgoto(clean_up);
+    if (mof(len, sizeof(size_t), SIZE_MAX)) {
+        ret = ERR;
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        goto clean_up;
+    }
 
     /* Double to allow for added concat operators */
-    if (mof(len, 2, SIZE_MAX))
-        mgoto(clean_up);
+    if (mof(len, 2, SIZE_MAX)) {
+        ret = ERR;
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        goto clean_up;
+    }
 
     n = len * 2;
 
-    if (mof(n, sizeof(size_t), SIZE_MAX))
-        mgoto(clean_up);
+    if (mof(n, sizeof(size_t), SIZE_MAX)) {
+        ret = ERR;
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        goto clean_up;
+    }
 
-    if ((rn = calloc(n, sizeof(size_t))) == NULL)
-        mgoto(clean_up);
+    if ((rn = calloc(n, sizeof(size_t))) == NULL) {
+        ret = ERR;
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        goto clean_up;
+    }
 
     p = (const unsigned char *) regex_str;
     i = 0;
@@ -124,8 +148,12 @@ static int preprocess_regex(const char *regex_str, int nl_sen,
     while (*p != '\0') {
         if (*p == '\\') {
             /* Eat backslash */
-            if ((u = *++p) == '\0')
-                mgoto(clean_up);
+            if ((u = *++p) == '\0') {
+                ret = ERR;
+                fprintf(stderr, "%s:%d: Syntax error\n", __FILE__,
+                        __LINE__);
+                goto clean_up;
+            }
 
             switch (u) {
             case 't':
@@ -142,14 +170,26 @@ static int preprocess_regex(const char *regex_str, int nl_sen,
                 break;
             case 'x':
                 /* Two digit hex literal */
-                if ((h[0] = *++p) == '\0')
-                    mgoto(clean_up);
+                if ((h[0] = *++p) == '\0') {
+                    ret = ERR;
+                    fprintf(stderr, "%s:%d: Syntax error\n", __FILE__,
+                            __LINE__);
+                    goto clean_up;
+                }
 
-                if ((h[1] = *++p) == '\0')
-                    mgoto(clean_up);
+                if ((h[1] = *++p) == '\0') {
+                    ret = ERR;
+                    fprintf(stderr, "%s:%d: Syntax error\n", __FILE__,
+                            __LINE__);
+                    goto clean_up;
+                }
 
-                if (hex_to_val(h, &u))
-                    mgoto(clean_up);
+                if (hex_to_val(h, &u)) {
+                    ret = ERR;
+                    fprintf(stderr, "%s:%d: Syntax error\n", __FILE__,
+                            __LINE__);
+                    goto clean_up;
+                }
 
                 break;
             }
@@ -165,14 +205,22 @@ static int preprocess_regex(const char *regex_str, int nl_sen,
         } else if (*p == '[') {
             /* Gather set -- No escape sequences */
             /* Eat opening square bracket */
-            if (*++p == '\0')
-                mgoto(clean_up);
+            if (*++p == '\0') {
+                ret = ERR;
+                fprintf(stderr, "%s:%d: Syntax error\n", __FILE__,
+                        __LINE__);
+                goto clean_up;
+            }
 
             if (*p == '^') {
                 negate_set = 1;
                 /* Eat caret */
-                if (*++p == '\0')
-                    mgoto(clean_up);
+                if (*++p == '\0') {
+                    ret = ERR;
+                    fprintf(stderr, "%s:%d: Syntax error\n", __FILE__,
+                            __LINE__);
+                    goto clean_up;
+                }
             } else {
                 negate_set = 0;
             }
@@ -180,8 +228,12 @@ static int preprocess_regex(const char *regex_str, int nl_sen,
             /* Take any char literally in this position */
             set_cs(cs, i, *p);
             /* Eat first non-negation char */
-            if (*++p == '\0')
-                mgoto(clean_up);
+            if (*++p == '\0') {
+                ret = ERR;
+                fprintf(stderr, "%s:%d: Syntax error\n", __FILE__,
+                        __LINE__);
+                goto clean_up;
+            }
 
             while (*p != ']') {
                 if (*p == '-' && *(p + 1) != ']') {
@@ -190,14 +242,22 @@ static int preprocess_regex(const char *regex_str, int nl_sen,
                         set_cs(cs, i, j);
 
                     /* Eat range separator */
-                    if (*++p == '\0')
-                        mgoto(clean_up);
+                    if (*++p == '\0') {
+                        ret = ERR;
+                        fprintf(stderr, "%s:%d: Syntax error\n", __FILE__,
+                                __LINE__);
+                        goto clean_up;
+                    }
                 } else {
                     set_cs(cs, i, *p);
                 }
                 /* Advance */
-                if (*++p == '\0')
-                    mgoto(clean_up);
+                if (*++p == '\0') {
+                    ret = ERR;
+                    fprintf(stderr, "%s:%d: Syntax error\n", __FILE__,
+                            __LINE__);
+                    goto clean_up;
+                }
             }
 
             if (negate_set)
@@ -273,35 +333,45 @@ static int preprocess_regex(const char *regex_str, int nl_sen,
         ++p;
     }
 
-    ret = 0;
+    ret = SUCCESS;
     *char_sets = cs;
     *regex_nums = rn;
     *rn_len = k;
+
   clean_up:
     if (ret)
         free(cs);
 
-    mreturn(0);
+    return ret;
 }
 
 
 static int shunting_yard_regex(size_t *regex_nums, size_t rn_len,
                                size_t **regex_postfix, size_t *rp_len)
 {
-    int ret = 1;
+    int ret = ERR;
     size_t *rp = NULL;
     unsigned char *op_stack = NULL, h;
     size_t op_i;
     size_t i, k, x;
 
-    if (mof(rn_len, sizeof(size_t), SIZE_MAX))
-        mgoto(clean_up);
+    if (mof(rn_len, sizeof(size_t), SIZE_MAX)) {
+        ret = ERR;
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        goto clean_up;
+    }
 
-    if ((rp = calloc(rn_len, sizeof(size_t))) == NULL)
-        mgoto(clean_up);
+    if ((rp = calloc(rn_len, sizeof(size_t))) == NULL) {
+        ret = ERR;
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        goto clean_up;
+    }
 
-    if ((op_stack = malloc(rn_len)) == NULL)
-        mgoto(clean_up);
+    if ((op_stack = malloc(rn_len)) == NULL) {
+        ret = ERR;
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        goto clean_up;
+    }
 
     op_i = 0;
 
@@ -319,8 +389,12 @@ static int shunting_yard_regex(size_t *regex_nums, size_t rn_len,
                 break;
             case ')':
                 while (1) {
-                    if (!op_i)  /* Open bracket not found */
-                        mgoto(clean_up);
+                    if (!op_i) {        /* Open bracket not found */
+                        ret = ERR;
+                        fprintf(stderr, "%s:%d: Syntax error\n", __FILE__,
+                                __LINE__);
+                        goto clean_up;
+                    }
 
                     h = op_stack[op_i - 1];
                     if (h == '(') {
@@ -369,7 +443,10 @@ static int shunting_yard_regex(size_t *regex_nums, size_t rn_len,
                 break;
             default:
                 /* Invalid operator */
-                mgoto(clean_up);
+                ret = ERR;
+                fprintf(stderr, "%s:%d: Syntax error\n", __FILE__,
+                        __LINE__);
+                goto clean_up;
             }
         }
     }
@@ -378,8 +455,11 @@ static int shunting_yard_regex(size_t *regex_nums, size_t rn_len,
     while (op_i) {
         h = op_stack[op_i - 1];
         /* Should not be any unmatched brackets left */
-        if (h == '(')
-            mgoto(clean_up);
+        if (h == '(') {
+            ret = ERR;
+            fprintf(stderr, "%s:%d: Syntax error\n", __FILE__, __LINE__);
+            goto clean_up;
+        }
 
         rp[k++] = h;
         --op_i;
@@ -393,7 +473,7 @@ static int shunting_yard_regex(size_t *regex_nums, size_t rn_len,
         free(rp);
 
     free(op_stack);
-    mreturn(ret);
+    return ret;
 }
 
 
@@ -462,7 +542,7 @@ static size_t get_s_i(int *reuse, size_t *s_i_reuse, size_t *s_i)
         res = *s_i;
         ++*s_i;
     }
-    mreturn(res);
+    return res;
 }
 
 
@@ -476,6 +556,7 @@ static int generate_nfa(size_t *regex_postfix, size_t rp_len,
                         struct state **state_array, size_t *sa_len)
 {
     /* Thompson's construction */
+    int ret = ERR;
     struct nfa *nfa_stack = NULL;
     struct state *sa = NULL;    /* State array */
     size_t n_i = 0;             /* NFA stack index */
@@ -486,27 +567,41 @@ static int generate_nfa(size_t *regex_postfix, size_t rp_len,
     size_t new_start, new_end;
     size_t s;
 
-    if (mof(rp_len, sizeof(struct nfa), SIZE_MAX))
-        mgoto(clean_up);
+    if (mof(rp_len, sizeof(struct nfa), SIZE_MAX)) {
+        ret = ERR;
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        goto clean_up;
+    }
 
-    if ((nfa_stack = calloc(rp_len, sizeof(struct nfa))) == NULL)
-        mgoto(clean_up);
+    if ((nfa_stack = calloc(rp_len, sizeof(struct nfa))) == NULL) {
+        ret = ERR;
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        goto clean_up;
+    }
 
     /*
      * Most elements of the postfix notation result in the creation of two
      * states in the NFA. The exception is concatenation, which removes one
      * state.
      */
-    if (mof(rp_len, 2, SIZE_MAX))
-        mgoto(clean_up);
+    if (mof(rp_len, 2, SIZE_MAX)) {
+        ret = ERR;
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        goto clean_up;
+    }
 
     s = rp_len * 2;
 
-    if (mof(s, sizeof(struct state), SIZE_MAX))
-        mgoto(clean_up);
+    if (mof(s, sizeof(struct state), SIZE_MAX)) {
+        ret = ERR;
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        goto clean_up;
+    }
 
-    if ((sa = calloc(s, sizeof(struct state))) == NULL)
-        mreturn(1);
+    if ((sa = calloc(s, sizeof(struct state))) == NULL) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return ERR;
+    }
 
     for (k = 0; k < rp_len; ++k) {
         x = *(regex_postfix + k);
@@ -522,8 +617,12 @@ static int generate_nfa(size_t *regex_postfix, size_t rp_len,
             switch (x) {
             case '*':
                 /* Zero or more. Has loop back and bypass. */
-                if (!n_i)       /* Unary operator */
-                    mgoto(clean_up);
+                if (!n_i) {     /* Unary operator */
+                    ret = ERR;
+                    fprintf(stderr, "%s:%d: Syntax error\n", __FILE__,
+                            __LINE__);
+                    goto clean_up;
+                }
 
                 /* Loop back */
                 sa[head.end].t_a = 'e';
@@ -551,8 +650,12 @@ static int generate_nfa(size_t *regex_postfix, size_t rp_len,
                 break;
             case '+':
                 /* One or more. Like * but no bypass. */
-                if (!n_i)       /* Unary operator */
-                    mgoto(clean_up);
+                if (!n_i) {     /* Unary operator */
+                    ret = ERR;
+                    fprintf(stderr, "%s:%d: Syntax error\n", __FILE__,
+                            __LINE__);
+                    goto clean_up;
+                }
 
                 /* Loop back */
                 sa[head.end].t_a = 'e';
@@ -576,8 +679,12 @@ static int generate_nfa(size_t *regex_postfix, size_t rp_len,
                 break;
             case '?':
                 /* Zero or one. Like * but no loop back. */
-                if (!n_i)       /* Unary operator */
-                    mgoto(clean_up);
+                if (!n_i) {     /* Unary operator */
+                    ret = ERR;
+                    fprintf(stderr, "%s:%d: Syntax error\n", __FILE__,
+                            __LINE__);
+                    goto clean_up;
+                }
 
                 /* Get new start and end states */
                 new_start = get_s_i(&reuse, &s_i_reuse, &s_i);
@@ -601,8 +708,12 @@ static int generate_nfa(size_t *regex_postfix, size_t rp_len,
                 break;
             case '.':
                 /* Concatenate. Joins two NFAs in series. Releases a state. */
-                if (n_i < 2)    /* Binary operator */
-                    mgoto(clean_up);
+                if (n_i < 2) {  /* Binary operator */
+                    ret = ERR;
+                    fprintf(stderr, "%s:%d: Syntax error\n", __FILE__,
+                            __LINE__);
+                    goto clean_up;
+                }
 
                 /* Copy branches from start of 2nd NFA to end of 1st NFA */
                 sa[head_m1.end].t_a = sa[head.start].t_a;
@@ -622,8 +733,12 @@ static int generate_nfa(size_t *regex_postfix, size_t rp_len,
                 break;
             case '|':
                 /* Alternate. Joins two NFAs in parallel. */
-                if (n_i < 2)    /* Binary operator */
-                    mgoto(clean_up);
+                if (n_i < 2) {  /* Binary operator */
+                    ret = ERR;
+                    fprintf(stderr, "%s:%d: Syntax error\n", __FILE__,
+                            __LINE__);
+                    goto clean_up;
+                }
 
                 /* Get new start and end states */
                 new_start = get_s_i(&reuse, &s_i_reuse, &s_i);
@@ -655,14 +770,19 @@ static int generate_nfa(size_t *regex_postfix, size_t rp_len,
         }
 
     }
-    if (n_i != 1)
-        mgoto(clean_up);
+    if (n_i != 1) {
+        ret = ERR;
+        fprintf(stderr, "%s:%d: Syntax error\n", __FILE__, __LINE__);
+        goto clean_up;
+    }
 
     *state_machine = head;
     free(nfa_stack);
     *state_array = sa;
     *sa_len = s_i;
-    mreturn(0);
+
+    ret = SUCCESS;
+    return ret;
 
   clean_up:
     if (nfa_stack != NULL)
@@ -671,7 +791,7 @@ static int generate_nfa(size_t *regex_postfix, size_t rp_len,
     if (sa != NULL)
         free(sa);
 
-    mreturn(1);
+    return ret;
 }
 
 
@@ -679,6 +799,13 @@ static int generate_nfa(size_t *regex_postfix, size_t rp_len,
 #undef head_p1
 #undef head_m1
 
+static void init_regex(struct regex_info *ri)
+{
+    ri->cs = NULL;
+    ri->sa = NULL;
+    ri->sl = NULL;
+    ri->sl_next = NULL;
+}
 
 static void free_regex(struct regex_info ri)
 {
@@ -691,19 +818,23 @@ static void free_regex(struct regex_info ri)
 static int compile_regex(const char *regex_str, int nl_sen,
                          struct regex_info *ri, int verbose)
 {
+    int ret = ERR;
     struct regex_info reg_i;
     size_t *rn = NULL, rn_len, *rp = NULL, rp_len;
 
-    reg_i.cs = NULL;
-    reg_i.sa = NULL;
-    reg_i.sl = NULL;
-    reg_i.sl_next = NULL;
+    init_regex(&reg_i);
 
-    if (preprocess_regex(regex_str, nl_sen, &reg_i.cs, &rn, &rn_len))
-        mgoto(clean_up);
+    /* Pass-through ret value */
+    if ((ret =
+         preprocess_regex(regex_str, nl_sen, &reg_i.cs, &rn, &rn_len))) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        goto clean_up;
+    }
 
-    if (shunting_yard_regex(rn, rn_len, &rp, &rp_len))
-        mgoto(clean_up);
+    if ((ret = shunting_yard_regex(rn, rn_len, &rp, &rp_len))) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        goto clean_up;
+    }
 
     free(rn);
     rn = NULL;
@@ -711,30 +842,40 @@ static int compile_regex(const char *regex_str, int nl_sen,
     if (verbose)
         print_regex(reg_i.cs, rp, rp_len);
 
-    if (generate_nfa(rp, rp_len, &reg_i.sm, &reg_i.sa, &reg_i.sa_len))
-        mgoto(clean_up);
+    if ((ret =
+         generate_nfa(rp, rp_len, &reg_i.sm, &reg_i.sa, &reg_i.sa_len))) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        goto clean_up;
+    }
 
     free(rp);
     rp = NULL;
 
-    if ((reg_i.sl = malloc(reg_i.sa_len)) == NULL)
-        mgoto(clean_up);
+    if ((reg_i.sl = malloc(reg_i.sa_len)) == NULL) {
+        ret = ERR;
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        goto clean_up;
+    }
 
-    if ((reg_i.sl_next = malloc(reg_i.sa_len)) == NULL)
-        mgoto(clean_up);
+    if ((reg_i.sl_next = malloc(reg_i.sa_len)) == NULL) {
+        ret = ERR;
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        goto clean_up;
+    }
 
     if (verbose)
         print_nfa(reg_i);
 
     *ri = reg_i;
 
-    mreturn(0);
+    ret = SUCCESS;
+    return ret;
 
   clean_up:
     free(rn);
     free(rp);
     free_regex(reg_i);
-    mreturn(1);
+    return ret;
 }
 
 
@@ -854,10 +995,10 @@ static int run_nfa(struct regex_info ri, const char *mem,
 
     if (p_max_match != NULL) {
         *match_len = p_max_match - (unsigned char *) mem;
-        mreturn(0);             /* Match */
+        return 0;               /* Match */
     }
 
-    mreturn(NO_MATCH);
+    return NO_MATCH;
 }
 
 
@@ -888,8 +1029,10 @@ static int regex_find(const char *mem, size_t mem_len,
         /* Still run on a length of zero */
         r = run_nfa(ri, start, stop - start, sol, nl_sen, &m_len);
 
-        if (r == 1)
-            mreturn(1);
+        if (r == 1) {
+            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+            return ERR;
+        }
 
         if (!r)
             break;
@@ -903,9 +1046,9 @@ static int regex_find(const char *mem, size_t mem_len,
     if (!r) {
         *match_offset = start - mem;
         *match_len = m_len;
-        mreturn(0);
+        return 0;
     } else {
-        mreturn(NO_MATCH);
+        return NO_MATCH;
     }
 }
 
@@ -917,14 +1060,18 @@ int regex_search(const char *mem, size_t mem_len,
     struct regex_info ri;
     int r;
 
-    if (compile_regex(regex_find_str, nl_sen, &ri, 0))
-        mreturn(1);
+    init_regex(&ri);
+
+    if (compile_regex(regex_find_str, nl_sen, &ri, 0)) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return ERR;
+    }
 
     r = regex_find(mem, mem_len, ri, sol, nl_sen, match_offset, match_len);
 
     free_regex(ri);
 
-    mreturn(r);
+    return r;
 }
 
 
@@ -933,7 +1080,7 @@ int regex_replace(const char *mem, size_t mem_len,
                   size_t replace_len, int nl_sen, char **res,
                   size_t *res_len, int verbose)
 {
-    int ret = 1;
+    int ret = ERR;
     struct regex_info ri;
     int sol;
     struct obuf *b = NULL;
@@ -945,16 +1092,26 @@ int regex_replace(const char *mem, size_t mem_len,
     const char *p, *p_stop;
     unsigned char h[2], u;
     char *t = NULL;
-    size_t t_len;
+    size_t t_len = 0;
 
-    if (compile_regex(regex_find_str, nl_sen, &ri, verbose))
-        mreturn(1);
+    init_regex(&ri);
 
-    if ((b = init_obuf(mem_len)) == NULL)
-        mgoto(clean_up);
+    if ((ret = compile_regex(regex_find_str, nl_sen, &ri, verbose))) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        goto clean_up;
+    }
 
-    if ((nr = malloc(replace_len)) == NULL)
-        mgoto(clean_up);
+    if ((b = init_obuf(mem_len)) == NULL) {
+        ret = ERR;
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        goto clean_up;
+    }
+
+    if ((nr = malloc(replace_len)) == NULL) {
+        ret = ERR;
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        goto clean_up;
+    }
 
     p = replace;
     p_stop = p + replace_len;
@@ -963,8 +1120,12 @@ int regex_replace(const char *mem, size_t mem_len,
     while (p != p_stop) {
         if ((u = *p) == '\\') {
             ++p;                /* Eat backslash */
-            if ((u = *p) == '\0')
-                mgoto(clean_up);
+            if ((u = *p) == '\0') {
+                ret = ERR;
+                fprintf(stderr, "%s:%d: Syntax error\n", __FILE__,
+                        __LINE__);
+                goto clean_up;
+            }
 
             switch (u) {
             case 't':
@@ -982,15 +1143,25 @@ int regex_replace(const char *mem, size_t mem_len,
             case 'x':
                 /* Two digit hex literal */
                 ++p;
-                if ((h[0] = *p) == '\0')
-                    mgoto(clean_up);
+                if ((h[0] = *p) == '\0') {
+                    ret = ERR;
+                    fprintf(stderr, "%s:%d: Syntax error\n", __FILE__,
+                            __LINE__);
+                    goto clean_up;
+                }
 
                 ++p;
-                if ((h[1] = *p) == '\0')
-                    mgoto(clean_up);
+                if ((h[1] = *p) == '\0') {
+                    ret = ERR;
+                    fprintf(stderr, "%s:%d: Syntax error\n", __FILE__,
+                            __LINE__);
+                    goto clean_up;
+                }
 
-                if (hex_to_val(h, &u))
-                    mgoto(clean_up);
+                if ((ret = hex_to_val(h, &u))) {
+                    fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+                    goto clean_up;
+                }
 
                 break;
             }
@@ -1021,13 +1192,17 @@ int regex_replace(const char *mem, size_t mem_len,
         if (!r) {
             /* Match */
             /* Add text before match */
-            if (put_mem(b, m, match_offset))
-                mgoto(clean_up);
+            if ((ret = put_mem(b, m, match_offset))) {
+                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+                goto clean_up;
+            }
 
             /* Add replacement text */
             if ((match_len || (!match_len && !prev_match_len))
-                && put_mem(b, nr, nr_len))
-                mgoto(clean_up);
+                && (ret = put_mem(b, nr, nr_len))) {
+                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+                goto clean_up;
+            }
 
             /* Advance */
             m += match_offset;
@@ -1048,29 +1223,38 @@ int regex_replace(const char *mem, size_t mem_len,
                  * Move forward 1 if a 0 length match,
                  * but pass through the jumped char.
                  */
-                if (put_ch(b, *m))
-                    mgoto(clean_up);
+                if ((ret = put_ch(b, *m))) {
+                    fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+                    goto clean_up;
+                }
 
                 ++m;
             }
         } else if (r == NO_MATCH) {
             break;
         } else {
-            mgoto(clean_up);
+            ret = r;
+            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+            goto clean_up;
         }
     }
 
     /* Add any remaining text */
-    if (put_mem(b, m, m_stop - m))
-        mgoto(clean_up);
+    if ((ret = put_mem(b, m, m_stop - m))) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        goto clean_up;
+    }
 
     /* Not counting terminating \0, as this is added by obuf_to_str */
     t_len = b->i;
 
-    if ((t = obuf_to_str(&b)) == NULL)
-        mgoto(clean_up);
+    if ((t = obuf_to_str(&b)) == NULL) {
+        ret = ERR;
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        goto clean_up;
+    }
 
-    ret = 0;
+    ret = SUCCESS;
 
   clean_up:
     free_regex(ri);
@@ -1083,5 +1267,5 @@ int regex_replace(const char *mem, size_t mem_len,
         *res_len = t_len;
     }
 
-    mreturn(ret);
+    return ret;
 }

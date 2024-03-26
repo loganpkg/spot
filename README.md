@@ -217,6 +217,15 @@ is finished, quotes have no effect on the substitution of collected arguments
 into their placeholders, this will occur irrespective of the depth of
 quotation.
 
+Differences with other implementations
+--------------------------------------
+
+This version of m4 has advanced safety features to make it easier to detect
+unintended usage. Built-in macros do not have _name pass-through_ when called
+without arguments. To use a built-in macro name without detection it must be
+quoted. All macros must be passed the correct number of arguments, variadic
+macros are not allowed.
+
 Example
 -------
 
@@ -254,7 +263,7 @@ cool
 define(x, [[hello $1]])
 
 dumpdef([x])
-x: [hello $1]
+User-def: x: [hello $1]
 
 x([world])
 hello world
@@ -271,7 +280,15 @@ Built-in macros
 I will now introduce the built-in macros.
 
 ```m4
-define(macro_name, macro_def)
+changequote: left_quote, right_quote
+```
+Sets the left and right quote strings. Please note that they must be different,
+non-empty strings that can only contain graph, non-comma, non-parentheses
+characters. It is normally a good idea to pick strings that are not a commonly
+used in any downstream programming language. I like to use `[[` and `]]`.
+
+```m4
+define: macro_name, macro_def
 ```
 `define` is used to create user-defined macros. If the macro already exists,
 then the old macro will be replaced, even if it is a built-in macro (which
@@ -282,58 +299,19 @@ with an alpha character or underscore followed by none or more alpha, digit or
 underscore characters. The macro definition is the text that the macro will
 expand into. It can take argument placeholders, `$0` to `$9`. `$0` is the
 macro name. `$1` to `$9` are the arguments collected when the macro is called.
-Omitted arguments are treated as empty strings.
 
 ```m4
-undefine(`macro_name')
+divert: div_num
 ```
-`undefine` removes a macro from the hash table. It is necessary to quote the
-macro name. Built-in macros cannot be retrieved once undefined.
-
-```m4
-changequote(left_quote, right_quote)
-```
-Sets the left and right quote strings. Please note that they must be different,
-non-empty strings that can only contain graph, non-comma, non-parentheses
-characters. The defaults of backtick and
-single quote are restored when called without arguments. It is normally a good
-idea to pick strings that are not a commonly used in any downstream
-programming language.
-
-```m4
-divert or divert(div_num)
-```
-`divert` changes the active diversion. When called without arguments, the
-default diversion of 0 is used (which is regularly flushed to `stdout`).
-Diversion -1 is discarded. It is often used when defining multiple macros, as
-the remaining newline characters are typically not wanted in the output.
-
-```m4
-undivert or undivert(div_num, filename, ...)
-```
-`undivert` appends the contents of a diversion or file into the current active
-diversion. Undiverted diversions are emptied. A diversion cannot be undiverted
-into itself, and diversion -1 cannot be undiverted (as it is discarded). When
-called without arguments (which is only allowed from diversion 0), diversions
-1 to 9 are all undiverted in order. It is important to note that no processing
-occurs during this, macros are not expanded.
-
-```m4
-writediv(div_num, filename)
-```
-`writediv` empties the specified diversion to file. Creates missing directories
-in the file path.
+`divert` changes the active diversion. m4 commences in diversion of 0,
+which is regularly flushed to `stdout`. Diversion -1 is discarded.
+It is often used when defining multiple macros, as the remaining newline
+characters are typically not wanted in the output.
 
 ```m4
 divnum
 ```
 `divnum` pushes the active diversion number into the input.
-
-```m4
-include(filename)
-```
-`include` pushes the contents of a file into the input. Macros will be
-processed.
 
 ```m4
 dnl
@@ -343,26 +321,47 @@ single-line comments or for removing the newline character after a macro
 definition.
 
 ```m4
-tnl(str)
+dumpdef: quoted_macro_name
 ```
-`tnl` trims trailing newline characters from the end of the first argument.
+`dumpdef` prints the definition of the marco specified in the first argument
+(which should be quoted) to `stderr`. Useful as a help command.
 
 ```m4
-regexrep(text, regex_find, replace[, nl_insensitive[, verbose]])
+dumpdefall
 ```
-`regexrep` searches text for a regex pattern and replaces the matches.
-If the fourth argument is 1, then newline insensitive matching occurs.
-If verbose is 1, then the posfix form of the expression and the
-nondeterministic finite automaton (NFA) structure are printed to `stderr`.
+Prints all macro definitions to `stderr`. Useful when debugging.
 
 ```m4
-lsdir(dir_name)
+errexit
 ```
-`lsdir` inserts a directory listing, with a line of hyphens separating
-the directories (shown first) from the files (shown second).
+Exit upon the first user-related error.
 
 ```m4
-ifdef(`macro_name', `when_defined', `when_undefined')
+errok
+```
+Continue execution even with user-related errors.
+
+```m4
+errprint: error_message
+```
+`errprint` prints a message to `stderr`.
+
+```m4
+esyscmd: shell_command
+```
+`esyscmd` runs an operating system specific shell command and reads the
+`stdout` of that command into the input.
+
+```m4
+evalmath: arithmetic_expression, verbose
+```
+`evalmath` evaluates an arithmetic expression. It understands `(`, `)`, `^`,
+`*`, `/`, `%` (modulus), and _unary_ and binary `+` and `-`. Works with signed
+_long_ integers. If verbose is 1, then the postfix form of the expression is
+printed to `stderr`.
+
+```m4
+ifdef: quoted_macro_name, quoted_when_defined, quoted_when_undefined
 ```
 `ifdef` checks to see if the first argument is a macro, and if so, pushes the
 second argument back into the input. Otherwise, the third argument is pushed
@@ -372,7 +371,7 @@ expanded and processed immediately during argument collection, _before_ the
 branch in logic. So, the second and third arguments should also be quoted.
 
 ```m4
-ifelse(A, B, `when_same', `when_different')
+ifelse: A, B, quoted_when_same, quoted_when_different
 ```
 `ifelse` compares the first and second arguments (after any expansions that
 occur during collection), and if they are equal, pushes the third argument
@@ -382,29 +381,41 @@ collection, which occurs _before_ the branch in logic. So, it is a good idea to
 quote the third and fourth arguments.
 
 ```m4
-dumpdef or dumpdef(`macro_name', )
+include: filename
 ```
-`dumpdef` prints the definitions of the marcos specified in the arguments
-(which should be quoted) to `stderr`. When called without arguments, all
-macro definitions are printed. Useful when debugging.
+`include` pushes the contents of a file into the input. Macros will be
+processed.
 
 ```m4
-errprint(error_message)
-```
-`errprint` prints a message to `stderr`.
-
-```m4
-incr(number)
+incr: number
 ```
 `incr` increments a number. The result is pushed into the input.
 
 ```m4
-eval(math[, verbose])
+lsdir: dir_name
 ```
-`eval` evaluates an arithmetic expression. It understands `(`, `)`, `^`,
-`*`, `/`, `%` (modulus), and _unary_ and binary `+` and `-`. Works with signed
-_long_ integers. If verbose is 1, then the postfix form of the expression is
-printed to `stderr`.
+`lsdir` inserts a directory listing, with a line of hyphens separating
+the directories (shown first) from the files (shown second).
+
+```m4
+m4exit: exit_value
+```
+`m4exit` allows the user to request early termination of m4, specifying the
+_desired_ exit value in the first argument. Please note that the specified exit
+value will be overwritten if any errors occurred at any time during the script.
+
+```m4
+recrm: path
+```
+`remove` recursively removes a path if it exists.
+
+```m4
+regexrep: text, regex_find, replace, nl_insensitive, verbose
+```
+`regexrep` searches text for a regex pattern and replaces the matches.
+If the fourth argument is 1, then newline insensitive matching occurs.
+If verbose is 1, then the posfix form of the expression and the
+nondeterministic finite automaton (NFA) structure are printed to `stderr`.
 
 ```m4
 sysval
@@ -413,23 +424,30 @@ sysval
 into the input.
 
 ```m4
-esyscmd(shell_command)
+tnl: str
 ```
-`esyscmd` runs an operating system specific shell command and reads the
-`stdout` of that command into the input.
+`tnl` trims trailing newline characters from the end of the first argument.
 
 ```m4
-m4exit(exit_value)
+undefine: quoted_macro_name
 ```
-`m4exit` allows the user to request early termination of m4, specifying the
-desired exit value in the first argument (with the default being zero when
-called with no arguments). Please note that the specified exit value will be
-overwritten with 1 if an error occurs.
+`undefine` removes a macro from the hash table. It is necessary to quote the
+macro name. Built-in macros cannot be retrieved once undefined.
 
 ```m4
-recrm(path)
+undivert: div_num_or_filename
 ```
-`remove` recursively removes a path if it exists.
+`undivert` appends the contents of a diversion or file onto the current active
+diversion. Undiverted diversions are emptied. A diversion cannot be undiverted
+into itself, and diversion -1 cannot be undiverted (as it is discarded).
+It is important to note that no processing occurs during this, macros are not
+expanded.
+
+```m4
+writediv: div_num, filename
+```
+`writediv` empties the specified diversion to file. Creates missing directories
+in the file path.
 
 
 bc

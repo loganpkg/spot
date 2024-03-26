@@ -29,13 +29,15 @@ static struct entry *init_entry(void)
 {
     struct entry *e;
 
-    if ((e = malloc(sizeof(struct entry))) == NULL)
-        mreturn(NULL);
+    if ((e = malloc(sizeof(struct entry))) == NULL) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return NULL;
+    }
 
     e->name = NULL;
     e->def = NULL;
     e->func_p = NULL;
-    mreturn(e);
+    return e;
 }
 
 static void free_entry(struct entry *e)
@@ -52,21 +54,27 @@ struct ht *init_ht(size_t num_buckets)
     struct ht *ht;
     size_t i;
 
-    if ((ht = malloc(sizeof(struct ht))) == NULL)
-        mreturn(NULL);
+    if ((ht = malloc(sizeof(struct ht))) == NULL) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return NULL;
+    }
 
-    if (mof(num_buckets, sizeof(struct entry *), SIZE_MAX))
-        mreturn(NULL);
+    if (mof(num_buckets, sizeof(struct entry *), SIZE_MAX)) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return NULL;
+    }
 
-    if ((ht->b = malloc(num_buckets * sizeof(struct entry *))) == NULL)
-        mreturn(NULL);
+    if ((ht->b = malloc(num_buckets * sizeof(struct entry *))) == NULL) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return NULL;
+    }
 
     for (i = 0; i < num_buckets; ++i)
         ht->b[i] = NULL;
 
     ht->n = num_buckets;
 
-    mreturn(ht);
+    return ht;
 }
 
 void free_ht(struct ht *ht)
@@ -100,7 +108,7 @@ static size_t hash_func(const char *str, size_t n)
         h = h * 33 ^ ch;
         ++str;
     }
-    mreturn(h % n);             /* Bucket index */
+    return h % n;               /* Bucket index */
 }
 
 struct entry *lookup(struct ht *ht, const char *name)
@@ -113,11 +121,11 @@ struct entry *lookup(struct ht *ht, const char *name)
 
     while (e != NULL) {
         if (!strcmp(name, e->name))
-            mreturn(e);         /* Match */
+            return e;           /* Match */
 
         e = e->next;
     }
-    mreturn(NULL_OK);           /* Not found */
+    return NULL_OK;             /* Not found */
 }
 
 int delete_entry(struct ht *ht, const char *name)
@@ -137,13 +145,15 @@ int delete_entry(struct ht *ht, const char *name)
                 ht->b[bucket] = e->next;        /* At head of list */
 
             free_entry(e);
-            mreturn(0);
+            return 0;
         }
         e_prev = e;
         e = e->next;
     }
 
-    mreturn(1);                 /* Not found */
+    /* Error as not found */
+    fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+    return ERR;
 }
 
 int upsert(struct ht *ht, const char *name, const char *def, Fptr func_p)
@@ -156,17 +166,21 @@ int upsert(struct ht *ht, const char *name, const char *def, Fptr func_p)
 
     if (e == NULL) {
         /* Make a new entry */
-        if ((e = init_entry()) == NULL)
-            mreturn(1);
+        if ((e = init_entry()) == NULL) {
+            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+            return ERR;
+        }
 
         if ((e->name = strdup(name)) == NULL) {
             free_entry(e);
-            mreturn(1);
+            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+            return ERR;
         }
 
         if (def != NULL && (e->def = strdup(def)) == NULL) {
             free_entry(e);
-            mreturn(1);
+            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+            return ERR;
         }
 
         e->func_p = func_p;
@@ -178,12 +192,15 @@ int upsert(struct ht *ht, const char *name, const char *def, Fptr func_p)
 
     } else {
         /* Update the existing entry */
-        if ((name_copy = strdup(name)) == NULL)
-            mreturn(1);
+        if ((name_copy = strdup(name)) == NULL) {
+            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+            return ERR;
+        }
 
         if (def != NULL && (def_copy = strdup(def)) == NULL) {
             free(name_copy);
-            mreturn(1);
+            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+            return ERR;
         }
 
         free(e->name);
@@ -191,5 +208,5 @@ int upsert(struct ht *ht, const char *name, const char *def, Fptr func_p)
         e->name = name_copy;
         e->def = def_copy;
     }
-    mreturn(0);
+    return 0;
 }

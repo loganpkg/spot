@@ -49,7 +49,7 @@ int draw(struct gb *b, struct gb *cl, struct screen *s, int cl_active,
 
   start:
     if (erase_screen(s))
-        return 1;
+        return ERR;
 
     if (b->d > b->g || s->centre) {
         /* Does not consider long lines that wrap */
@@ -125,7 +125,7 @@ int draw(struct gb *b, struct gb *cl, struct screen *s, int cl_active,
         if (es_set) {
             r = snprintf(num_str, NUM_BUF_SIZE, "%d", es);
             if (r < 0 || r >= NUM_BUF_SIZE)
-                return 1;
+                return ERR;
         } else {
             *num_str = '\0';
         }
@@ -137,7 +137,7 @@ int draw(struct gb *b, struct gb *cl, struct screen *s, int cl_active,
                        cl_active ? *(cl->a + cl->c) : *(b->a + b->c),
                        num_str);
         if (len < 0)
-            return 1;
+            return ERR;
 
         /* Overwrite \0 char */
         if ((size_t) len >= s->w)       /* Truncated */
@@ -232,7 +232,7 @@ int main(int argc, char **argv)
 
 
     if ((s = init_screen()) == NULL)
-        return 1;
+        return ERR;
 
 
     if (argc > 1) {
@@ -530,7 +530,7 @@ int main(int argc, char **argv)
 
   clean_up:
     if (free_screen(s))
-        ret = 1;
+        ret = ERR;
 
     free_gb_list(b);
     free_gb(p);

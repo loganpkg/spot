@@ -96,10 +96,10 @@ int free_screen(struct screen *s)
     phy_clear();
 #ifdef _WIN32
     if (!SetConsoleMode(s->term_handle, s->term_orig))
-        ret = 1;
+        ret = ERR;
 #else
     if (tcsetattr(STDIN_FILENO, TCSANOW, &s->term_orig))
-        ret = 1;
+        ret = ERR;
 #endif
 
     free(s->vs_c);
@@ -201,7 +201,7 @@ static int get_phy_screen_size(struct screen *s)
     CONSOLE_SCREEN_BUFFER_INFO si;
 
     if (!GetConsoleScreenBufferInfo(s->term_handle, &si))
-        return 1;
+        return ERR;
 
     s->h = si.srWindow.Bottom - si.srWindow.Top + 1;
     s->w = si.srWindow.Right - si.srWindow.Left + 1;
@@ -209,7 +209,7 @@ static int get_phy_screen_size(struct screen *s)
     struct winsize ws;
 
     if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1)
-        return 1;
+        return ERR;
 
     s->h = ws.ws_row;
     s->w = ws.ws_col;
@@ -224,15 +224,15 @@ int erase_screen(struct screen *s)
     unsigned char *t;
 
     if (get_phy_screen_size(s))
-        return 1;
+        return ERR;
 
     if (mof(s->h, s->w, SIZE_MAX))
-        return 1;
+        return ERR;
 
     new_s_s = s->h * s->w;      /* New screen size */
 
     if (!new_s_s)               /* No screen size */
-        return 1;
+        return ERR;
 
     if (s->clear || new_s_s != s->vs_s) {
         if (new_s_s != s->vs_s) {
@@ -241,11 +241,11 @@ int erase_screen(struct screen *s)
              * and s->vs_c and s->vs_n are initially NULL.
              */
             if ((t = realloc(s->vs_c, new_s_s)) == NULL)
-                return 1;
+                return ERR;
 
             s->vs_c = t;
             if ((t = realloc(s->vs_n, new_s_s)) == NULL)
-                return 1;
+                return ERR;
 
             s->vs_n = t;
             s->vs_s = new_s_s;
@@ -294,7 +294,7 @@ int print_ch(struct screen *s, unsigned char ch)
 
     /* Off screen */
     if (s->v_i >= s->vs_s)
-        return 1;
+        return ERR;
 
     if (ch == '\n') {
         *((s)->vs_n + (s)->v_i) = (s)->v_hl ? ' ' | '\x80' : ' ';
@@ -316,5 +316,29 @@ int print_ch(struct screen *s, unsigned char ch)
         ++s->v_i;
     }
 
+    return 0;
+}
+
+int print_object(struct screen *s, size_t y, size_t x, const char *object)
+{
+    /* Does not move the cursor. Does not do highlighting. */
+    size_t i;
+    char ch;
+
+    if (y >= s->h || x >= s->w)
+        return 1;
+
+    i = y * s->w + x;
+    while (1) {
+        ch = *object;
+        if (ch == '\0')
+            break;
+        else if (ch == '\n')
+            i = (i / s->w + 1) * s->w + x;
+        else
+            *(s->vs_n + i++) = ch;
+
+        ++object;
+    }
     return 0;
 }

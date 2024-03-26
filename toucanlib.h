@@ -105,17 +105,28 @@
 #define DIR_SEP_STR "/"
 #endif
 
-/* Comment out to turn off debugging */
-#define DEBUG
 
+/* Success return codes */
+#define SUCCESS 0
+#define MATCH SUCCESS
 /* Used to not trigger the debugging */
 #define NULL_OK NULL
 
-/* EOF cannot be 1, so OK */
+/*
+ * Error codes:
+ * EOF is is negative.
+ */
+
+/* All system related errors return this: */
 #define ERR 1
 
-#define MATCH 0
+/* User related errors are distinguished as follows: */
 #define NO_MATCH 2
+#define SYNTAX_ERR 3
+#define DIV_BY_ZERO_ERR 4
+#define USER_OVERFLOW_ERR 5
+#define USAGE_ERR 6
+
 
 /* For printing a number as a string */
 #define NUM_BUF_SIZE 32
@@ -131,25 +142,10 @@
 #define ESC 27
 
 
-#ifdef DEBUG
-#define mreturn(ret) do {                                                    \
-    if (!strcmp(#ret, "1") || !strcmp(#ret, "NULL") || !strcmp(#ret, "ERR")) \
-        fprintf(stderr, "%s:%d: mreturn: %s\n", __FILE__, __LINE__, #ret);   \
-    return ret;                                                              \
-} while (0)
-#else
-#define mreturn(ret) return ret
-#endif
-
-#ifdef DEBUG
-#define mgoto(lab) do {                                                  \
-    if (!strcmp(#lab, "clean_up") || !strcmp(#lab, "error"))             \
-        fprintf(stderr, "%s:%d: mgoto: %s\n", __FILE__, __LINE__, #lab); \
-    goto lab;                                                            \
-} while (0)
-#else
-#define mgoto(lab) goto lab
-#endif
+/* Stringify. Converts text to a string literal. */
+#define sf(text) #text
+/* Expanded stringify. Stringifies the definition of macro_name. */
+#define esf(macro_name) sf(macro_name)
 
 
 #define IS_DIR(u) ((u) & 1)
@@ -356,8 +352,7 @@ int save(struct gb *b);
 int rename_gb(struct gb *b, const char *fn);
 int new_gb(struct gb **b, const char *fn, size_t s);
 void remove_gb(struct gb **b);
-int eval(struct ibuf *input, int read_stdin, int *math_error, long *res,
-         int verbose);
+int eval(struct ibuf *input, int read_stdin, long *res, int verbose);
 int eval_str(const char *math_str, long *res, int verbose);
 struct ht *init_ht(size_t num_buckets);
 void free_ht(struct ht *ht);
@@ -377,6 +372,7 @@ int get_key(void);
 int erase_screen(struct screen *s);
 void refresh_screen(struct screen *s);
 int print_ch(struct screen *s, unsigned char ch);
+int print_object(struct screen *s, size_t y, size_t x, const char *object);
 int get_file_size(const char *fn, size_t *fs);
 int get_path_type(const char *path, unsigned char *type);
 int rec_rm(const char *path);

@@ -30,38 +30,49 @@ int str_to_num(const char *str, unsigned long max_val, unsigned long *res)
     unsigned char ch;
     unsigned long x = 0;
 
-    if (str == NULL || *str == '\0')
-        mreturn(1);
+    if (str == NULL || *str == '\0') {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return ERR;
+    }
 
     while ((ch = *str) != '\0') {
         if (isdigit(ch)) {
-            if (mof(x, 10, max_val))
-                mreturn(1);
+            if (mof(x, 10, max_val)) {
+                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+                return ERR;
+            }
 
             x *= 10;
-            if (aof(x, ch - '0', max_val))
-                mreturn(1);
+            if (aof(x, ch - '0', max_val)) {
+                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+                return ERR;
+            }
 
             x += ch - '0';
         } else {
-            mreturn(1);
+            fprintf(stderr,
+                    "%s:%d: Syntax error: Character is not a digit\n",
+                    __FILE__, __LINE__);
+            return SYNTAX_ERR;
         }
 
         ++str;
     }
     *res = x;
-    mreturn(0);
+    return 0;
 }
 
 int str_to_size_t(const char *str, size_t *res)
 {
     unsigned long n;
 
-    if (str_to_num(str, SIZE_MAX, &n))
-        mreturn(1);
+    if (str_to_num(str, SIZE_MAX, &n)) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return ERR;
+    }
 
     *res = (size_t) n;
-    mreturn(0);
+    return 0;
 }
 
 int hex_to_val(unsigned char h[2], unsigned char *res)
@@ -74,8 +85,10 @@ int hex_to_val(unsigned char h[2], unsigned char *res)
         if (i)
             x *= 16;
 
-        if (!isxdigit(h[i]))
-            mreturn(1);
+        if (!isxdigit(h[i])) {
+            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+            return ERR;
+        }
 
         if (isdigit(h[i]))
             x += h[i] - '0';
@@ -85,7 +98,7 @@ int hex_to_val(unsigned char h[2], unsigned char *res)
             x += h[i] - 'A' + 10;
     }
     *res = x;
-    mreturn(0);
+    return 0;
 }
 
 int lop(long *a, long b, char op)
@@ -93,30 +106,50 @@ int lop(long *a, long b, char op)
     /* long operation. Checks for signed long overflow. */
     if (op == '*') {
         if (!*a)
-            mreturn(0);
+            return 0;
 
         if (!b) {
             *a = 0;
-            mreturn(0);
+            return 0;
         }
         /* Same sign, result will be positive */
-        if (*a > 0 && b > 0 && *a > LONG_MAX / b)
-            mreturn(1);
+        if (*a > 0 && b > 0 && *a > LONG_MAX / b) {
+            fprintf(stderr, "%s:%d: User overflow error\n", __FILE__,
+                    __LINE__);
+            return USER_OVERFLOW_ERR;
+        }
 
-        if (*a < 0 && b < 0 && *a < LONG_MAX / b)
-            mreturn(1);
+        if (*a < 0 && b < 0 && *a < LONG_MAX / b) {
+            fprintf(stderr, "%s:%d: User overflow error\n", __FILE__,
+                    __LINE__);
+            return USER_OVERFLOW_ERR;
+        }
 
         /* Opposite sign, result will be negative */
-        if (*a > 0 && b < 0 && b < LONG_MIN / *a)
-            mreturn(1);
+        if (*a > 0 && b < 0 && b < LONG_MIN / *a) {
+            fprintf(stderr, "%s:%d: User overflow error\n", __FILE__,
+                    __LINE__);
+            return USER_OVERFLOW_ERR;
+        }
 
-        if (*a < 0 && b > 0 && *a < LONG_MIN / b)
-            mreturn(1);
+        if (*a < 0 && b > 0 && *a < LONG_MIN / b) {
+            fprintf(stderr, "%s:%d: User overflow error\n", __FILE__,
+                    __LINE__);
+            return USER_OVERFLOW_ERR;
+        }
 
         *a *= b;
     } else if (op == '/' || op == '%') {
-        if (!b || (*a == LONG_MIN && b == -1))
-            mreturn(1);
+        if (!b) {
+            fprintf(stderr, "%s:%d: Divide by zero\n", __FILE__, __LINE__);
+            return DIV_BY_ZERO_ERR;
+        }
+
+        if (*a == LONG_MIN && b == -1) {
+            fprintf(stderr, "%s:%d: User overflow error\n", __FILE__,
+                    __LINE__);
+            return USER_OVERFLOW_ERR;
+        }
 
         if (op == '/')
             *a /= b;
@@ -125,43 +158,53 @@ int lop(long *a, long b, char op)
     } else if (op == '+') {
         /* Need to be the same sign to overflow */
         if ((*a > 0 && b > 0 && *a > LONG_MAX - b)
-            || (*a < 0 && b < 0 && *a < LONG_MIN - b))
-            mreturn(1);
+            || (*a < 0 && b < 0 && *a < LONG_MIN - b)) {
+            fprintf(stderr, "%s:%d: User overflow error\n", __FILE__,
+                    __LINE__);
+            return USER_OVERFLOW_ERR;
+        }
 
         *a += b;
     } else if (op == '-') {
         if ((b < 0 && *a > LONG_MAX + b)
-            || (b > 0 && *a < LONG_MIN + b))
-            mreturn(1);
+            || (b > 0 && *a < LONG_MIN + b)) {
+            fprintf(stderr, "%s:%d: User overflow error\n", __FILE__,
+                    __LINE__);
+            return USER_OVERFLOW_ERR;
+        }
 
         *a -= b;
     } else if (op == '^') {
-        mreturn(lpow(a, b));
+        return lpow(a, b);
     }
 
-    mreturn(0);
+    return 0;
 }
 
 int lpow(long *a, long b)
 {
+    int ret = ERR;
     long x;
 
     if (!b) {
         /* Anything to the power of zero is one */
         *a = 1;
-        mreturn(0);
+        return 0;
     }
     if (!*a || b == 1) {
-        mreturn(0);
+        return 0;
     }
-    if (b < 0)
-        mreturn(1);
+    if (b < 0) {
+        fprintf(stderr, "%s:%d: Syntax error: Negative exponent\n",
+                __FILE__, __LINE__);
+        return SYNTAX_ERR;
+    }
 
     x = *a;
     while (--b)
-        if (lop(&x, *a, '*'))
-            mreturn(1);
+        if ((ret = lop(&x, *a, '*')))
+            return ret;
 
     *a = x;
-    mreturn(0);
+    return 0;
 }
