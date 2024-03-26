@@ -80,10 +80,11 @@ cc $flags -o m4 m4.o toucanlib.o
 cc $flags -o spot spot.o toucanlib.o
 cc $flags -o bc bc.o toucanlib.o
 cc $flags -o freq freq.o toucanlib.o
+cc $flags -o tornado_dodge tornado_dodge.o toucanlib.o
 
 mkdir -p "$install_dir"
 
-cp -p m4 spot bc freq "$install_dir"/
+cp -p m4 spot bc freq tornado_dodge "$install_dir"/
 
 m4 test.m4 > .k
 /usr/bin/m4 test.m4 > .k2

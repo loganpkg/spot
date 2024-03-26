@@ -32,13 +32,13 @@ int sane_io(void)
 {
 #ifdef _WIN32
     if (_setmode(_fileno(stdin), _O_BINARY) == -1)
-        return 1;
+        return ERR;
 
     if (_setmode(_fileno(stdout), _O_BINARY) == -1)
-        return 1;
+        return ERR;
 
     if (_setmode(_fileno(stderr), _O_BINARY) == -1)
-        return 1;
+        return ERR;
 #endif
     return 0;
 }
@@ -50,11 +50,15 @@ char *concat(const char *str, ...)
     const char *p;
     char *res;
 
-    if (str == NULL)
-        mreturn(NULL);
+    if (str == NULL) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return NULL;
+    }
 
-    if ((b = init_obuf(INIT_CONCAT_BUF)) == NULL)
-        mreturn(NULL);
+    if ((b = init_obuf(INIT_CONCAT_BUF)) == NULL) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return NULL;
+    }
 
     p = str;
 
@@ -63,7 +67,8 @@ char *concat(const char *str, ...)
     while (1) {
         if (put_str(b, p)) {
             free_obuf(b);
-            mreturn(NULL);
+            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+            return NULL;
         }
         if ((p = va_arg(v, const char *)) == NULL)
             break;
@@ -73,13 +78,14 @@ char *concat(const char *str, ...)
 
     if (put_ch(b, '\0')) {
         free_obuf(b);
-        mreturn(NULL);
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return NULL;
     }
 
     res = b->a;
     free(b);                    /* Free struct only, not memory inside */
 
-    mreturn(res);
+    return res;
 }
 
 void *quick_search(const void *mem, size_t mem_len, const void *find,
@@ -133,14 +139,18 @@ FILE *fopen_w(const char *fn)
     errno = 0;
     fp = fopen(fn, "wb");
     if (fp != NULL)
-        mreturn(fp);
+        return fp;
 
-    if (fp == NULL && errno != ENOENT)
-        mreturn(NULL);
+    if (fp == NULL && errno != ENOENT) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return NULL;
+    }
 
     /* Try to make missing directories */
-    if ((p = strdup(fn)) == NULL)
-        mreturn(NULL);
+    if ((p = strdup(fn)) == NULL) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return NULL;
+    }
 
     q = p;
 
@@ -150,7 +160,8 @@ FILE *fopen_w(const char *fn)
             errno = 0;
             if (mkdir(p) && errno != EEXIST) {
                 free(p);
-                mreturn(NULL);
+                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+                return NULL;
             }
             *q = ch;
         }
@@ -159,5 +170,5 @@ FILE *fopen_w(const char *fn)
 
     free(p);
 
-    mreturn(fopen(fn, "wb"));
+    return fopen(fn, "wb");
 }

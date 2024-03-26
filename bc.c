@@ -36,36 +36,35 @@
 
 int main(void)
 {
-    int r, e = 0;
+    int ret = ERR;
     struct ibuf *input = NULL;
-    int math_error = 0;
     long x;
 
-    if (sane_io())
-        mreturn(1);
+    if (sane_io()) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return ERR;
+    }
 
-    if ((input = init_ibuf(INIT_BUF_SIZE)) == NULL)
-        mreturn(1);
+    if ((input = init_ibuf(INIT_BUF_SIZE)) == NULL) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return ERR;
+    }
 
     while (1) {
-        r = eval(input, 1, &math_error, &x, 0);
-        if (r)
-            break;
+        ret = eval(input, 1, &x, 0);
 
-        if (math_error) {
-            e = 1;
-            fprintf(stderr, "bc: Math error\n");
-        } else {
+        if (!ret)
             printf("%ld\n", x);
-        }
-
-        math_error = 0;
+        else if (ret == ERR || ret == EOF)
+            break;
+        else
+            fprintf(stderr, "bc: Math error\n");
     }
 
     free_ibuf(input);
 
-    if (r == ERR || e)
-        mreturn(1);
-
-    mreturn(0);
+    if (ret == EOF)
+        return 0;
+    else
+        return ret;
 }

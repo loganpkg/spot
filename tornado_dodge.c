@@ -20,58 +20,49 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-/* freq: Character frequency in a file */
+/* Tornado Dodge -- console video game */
 
 #include "toucanlib.h"
 
-
-int main(int argc, char **argv)
+int main(void)
 {
     int ret = ERR;
-    unsigned char *p = NULL, u;
-    size_t fs, i, y;
-    size_t freq[UCHAR_MAX + 1];
-    int j;
+    struct screen *s = NULL;
+    int x;
+    size_t man_y = 0, man_x = 0;
 
-    if (argc != 2) {
-        fprintf(stderr, "Usage: freq file\n");
-        return ERR;
-    }
+    char *man = " o \n" "<|>\n" "/\\ ";
+    char *man_vert = " o \n" " V \n" " | ";
 
-    if (sane_io())
+    if ((s = init_screen()) == NULL)
         return ERR;
 
-    if ((p = mmap_file_ro(*(argv + 1), &fs)) == NULL)
-        return ERR;
-
-    /* Initialise */
-    for (j = 0; j < UCHAR_MAX + 1; ++j)
-        freq[j] = 0;
-
-    for (i = 0; i < fs; ++i) {
-        u = *(p + i);
-
-        /* Overflow check */
-        if (freq[u] == SIZE_MAX)
+    while (1) {
+        if (erase_screen(s))
             goto clean_up;
 
-        ++freq[u];
-    }
-
-    /* Print results */
-    for (j = 0; j < UCHAR_MAX + 1; ++j) {
-        if ((y = freq[j])) {
-            if (isgraph(j))
-                printf("%c %lu\n", j, (unsigned long) y);
-            else
-                printf("%02X %lu\n", j, (unsigned long) y);
+        if (man_x % 2) {
+            if (print_object(s, man_y, man_x, man_vert))
+                goto clean_up;
+        } else {
+            if (print_object(s, man_y, man_x, man))
+                goto clean_up;
         }
+
+        refresh_screen(s);
+
+        x = get_key();
+
+        if (x == RIGHT_KEY)
+            ++man_x;
+        else if (x == 'q')
+            break;
     }
 
     ret = 0;
 
   clean_up:
-    if (p != NULL && un_mmap(p, fs))
+    if (free_screen(s))
         ret = ERR;
 
     return ret;
