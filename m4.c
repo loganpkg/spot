@@ -826,7 +826,7 @@ int NM(void *v)
     if (*arg(1) == '\0') {
         fprintf(stderr, "%s:%d:%s: Usage error: "
                 "Argument is empty string\n", __FILE__, __LINE__, esf(NM));
-        return ERR;
+        return USAGE_ERR;
     }
 
     e = lookup(m4->ht, arg(1));
@@ -1115,11 +1115,12 @@ int NM(void *v)
 {
     M4ptr m4 = (M4ptr) v;
 
-    usage(1, "path");
+    usage(1, "file_path");
 
     if (*arg(1) == '\0') {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
+        fprintf(stderr, "%s:%d:%s: Usage error: "
+                "Argument is empty string\n", __FILE__, __LINE__, esf(NM));
+        return USAGE_ERR;
     }
 
     if (rec_rm(arg(1))) {

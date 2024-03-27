@@ -139,6 +139,8 @@ int insert_ch(struct gb *b, char ch)
     if (ch == '\n') {
         ++b->r;
         b->col = 0;
+    } else if (ch == '\t') {
+        b->col += TAB_SIZE;
     } else {
         ++b->col;
     }
@@ -228,6 +230,7 @@ int delete_ch(struct gb *b)
 int left_ch(struct gb *b)
 {
     size_t i, count;
+    unsigned char u, ch;
 
     if (!b->g)
         return ERR;
@@ -235,19 +238,25 @@ int left_ch(struct gb *b)
     --b->g;
     --b->c;
     *(b->a + b->c) = *(b->a + b->g);
-    if (*(b->a + b->c) == '\n') {
+    u = *(b->a + b->c);
+    if (u == '\n') {
         --b->r;
         /* Need to work out col */
         i = b->g;
         count = 0;
         while (i) {
             --i;
-            if (*(b->a + i) == '\n')
+            ch = *(b->a + i);
+            if (ch == '\n')
                 break;
-
-            ++count;
+            else if (ch == '\t')
+                count += TAB_SIZE;
+            else
+                ++count;
         }
         b->col = count;
+    } else if (u == '\t') {
+        b->col -= TAB_SIZE;
     } else {
         --b->col;
     }
@@ -260,12 +269,16 @@ int left_ch(struct gb *b)
 
 int right_ch(struct gb *b)
 {
+    unsigned char u;
     if (b->c == b->e)
         return ERR;
 
-    if (*(b->a + b->c) == '\n') {
+    u = *(b->a + b->c);
+    if (u == '\n') {
         ++b->r;
         b->col = 0;
+    } else if (u == '\t') {
+        b->col += TAB_SIZE;
     } else {
         ++b->col;
     }
