@@ -90,7 +90,7 @@ int draw(struct gb *b, struct gb *cl, struct screen *s, int cl_active,
         ++i;
     }
 
-    if (s->v_i == ts) {
+    if (s->v_i >= ts) {
         /* Off screen */
         if (!have_centred)
             s->centre = 1;
@@ -152,14 +152,7 @@ int draw(struct gb *b, struct gb *cl, struct screen *s, int cl_active,
 
     if (s->h >= 3) {
         /* Command line */
-        if (cl->d > cl->g || cl->g - cl->d > cl->col
-            || cl->g - cl->d >= s->w) {
-            if (cl->col < s->w)
-                cl->d = cl->g - cl->col;
-            else
-                cl->d = cl->g;
-        }
-
+      cl_start:
         s->v_hl = 0;
 
         if (cl->m_set && cl->m < cl->d)
@@ -167,6 +160,12 @@ int draw(struct gb *b, struct gb *cl, struct screen *s, int cl_active,
 
         /* Start of last line in virtual screen */
         s->v_i = (s->h - 1) * s->w;
+
+        /* Erase virtual line */
+        memset(s->vs_n + s->v_i, ' ', s->w);
+
+        if (cl->d > cl->g)
+            cl->d = cl->g;
 
         /* Before the gap */
         i = cl->d;
@@ -177,6 +176,12 @@ int draw(struct gb *b, struct gb *cl, struct screen *s, int cl_active,
             ch = *((cl)->a + i);
             print_ch(s, ch);
             ++i;
+        }
+
+        if (s->v_i >= s->vs_s) {
+            /* Off screen */
+            cl->d = cl->g;      /* Draw from cursor */
+            goto cl_start;
         }
 
         /* At the cursor */

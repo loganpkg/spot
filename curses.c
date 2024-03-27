@@ -291,6 +291,7 @@ void refresh_screen(struct screen *s)
 int print_ch(struct screen *s, unsigned char ch)
 {
     unsigned char new_ch;
+    size_t tws;                 /* Tab write size */
 
     /* Off screen */
     if (s->v_i >= s->vs_s)
@@ -302,18 +303,22 @@ int print_ch(struct screen *s, unsigned char ch)
         if (s->v_i % s->w)
             s->v_i = (s->v_i / s->w + 1) * s->w;
     } else {
-        if (ch == '\0')
-            new_ch = '~';
-        else if (ch == '\t')
-            new_ch = '>';
-        else if (!isprint(ch))
-            new_ch = '?';
-        else
-            new_ch = ch;
+        if (ch == '\t') {
+            tws =
+                s->vs_s - s->v_i > TAB_SIZE ? TAB_SIZE : s->vs_s - s->v_i;
+            memset(s->vs_n + s->v_i, s->v_hl ? ' ' | '\x80' : ' ', tws);
+            s->v_i += tws;
+        } else {
+            if (ch == '\0')
+                new_ch = '~';
+            else if (!isprint(ch))
+                new_ch = '?';
+            else
+                new_ch = ch;
 
-        *(s->vs_n + s->v_i) = s->v_hl ? new_ch | '\x80' : new_ch;
-
-        ++s->v_i;
+            *(s->vs_n + s->v_i) = s->v_hl ? new_ch | '\x80' : new_ch;
+            ++s->v_i;
+        }
     }
 
     return 0;
@@ -322,21 +327,22 @@ int print_ch(struct screen *s, unsigned char ch)
 int print_object(struct screen *s, size_t y, size_t x, const char *object)
 {
     /* Does not move the cursor. Does not do highlighting. */
-    size_t i;
     char ch;
 
     if (y >= s->h || x >= s->w)
         return 1;
 
-    i = y * s->w + x;
+    s->v_i = y * s->w + x;
     while (1) {
         ch = *object;
         if (ch == '\0')
             break;
-        else if (ch == '\n')
-            i = (i / s->w + 1) * s->w + x;
-        else
-            *(s->vs_n + i++) = ch;
+
+        if (print_ch(s, ch))
+            return ERR;
+
+        if (ch == '\n')
+            s->v_i += x;        /* Indent */
 
         ++object;
     }

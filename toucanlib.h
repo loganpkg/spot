@@ -141,6 +141,7 @@
 
 #define ESC 27
 
+#define TAB_SIZE 4
 
 /* Stringify. Converts text to a string literal. */
 #define sf(text) #text
@@ -148,9 +149,10 @@
 #define esf(macro_name) sf(macro_name)
 
 
-#define IS_DIR(u) ((u) & 1)
-#define IS_SLINK(u) ((u) & 1 << 1)
-#define IS_DOTDIR(u) ((u) & 1 << 2)
+/* attr must be an unsigned char */
+#define IS_DIR(attr) ((attr) & 1)
+#define IS_SLINK(attr) ((attr) & 1 << 1)
+#define IS_DOTDIR(attr) ((attr) & 1 << 2)
 
 
 /* Unsigned overflow tests */
@@ -374,7 +376,7 @@ void refresh_screen(struct screen *s);
 int print_ch(struct screen *s, unsigned char ch);
 int print_object(struct screen *s, size_t y, size_t x, const char *object);
 int get_file_size(const char *fn, size_t *fs);
-int get_path_type(const char *path, unsigned char *type);
+int get_path_attr(const char *path, unsigned char *attr);
 int rec_rm(const char *path);
 char *ls_dir(const char *dir);
 void *mmap_file_ro(const char *fn, size_t *fs);

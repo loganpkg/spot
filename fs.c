@@ -28,10 +28,10 @@
 #define INIT_LS_ENTRY_NUM 512
 #define INIT_BUF_SIZE 1024
 
-
-#define SET_DIR(u) ((u) |= 1)
-#define SET_SLINK(u) ((u) |= 1 << 1)
-#define SET_DOTDIR(u) ((u) |= 1 << 2)
+/* attr must be an unsigned char */
+#define SET_DIR(attr) ((attr) |= 1)
+#define SET_SLINK(attr) ((attr) |= 1 << 1)
+#define SET_DOTDIR(attr) ((attr) |= 1 << 2)
 
 
 struct ls_info {
@@ -62,7 +62,7 @@ int get_file_size(const char *fn, size_t *fs)
     return 0;
 }
 
-int get_path_type(const char *path, unsigned char *type)
+int get_path_attr(const char *path, unsigned char *attr)
 {
     unsigned char t = '\0';
 #ifdef _WIN32
@@ -98,7 +98,7 @@ int get_path_type(const char *path, unsigned char *type)
     if (!strcmp(path, ".") || !strcmp(path, ".."))
         SET_DOTDIR(t);
 
-    *type = t;
+    *attr = t;
     return 0;
 }
 
@@ -119,7 +119,7 @@ int walk_dir_inner(const char *dir, int rec, void *info,
 #endif
     const char *fn;
     char *path = NULL;
-    unsigned char type;
+    unsigned char attr;
 
 #ifdef _WIN32
     if ((dir_wc = concat(dir, "\\*", NULL)) == NULL) {
@@ -159,38 +159,38 @@ int walk_dir_inner(const char *dir, int rec, void *info,
             goto clean_up;
         }
 
-        type = 0;
+        attr = 0;
 #ifdef _WIN32
         if (d.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-            SET_DIR(type);
+            SET_DIR(attr);
 
         if (d.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)
-            SET_SLINK(type);
+            SET_SLINK(attr);
 #else
         if (d->d_type == DT_DIR)
-            SET_DIR(type);
+            SET_DIR(attr);
 
         if (d->d_type == DT_LNK)
-            SET_SLINK(type);
+            SET_SLINK(attr);
 
         if (d->d_type == DT_UNKNOWN)
-            if (get_path_type(path, &type)) {
+            if (get_path_attr(path, &attr)) {
                 ret = ERR;
                 fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
                 goto clean_up;
             }
 #endif
         if (!strcmp(fn, ".") || !strcmp(fn, ".."))
-            SET_DOTDIR(type);
+            SET_DOTDIR(attr);
 
-        if (rec && IS_DIR(type) && !IS_SLINK(type) && !IS_DOTDIR(type))
+        if (rec && IS_DIR(attr) && !IS_SLINK(attr) && !IS_DOTDIR(attr))
             if (walk_dir_inner(path, rec, info, func_p)) {      /* Recurse */
                 ret = ERR;
                 fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
                 goto clean_up;
             }
 
-        if ((*func_p) (rec ? path : fn, type, info)) {
+        if ((*func_p) (rec ? path : fn, attr, info)) {
             ret = ERR;
             fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
             goto clean_up;
@@ -242,7 +242,7 @@ int walk_dir(const char *dir, int rec, void *info,
              int (*func_p)(const char *, unsigned char, void *info))
 {
     /* Executes the function on dir itself too */
-    unsigned char type;
+    unsigned char attr;
 
     if (walk_dir_inner(dir, rec, info, func_p)) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
@@ -250,12 +250,12 @@ int walk_dir(const char *dir, int rec, void *info,
     }
 
     /* Process outer directory */
-    type = 0;
-    SET_DIR(type);              /* Not sure if outer dir is a symbolic link */
+    attr = 0;
+    SET_DIR(attr);              /* Not sure if outer dir is a symbolic link */
     if (!strcmp(dir, ".") || !strcmp(dir, ".."))
-        SET_DOTDIR(type);
+        SET_DOTDIR(attr);
 
-    if ((*func_p) (dir, type, info)) {
+    if ((*func_p) (dir, attr, info)) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
         return ERR;
     }
@@ -263,15 +263,15 @@ int walk_dir(const char *dir, int rec, void *info,
     return 0;
 }
 
-static int rm_path(const char *path, unsigned char type, void *info)
+static int rm_path(const char *path, unsigned char attr, void *info)
 {
     if (info != NULL) {         /* Not used in this function */
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
         return ERR;
     }
 
-    if (!IS_DOTDIR(type)) {
-        if (IS_DIR(type)) {
+    if (!IS_DOTDIR(attr)) {
+        if (IS_DIR(attr)) {
             if (rmdir(path)) {
                 fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
                 return ERR;
@@ -298,7 +298,7 @@ int rec_rm(const char *path)
     return walk_dir(path, 1, NULL, &rm_path);
 }
 
-static int add_fn(const char *fn, unsigned char type, void *info)
+static int add_fn(const char *fn, unsigned char attr, void *info)
 {
     struct ls_info *lsi;
     char *fn_copy;
@@ -309,7 +309,7 @@ static int add_fn(const char *fn, unsigned char type, void *info)
         return ERR;
     }
 
-    if (IS_DIR(type)) {
+    if (IS_DIR(attr)) {
         if (add_p(lsi->d, fn_copy)) {
             free(fn_copy);
             fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
