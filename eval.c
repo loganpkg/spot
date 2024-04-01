@@ -53,7 +53,7 @@ static int process_operator(struct lbuf *x, char h, int verbose)
         break;
     default:
         if (x->i == 1) {
-            fprintf(stderr, "%s:%d: Syntax error:"
+            fprintf(stderr, "%s:%d: Syntax error: "
                     "Only one operand but binary operator\n", __FILE__,
                     __LINE__);
             return SYNTAX_ERR;
