@@ -179,9 +179,9 @@ int sub_args(M4ptr m4)
                 x = next_ch - '0';
                 /* Can only access args that were collected */
                 if (x > m4->stack->active_arg) {
-                    fprintf(stderr, "%s:%d: Usage error: "
-                            "Uncollected argument accessed\n", __FILE__,
-                            __LINE__);
+                    fprintf(stderr, "%s:%d: %s: Usage error: "
+                            "Uncollected argument number %lu accessed\n",
+                            __FILE__, __LINE__, arg(0), x);
                     return USAGE_ERR;
                 }
 
@@ -209,8 +209,10 @@ int sub_args(M4ptr m4)
     }
 
     if (x_max != m4->stack->active_arg) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
+        fprintf(stderr, "%s:%d: %s: Usage error: "
+                "Too many arguments collected: Expected: %lu, Received: %lu\n",
+                __FILE__, __LINE__, arg(0), x_max, m4->stack->active_arg);
+        return USAGE_ERR;
     }
 
     if (unget_str(m4->input, m4->tmp->a)) {
