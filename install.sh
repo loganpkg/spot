@@ -90,5 +90,7 @@ m4 test.m4 > .k
 /usr/bin/m4 test.m4 > .k2
 cmp .k .k2
 
+./test_regex.sh
+
 # Update files
 find . -type f \( -name '*.h' -o -name '*.c' \) -exec cp -p '{}' "$repo_dir" \;
