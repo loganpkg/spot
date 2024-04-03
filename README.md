@@ -410,7 +410,7 @@ recrm: path
 `remove` recursively removes a path if it exists.
 
 ```m4
-regexrep: text, regex_find, replace, nl_insensitive, verbose
+regexrep: text, regex_find, replace, newline_sensitive, verbose
 ```
 `regexrep` searches text for a regex pattern and replaces the matches.
 If the fourth argument is 1, then newline insensitive matching occurs.

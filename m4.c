@@ -712,13 +712,13 @@ int NM(void *v)
     int ret = ERR;
     char *res;
     size_t res_len;
-    int nl_sen = 1;             /* Newline sensitive is the default */
+    int nl_sen = 0;             /* Newline sensitive (off) */
     int verbose = 0;            /* Prints information about the regex */
 
-    usage(5, "text, regex_find, replace, nl_insensitive, verbose");
+    usage(5, "text, regex_find, replace, newline_sensitive, verbose");
 
     if (!strcmp(arg(4), "1"))
-        nl_sen = 0;             /* Newline insensitive */
+        nl_sen = 1;             /* Newline sensitive on */
 
     if (!strcmp(arg(5), "1"))
         verbose = 1;
