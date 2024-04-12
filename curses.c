@@ -330,7 +330,7 @@ int print_object(struct screen *s, size_t y, size_t x, const char *object)
     char ch;
 
     if (y >= s->h || x >= s->w)
-        return 1;
+        return ERR;
 
     s->v_i = y * s->w + x;
     while (1) {

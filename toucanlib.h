@@ -379,7 +379,7 @@ int get_file_size(const char *fn, size_t *fs);
 int get_path_attr(const char *path, unsigned char *attr);
 int rec_rm(const char *path);
 char *ls_dir(const char *dir);
-void *mmap_file_ro(const char *fn, size_t *fs);
+int mmap_file_ro(const char *fn, void **mem, size_t *fs);
 int un_mmap(void *p, size_t s);
 
 #endif

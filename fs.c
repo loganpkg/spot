@@ -443,7 +443,7 @@ char *ls_dir(const char *dir)
     }
 }
 
-void *mmap_file_ro(const char *fn, size_t *fs)
+int mmap_file_ro(const char *fn, void **mem, size_t *fs)
 {
     size_t s;
 #ifdef _WIN32
@@ -458,7 +458,14 @@ void *mmap_file_ro(const char *fn, size_t *fs)
 
     if (get_file_size(fn, &s)) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return NULL;
+        return ERR;
+    }
+
+    /* Empty file */
+    if (!s) {
+        *mem = NULL;
+        *fs = 0;
+        return 0;
     }
 
 #ifdef _WIN32
@@ -499,38 +506,41 @@ void *mmap_file_ro(const char *fn, size_t *fs)
         if (p != NULL)
             UnmapViewOfFile(p);
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return NULL;
+        return ERR;
     }
 
 #else
 
     if ((fd = open(fn, O_RDONLY)) == -1) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return NULL;
+        return ERR;
     }
 
     if ((p = mmap(NULL, s, PROT_READ, MAP_PRIVATE, fd, 0)) == MAP_FAILED) {
         close(fd);
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return NULL;
+        return ERR;
     }
 
     if (close(fd)) {
         munmap(p, s);
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return NULL;
+        return ERR;
     }
 
 #endif
 
+    *mem = p;
     *fs = s;
-    return p;
+    return 0;
 }
 
 int un_mmap(void *p, size_t s)
 {
-#ifdef _WIN32
+    if (p == NULL)
+        return 0;
 
+#ifdef _WIN32
     if (!UnmapViewOfFile(p)) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
         return ERR;

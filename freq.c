@@ -28,6 +28,7 @@
 int main(int argc, char **argv)
 {
     int ret = ERR;
+    void *mem;
     unsigned char *p = NULL, u;
     size_t fs, i, y;
     size_t freq[UCHAR_MAX + 1];
@@ -41,8 +42,14 @@ int main(int argc, char **argv)
     if (sane_io())
         return ERR;
 
-    if ((p = mmap_file_ro(*(argv + 1), &fs)) == NULL)
+    if (mmap_file_ro(*(argv + 1), &mem, &fs))
         return ERR;
+
+    /* Empty file. Nothing to do. */
+    if (mem == NULL)
+        return 0;
+
+    p = mem;
 
     /* Initialise */
     for (j = 0; j < UCHAR_MAX + 1; ++j)
