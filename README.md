@@ -475,16 +475,19 @@ Regex syntax
 ============
 
 Regular expression syntax:
-* Backslash outside of character set:
+* Special escaped characters (interpreted in all contexts):
     - `\t` Tab.
     - `\n` Line feed.
     - `\r` Carriage return.
     - `\0` Null character.
     - `\xAA` Two digit hex value.
+* Non-special escape characters. Interpretation is deactivated inside
+  character sets:
     - `\c` Any other character, `c`, is interpreted literally.
 * `[^a-b]` Character set.
 * `(` and `)` Grouping.
-* Anchors:
+* Anchors. These work line-wise when in newline sensitive mode, otherwise they
+  work at the entire text level (uninfluenced by embedded '\n' characters):
     - `^` Start of line.
     - `$` End of line.
 * Repetition operators:
@@ -492,18 +495,33 @@ Regular expression syntax:
     - `+` One or more.
     - `?` Zero or one.
 * `|` Alternate.
+* `.` Any character, except `\n` when in newline sensitive mode.
 
+Escaped Characters
+------------------
+
+All escaped characters work in both the *find* and *replace* components of a
+regular expression replacement operation. Typically, escape sequences are
+deactivated inside character sets, with the exception of the *special* escaped
+characters mentioned above.
+
+For example, `[\x41-\x5A]` will be the character set containing characters
+`A` to `Z`, inclusively. Whereas, `[\*]` will be the character set containing
+the characters `\` and `*`.
 
 Character sets
 --------------
 
-* Most characters are treated literally inside a character set.
-* `^` immediately after the opening `[` negates the set and is not considered
-as a character.
-* `-` _between_ characters creates an inclusive range.
+* Most characters are treated literally inside a character set
+  (see the escaped character rules above).
+* `^` immediately after the opening `[` negates the set and is *not considered
+  as a character*.
+* `-` _between_ *characters* creates an inclusive range.
 * Characters sets cannot be empty.
-* The first character is always treated literally, so `[^]]` is
-the set of all characters except for `]`.
+* The first *character* is always treated literally, so `[^]]` is
+  the set of all characters except for `]`.
+* As an example, `[][^\%-]` is the set containing the characters;
+  `]`, `[`, `^`, `\`, `%`, and `-`.
 
 Enjoy,
 Logan =)_

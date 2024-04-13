@@ -125,7 +125,7 @@ int eval(struct ibuf *input, int read_stdin, long *res, int verbose)
             while (y->i) {
                 h = *(y->a + y->i - 1);
                 if (h == '(') {
-                    ret = ERR;
+                    ret = SYNTAX_ERR;
                     fprintf(stderr, "%s:%d: Syntax error\n", __FILE__,
                             __LINE__);
                     goto clean_up;
