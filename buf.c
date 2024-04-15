@@ -25,6 +25,9 @@
 #include "toucanlib.h"
 
 
+#define READ_BLOCK_SIZE BUFSIZ
+
+
 struct ibuf *init_ibuf(size_t s)
 {
     struct ibuf *b;
@@ -482,6 +485,42 @@ int put_file(struct obuf *b, const char *fn)
             ret = ERR;
 
     return ret;
+}
+
+int put_stream(struct obuf *b, FILE * fp)
+{
+    size_t i_backup, rs;
+
+    if (fp == NULL) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return ERR;
+    }
+
+    i_backup = b->i;
+
+    while (1) {
+        if (READ_BLOCK_SIZE > b->s - b->i && grow_obuf(b, READ_BLOCK_SIZE)) {
+            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+            goto error;
+        }
+
+        rs = fread(b->a + b->i, 1, READ_BLOCK_SIZE, fp);
+        b->i += rs;
+
+        if (rs != READ_BLOCK_SIZE) {
+            if (feof(fp) && !ferror(fp)) {
+                break;
+            } else {
+                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+                goto error;
+            }
+        }
+    }
+    return 0;
+
+  error:
+    b->i = i_backup;
+    return ERR;
 }
 
 int write_obuf(struct obuf *b, const char *fn)
