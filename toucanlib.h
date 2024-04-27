@@ -307,7 +307,7 @@ int put_str(struct obuf *b, const char *str);
 int put_mem(struct obuf *b, const char *mem, size_t mem_len);
 int put_obuf(struct obuf *b, struct obuf *t);
 int put_file(struct obuf *b, const char *fn);
-int put_stream(struct obuf *b, FILE * fp);
+int put_stream(struct obuf *b, FILE *fp);
 int write_obuf(struct obuf *b, const char *fn);
 int flush_obuf(struct obuf *b);
 char *obuf_to_str(struct obuf **b);
