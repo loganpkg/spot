@@ -26,9 +26,15 @@ set -e
 set -u
 set -x
 
-# Configuration
+#################
+# Configuration #
+#################
 install_dir="$HOME"/bin
 flags='-ansi -g -Og -Wall -Wextra -pedantic'
+# Change to 'N' to use ncurses
+use_built_in_curses='N'
+#################
+
 
 if [ "$(uname)" = Linux ]
 then
@@ -66,22 +72,44 @@ fi
 find . -type f ! -path '*.git*' ! -name '*~' \
     -exec grep -H -n -E '.{80}' '{}' \;
 
-./func_dec.sh gen.c num.c buf.c gb.c eval.c ht.c regex.c curses.c fs.c
+./func_dec.sh toucanlib.h gen.c num.c buf.c gb.c eval.c ht.c regex.c fs.c
+./func_dec.sh curses.h curses.c
 
 find . -type f ! -path '*.git*' -name '*.h' \
     -exec cc $flags '{}' \;
 
 find . -type f ! -path '*.git*' -name '*.c' \
+    ! -name 'spot.c' ! -name 'tornado_dodge.c' \
     -exec cc -c $flags '{}' \;
 
-ld -r gen.o num.o buf.o gb.o eval.o ht.o regex.o curses.o fs.o -o toucanlib.o
+if [ use_built_in_curses = 'Y' ]
+then
+    # To look in the current working directory for <curses.h>
+    cc -c $flags -I . spot.c
+    cc -c $flags -I . tornado_dodge.c
+else
+    cc -c $flags spot.c
+    cc -c $flags tornado_dodge.c
+fi
+
+ld -r gen.o num.o buf.o gb.o eval.o ht.o regex.o fs.o -o toucanlib.o
 
 cc $flags -o m4 m4.o toucanlib.o
-cc $flags -o spot spot.o toucanlib.o
+
+if [ use_built_in_curses = 'Y' ]
+then
+    cc $flags -o spot spot.o curses.o toucanlib.o
+    cc $flags -o tornado_dodge tornado_dodge.o curses.o toucanlib.o
+else
+    cc $flags -o spot spot.o toucanlib.o -lncurses
+    cc $flags -o tornado_dodge tornado_dodge.o toucanlib.o -lncurses
+fi
+
+
 cc $flags -o bc bc.o toucanlib.o
 cc $flags -o freq freq.o toucanlib.o
 cc $flags -o lsed lsed.o toucanlib.o
-cc $flags -o tornado_dodge tornado_dodge.o toucanlib.o
+
 
 mkdir -p "$install_dir"
 

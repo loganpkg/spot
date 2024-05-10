@@ -487,7 +487,7 @@ int put_file(struct obuf *b, const char *fn)
     return ret;
 }
 
-int put_stream(struct obuf *b, FILE *fp)
+int put_stream(struct obuf *b, FILE * fp)
 {
     size_t i_backup, rs;
 

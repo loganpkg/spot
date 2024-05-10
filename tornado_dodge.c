@@ -22,38 +22,79 @@
 
 /* Tornado Dodge -- console video game */
 
+
 #include "toucanlib.h"
+#include <curses.h>
+
+
+int print_object(size_t y, size_t x, const char *object)
+{
+    char ch;
+    size_t c_y, c_x;
+
+    if (move(y, x) == ERR)
+        return ERR;
+
+    while ((ch = *object++) != '\0') {
+        if (addch(ch) == ERR)
+            return ERR;
+
+        if (ch == '\n') {
+            /* Indent */
+            getyx(stdscr, c_y, c_x);
+            if (c_x)
+                return ERR;
+
+            if (move(c_y, x) == ERR)
+                return ERR;
+        }
+    }
+
+    return OK;
+}
+
 
 int main(void)
 {
     int ret = ERR;
-    struct screen *s = NULL;
     int x;
     size_t man_y = 0, man_x = 0;
 
     char *man = " o \n" "<|>\n" "/\\ ";
     char *man_vert = " o \n" " V \n" " | ";
 
-    if ((s = init_screen()) == NULL)
-        return ERR;
+    if (initscr() == NULL)
+        goto clean_up;
+
+    if (raw() == ERR)
+        goto clean_up;
+
+    if (noecho() == ERR)
+        goto clean_up;
+
+    if (keypad(stdscr, TRUE) == ERR)
+        goto clean_up;
+
+    if (set_tabsize(8) == ERR)
+        goto clean_up;
 
     while (1) {
-        if (erase_screen(s))
+        if (erase())
             goto clean_up;
 
         if (man_x % 2) {
-            if (print_object(s, man_y, man_x, man_vert))
+            if (print_object(man_y, man_x, man_vert))
                 goto clean_up;
         } else {
-            if (print_object(s, man_y, man_x, man))
+            if (print_object(man_y, man_x, man))
                 goto clean_up;
         }
 
-        refresh_screen(s);
+        refresh();
 
-        x = get_key();
+        x = getch();
 
-        if (x == RIGHT_KEY)
+        if (x == KEY_RIGHT)
             ++man_x;
         else if (x == 'q')
             break;
@@ -62,7 +103,7 @@ int main(void)
     ret = 0;
 
   clean_up:
-    if (free_screen(s))
+    if (endwin() == ERR)
         ret = ERR;
 
     return ret;

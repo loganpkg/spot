@@ -26,11 +26,18 @@ set -e
 set -u
 set -x
 
-source="$1"
-header='toucanlib.h'
+if [ "$#" -lt 2 ]
+then
+    printf 'Usage: %s header_file source_file...\n' "$0" 1>&2
+    exit 1
+fi
+
+header="$1"
+shift
 
 sed -E '/^\/\* Function declarations \*\/$/q' "$header" > "$header"~
 
+# For each remaining arg
 for source
 do
     if [ -s "$source" ]

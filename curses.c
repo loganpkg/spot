@@ -29,88 +29,154 @@
  */
 
 
-#include "toucanlib.h"
+#ifdef __linux__
+/* For: cfmakeraw */
+#ifndef _DEFAULT_SOURCE
+#define _DEFAULT_SOURCE
+#endif
+#endif
+
+#ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#endif
+
+#ifdef _WIN32
+#include <Windows.h>
+#include <conio.h>
+#include <io.h>
+#include <fcntl.h>
+#else
+#include <sys/ioctl.h>
+#include <unistd.h>
+#endif
+
+#include <ctype.h>
+#include <limits.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 
-struct screen *init_screen(void)
+#define IN_CURSES_LIB
+#include "curses.h"
+#undef IN_CURSES_LIB
+
+
+#define DEFAULT_TABSIZE 8
+#define ESC 27
+
+
+/* Unsigned overflow tests */
+/* Addition */
+#define aof(a, b, max_val) ((a) > (max_val) - (b))
+
+/* Multiplication */
+#define mof(a, b, max_val) ((a) && (b) > (max_val) / (a))
+
+
+#define phy_move(pos) printf("\x1B[%lu;%luH", \
+    (unsigned long) ((pos) / stdscr->w + 1),  \
+    (unsigned long) ((pos) % stdscr->w + 1))
+
+#define phy_hl_off() printf("\x1B[m")
+
+/* Does not toggle */
+#define phy_hl_on() printf("\x1B[7m")
+
+#define phy_clear() printf("\x1B[2J\x1B[1;1H")
+
+
+WINDOW *initscr(void)
 {
-    struct screen *s = NULL;
+    /* Already initialised, so fail */
+    if (stdscr != NULL)
+        return NULL;
 
-    if ((s = calloc(1, sizeof(struct screen))) == NULL)
+    if ((stdscr = calloc(1, sizeof(WINDOW))) == NULL)
         return NULL;
 
     /*
      * The memory for the virtual screens will be allocated upon the first call
      * to erase_screen.
      */
-    s->vs_c = NULL;
-    s->vs_n = NULL;
-    s->vs_s = 0;
-    s->clear = 1;
-    s->centre = 0;
-
-    if (sane_io())
-        goto clean_up;
+    stdscr->vs_c = NULL;
+    stdscr->vs_n = NULL;
+    stdscr->vs_s = 0;
+    stdscr->tabsize = DEFAULT_TABSIZE;
+    stdscr->clear = 1;
+    stdscr->centre = 0;
 
     /* Setup terminal */
 #ifdef _WIN32
-    if ((s->term_handle =
+    if (_setmode(_fileno(stdin), _O_BINARY) == -1)
+        goto clean_up;
+
+    if (_setmode(_fileno(stdout), _O_BINARY) == -1)
+        goto clean_up;
+
+    if (_setmode(_fileno(stderr), _O_BINARY) == -1)
+        goto clean_up;
+
+    if ((stdscr->term_handle =
          GetStdHandle(STD_OUTPUT_HANDLE)) == INVALID_HANDLE_VALUE)
         goto clean_up;
 
-    if (!GetConsoleMode(s->term_handle, &s->term_orig))
+    if (!GetConsoleMode(stdscr->term_handle, &stdscr->term_orig))
         goto clean_up;
 
-    s->term_new =
-        s->term_orig | ENABLE_PROCESSED_OUTPUT |
+    stdscr->term_new =
+        stdscr->term_orig | ENABLE_PROCESSED_OUTPUT |
         ENABLE_VIRTUAL_TERMINAL_PROCESSING;
 
-    if (!SetConsoleMode(s->term_handle, s->term_new))
+    if (!SetConsoleMode(stdscr->term_handle, stdscr->term_new))
         goto clean_up;
 
 #else
 
-    if (tcgetattr(STDIN_FILENO, &s->term_orig))
+    if (tcgetattr(STDIN_FILENO, &stdscr->term_orig))
         goto clean_up;
 
-    s->term_new = s->term_orig;
+    stdscr->term_new = stdscr->term_orig;
 
-    cfmakeraw(&s->term_new);
+    cfmakeraw(&stdscr->term_new);
 
-    if (tcsetattr(STDIN_FILENO, TCSANOW, &s->term_new))
+    if (tcsetattr(STDIN_FILENO, TCSANOW, &stdscr->term_new))
         goto clean_up;
 #endif
 
-    return s;
+    return stdscr;
 
   clean_up:
-    free(s);
+    free(stdscr);
     return NULL;
 }
 
 
-int free_screen(struct screen *s)
+int endwin(void)
 {
-    int ret = 0;
+    int ret = OK;
     phy_hl_off();
     phy_clear();
 #ifdef _WIN32
-    if (!SetConsoleMode(s->term_handle, s->term_orig))
+    if (!SetConsoleMode(stdscr->term_handle, stdscr->term_orig))
         ret = ERR;
 #else
-    if (tcsetattr(STDIN_FILENO, TCSANOW, &s->term_orig))
+    if (tcsetattr(STDIN_FILENO, TCSANOW, &stdscr->term_orig))
         ret = ERR;
 #endif
 
-    free(s->vs_c);
-    free(s->vs_n);
-    free(s);
+    free(stdscr->vs_c);
+    free(stdscr->vs_n);
+    free(stdscr);
 
     return ret;
 }
 
 
-int get_key(void)
+int getch(void)
 {
     int x, y;
 
@@ -125,19 +191,19 @@ int get_key(void)
             y = _getch();
             switch (y) {
             case 'K':
-                return LEFT_KEY;
+                return KEY_LEFT;
             case 'M':
-                return RIGHT_KEY;
+                return KEY_RIGHT;
             case 'H':
-                return UP_KEY;
+                return KEY_UP;
             case 'P':
-                return DOWN_KEY;
+                return KEY_DOWN;
             case 'S':
-                return DEL_KEY;
+                return KEY_DC;
             case 'G':
-                return HOME_KEY;
+                return KEY_HOME;
             case 'O':
-                return END_KEY;
+                return KEY_END;
             }
         } else {
             return x;
@@ -157,21 +223,21 @@ int get_key(void)
                 if (!isdigit(z)) {
                     switch (z) {
                     case 'D':
-                        return LEFT_KEY;
+                        return KEY_LEFT;
                     case 'C':
-                        return RIGHT_KEY;
+                        return KEY_RIGHT;
                     case 'A':
-                        return UP_KEY;
+                        return KEY_UP;
                     case 'B':
-                        return DOWN_KEY;
+                        return KEY_DOWN;
                     case 'H':
-                        return HOME_KEY;
+                        return KEY_HOME;
                     case 'F':
-                        return END_KEY;
+                        return KEY_END;
                     }
                 } else {
                     if (z == '3' && getchar() == '~') {
-                        return DEL_KEY;
+                        return KEY_DC;
                     } else {
                         /* Eat to end */
                         while ((w = getchar()) != '~'
@@ -190,86 +256,95 @@ int get_key(void)
             return x;
         }
     }
-
 #endif
 }
 
 
-static int get_phy_screen_size(struct screen *s)
+static int get_phy_screen_size(void)
 {
 #ifdef _WIN32
     CONSOLE_SCREEN_BUFFER_INFO si;
 
-    if (!GetConsoleScreenBufferInfo(s->term_handle, &si))
+    if (!GetConsoleScreenBufferInfo(stdscr->term_handle, &si))
         return ERR;
 
-    s->h = si.srWindow.Bottom - si.srWindow.Top + 1;
-    s->w = si.srWindow.Right - si.srWindow.Left + 1;
+    stdscr->h = si.srWindow.Bottom - si.srWindow.Top + 1;
+    stdscr->w = si.srWindow.Right - si.srWindow.Left + 1;
 #else
     struct winsize ws;
 
     if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1)
         return ERR;
 
-    s->h = ws.ws_row;
-    s->w = ws.ws_col;
+    stdscr->h = ws.ws_row;
+    stdscr->w = ws.ws_col;
 #endif
-    return 0;
+    return OK;
 }
 
 
-int erase_screen(struct screen *s)
+static int erase_screen(int clear)
 {
     size_t new_s_s;
     unsigned char *t;
 
-    if (get_phy_screen_size(s))
+    if (get_phy_screen_size() == ERR)
         return ERR;
 
-    if (mof(s->h, s->w, SIZE_MAX))
+    if (mof(stdscr->h, stdscr->w, SIZE_MAX))
         return ERR;
 
-    new_s_s = s->h * s->w;      /* New screen size */
+    new_s_s = stdscr->h * stdscr->w;    /* New screen size */
 
     if (!new_s_s)               /* No screen size */
         return ERR;
 
-    if (s->clear || new_s_s != s->vs_s) {
-        if (new_s_s != s->vs_s) {
+    if (clear || new_s_s != stdscr->vs_s) {
+        if (new_s_s != stdscr->vs_s) {
             /*
-             * Allocates memory the first time, as s->vs_s is initially zero,
-             * and s->vs_c and s->vs_n are initially NULL.
+             * Allocates memory the first time, as stdscr->vs_s is initially zero,
+             * and stdscr->vs_c and stdscr->vs_n are initially NULL.
              */
-            if ((t = realloc(s->vs_c, new_s_s)) == NULL)
+            if ((t = realloc(stdscr->vs_c, new_s_s)) == NULL)
                 return ERR;
 
-            s->vs_c = t;
-            if ((t = realloc(s->vs_n, new_s_s)) == NULL)
+            stdscr->vs_c = t;
+            if ((t = realloc(stdscr->vs_n, new_s_s)) == NULL)
                 return ERR;
 
-            s->vs_n = t;
-            s->vs_s = new_s_s;
+            stdscr->vs_n = t;
+            stdscr->vs_s = new_s_s;
         }
-        memset(s->vs_c, ' ', s->vs_s);
+        memset(stdscr->vs_c, ' ', stdscr->vs_s);
         phy_hl_off();
         phy_clear();
-        s->clear = 0;
     }
-    memset(s->vs_n, ' ', s->vs_s);
-    s->v_i = 0;
+    memset(stdscr->vs_n, ' ', stdscr->vs_s);
+    stdscr->v_i = 0;
 
-    return 0;
+    return OK;
 }
 
 
-void refresh_screen(struct screen *s)
+int erase(void)
+{
+    return erase_screen(0);
+}
+
+int clear(void)
+{
+    return erase_screen(1);
+}
+
+
+void refresh(void)
 {
     size_t k;
     unsigned char *t, ch;
 
     /* Diff */
-    for (k = 0; k < s->vs_s; ++k) {
-        if ((ch = *(s->vs_n + k)) != *(s->vs_c + k)) {
+    for (k = 0; k < stdscr->vs_s; ++k) {
+        if ((ch = *(stdscr->vs_n + k)) != *(stdscr->vs_c + k)) {
             phy_move(k);
             if (ch & '\x80')
                 phy_hl_on();
@@ -279,35 +354,37 @@ void refresh_screen(struct screen *s)
             putchar(ch & '\x7F');
         }
     }
-    phy_move(s->v_i);
+    phy_move(stdscr->v_i);
 
     /* Swap */
-    t = s->vs_c;
-    s->vs_c = s->vs_n;
-    s->vs_n = t;
+    t = stdscr->vs_c;
+    stdscr->vs_c = stdscr->vs_n;
+    stdscr->vs_n = t;
 }
 
 
-int print_ch(struct screen *s, unsigned char ch)
+int addch(unsigned char ch)
 {
     unsigned char new_ch;
     size_t tws;                 /* Tab write size */
 
     /* Off screen */
-    if (s->v_i >= s->vs_s)
+    if (stdscr->v_i >= stdscr->vs_s)
         return ERR;
 
     if (ch == '\n') {
-        *((s)->vs_n + (s)->v_i) = (s)->v_hl ? ' ' | '\x80' : ' ';
-        ++s->v_i;
-        if (s->v_i % s->w)
-            s->v_i = (s->v_i / s->w + 1) * s->w;
+        *(stdscr->vs_n + stdscr->v_i) = stdscr->v_hl ? ' ' | '\x80' : ' ';
+        ++stdscr->v_i;
+        if (stdscr->v_i % stdscr->w)
+            stdscr->v_i = (stdscr->v_i / stdscr->w + 1) * stdscr->w;
     } else {
         if (ch == '\t') {
             tws =
-                s->vs_s - s->v_i > TAB_SIZE ? TAB_SIZE : s->vs_s - s->v_i;
-            memset(s->vs_n + s->v_i, s->v_hl ? ' ' | '\x80' : ' ', tws);
-            s->v_i += tws;
+                stdscr->vs_s - stdscr->v_i >
+                TABSIZE ? TABSIZE : stdscr->vs_s - stdscr->v_i;
+            memset(stdscr->vs_n + stdscr->v_i,
+                   stdscr->v_hl ? ' ' | '\x80' : ' ', tws);
+            stdscr->v_i += tws;
         } else {
             if (ch == '\0')
                 new_ch = '~';
@@ -316,35 +393,105 @@ int print_ch(struct screen *s, unsigned char ch)
             else
                 new_ch = ch;
 
-            *(s->vs_n + s->v_i) = s->v_hl ? new_ch | '\x80' : new_ch;
-            ++s->v_i;
+            *(stdscr->vs_n + stdscr->v_i) =
+                stdscr->v_hl ? new_ch | '\x80' : new_ch;
+            ++stdscr->v_i;
         }
     }
 
-    return 0;
+    return OK;
 }
 
-int print_object(struct screen *s, size_t y, size_t x, const char *object)
+
+int addnstr(const char *str, int n)
 {
-    /* Does not move the cursor. Does not do highlighting. */
     char ch;
 
-    if (y >= s->h || x >= s->w)
+    if (str == NULL)
         return ERR;
 
-    s->v_i = y * s->w + x;
-    while (1) {
-        ch = *object;
-        if (ch == '\0')
-            break;
+    if (!n)
+        return OK;
 
-        if (print_ch(s, ch))
-            return ERR;
-
-        if (ch == '\n')
-            s->v_i += x;        /* Indent */
-
-        ++object;
+    if (n > 0) {
+        while ((ch = *str++) != '\0' && n--)
+            if (addch(ch) == ERR)
+                return ERR;
+    } else {
+        while ((ch = *str++) != '\0')
+            if (addch(ch) == ERR)
+                return ERR;
     }
-    return 0;
+
+    return OK;
+}
+
+int move(int y, int x)
+{
+    size_t new_v_i;
+
+    if (mof(y, stdscr->w, SIZE_MAX))
+        return ERR;
+
+    new_v_i = y * stdscr->w;
+
+    if (aof(new_v_i, x, SIZE_MAX))
+        return ERR;
+
+    new_v_i += x;
+
+    /* Off screen */
+    if (new_v_i >= stdscr->vs_s)
+        return ERR;
+
+    stdscr->v_i = new_v_i;
+    return OK;
+}
+
+
+int clrtoeol(void)
+{
+    memset(stdscr->vs_n + stdscr->v_i, ' ',
+           stdscr->w - stdscr->v_i % stdscr->w);
+    return OK;
+}
+
+
+int standend(void)
+{
+    stdscr->v_hl = 0;
+    return OK;
+}
+
+int standout(void)
+{
+    stdscr->v_hl = 1;
+    return OK;
+}
+
+
+int raw(void)
+{
+    /* Preformed by initscr() in this implementation */
+    return OK;
+}
+
+
+int noecho(void)
+{
+    /* Preformed by initscr() in this implementation */
+    return OK;
+}
+
+
+int keypad(WINDOW * win, bool bf)
+{
+    /* Preformed by initscr() in this implementation */
+    if (win == NULL)
+        return ERR;
+
+    if (bf != TRUE && bf != FALSE)
+        return ERR;
+
+    return OK;
 }

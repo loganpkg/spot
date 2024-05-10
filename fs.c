@@ -537,7 +537,7 @@ int mmap_file_ro(const char *fn, void **mem, size_t *fs)
 
 int un_mmap(void *p, size_t s)
 {
-    if (p == NULL)
+    if (p == NULL || !s)
         return 0;
 
 #ifdef _WIN32

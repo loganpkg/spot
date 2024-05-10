@@ -33,29 +33,56 @@
 
 
 #include "toucanlib.h"
+#include <curses.h>
 
 
 #define INIT_GB_SIZE 512
 
+#define ESC 27
 
-int draw(struct gb *b, struct gb *cl, struct screen *s, int cl_active,
-         int rv, int es_set, int es)
+#define clean_ch(ch) (isprint(ch) || (ch) == '\t' || (ch) == '\n' ? (ch) \
+    : ((ch) == '\0' ? '~' : '?'))
+
+
+int draw(struct gb *b, struct gb *cl, int cl_active, char **sb,
+         size_t *sb_s, int *centre, int *clr, int rv, int es_set, int es)
 {
-    size_t up, target_up, ts, i, cursor_pos, k;
+    size_t up, target_up, ts, i;
     int have_centred = 0;
-    unsigned char ch, *sb;
+    unsigned char ch;
     char num_str[NUM_BUF_SIZE];
     int r, len;
+    size_t h;                   /* Screen height */
+    size_t w;                   /* Screen width */
+    size_t s;                   /* Screen size */
+    size_t y;                   /* Current vertical position on screen */
+    size_t x;                   /* Current horizontal position on screen */
+    size_t si;                  /* Current screen index */
+    size_t c_y;                 /* Final vertical cursor position on screen */
+    size_t c_x;                 /* Final horizontal cursor position on screen */
+    char *tmp;
+
 
   start:
-    if (erase_screen(s))
-        return ERR;
+    if (*clr) {
+        if (clear() == ERR)
+            return ERR;
 
-    if (b->d > b->g || s->centre) {
+        *clr = 0;
+
+    } else {
+        if (erase() == ERR)
+            return ERR;
+    }
+
+    getmaxyx(stdscr, h, w);
+    s = h * w;                  /* Cannot overflow as already in memory */
+
+    if (b->d > b->g || *centre) {
         /* Does not consider long lines that wrap */
         b->d = b->g;
         up = 0;
-        target_up = s->h <= 4 ? 1 : (s->h - 1) / 2;
+        target_up = h <= 4 ? 1 : (h - 1) / 2;
         while (b->d) {
             --b->d;
             if (*(b->a + b->d) == '\n')
@@ -66,60 +93,74 @@ int draw(struct gb *b, struct gb *cl, struct screen *s, int cl_active,
                 break;
             }
         }
-        s->centre = 0;
+        *centre = 0;
         have_centred = 1;
     }
 
     /* Size of the text portion of the screen */
-    ts = s->vs_s - (s->h >= 2 ? s->w : 0) - (s->h >= 3 ? s->w : 0);
+    ts = s - (h >= 2 ? w : 0) - (h >= 3 ? w : 0);
 
-    s->v_hl = 0;
+    standend();
 
     /* Region commenced before draw start */
     if (b->m_set && b->m < b->d)
-        s->v_hl = 1;
+        standout();
 
     /* Before the gap */
     i = b->d;
-    while (i < b->g && s->v_i < ts) {
+    getyx(stdscr, y, x);
+    si = y * w + x;
+
+    while (i < b->g && si < ts) {
         if (b->m_set && b->m == i)
-            s->v_hl = 1;
+            standout();
 
         ch = *((b)->a + i);
-        print_ch(s, ch);
+        addch(clean_ch(ch));
         ++i;
+
+        getyx(stdscr, y, x);
+        si = y * w + x;
     }
 
-    if (s->v_i >= ts) {
+    if (si >= ts) {
         /* Off screen */
         if (!have_centred)
-            s->centre = 1;
+            *centre = 1;
         else
             b->d = b->g;
         goto start;
     }
 
     /* At the cursor */
-    cursor_pos = s->v_i;
+    c_y = y;
+    c_x = x;
+
     if (b->m_set) {
         if (b->m < b->c)
-            s->v_hl = 0;        /* End of region */
+            standend();         /* End of region */
         else
-            s->v_hl = 1;        /* Start of region */
+            standout();         /* Start of region */
     }
 
     /* After the gap (from the cursor onwards) */
     i = b->c;
-    while (i <= b->e && s->v_i < ts) {
+    getyx(stdscr, y, x);
+    si = y * w + x;
+
+    while (i <= b->e && si < ts) {
         if (b->m_set && b->m == i)
-            s->v_hl = 0;
+            standend();
 
         ch = *((b)->a + i);
-        print_ch(s, ch);
+        addch(clean_ch(ch));
         ++i;
+
+        getyx(stdscr, y, x);
+        si = y * w + x;
     }
 
-    if (s->h >= 2) {
+    if (h >= 2) {
         /* Status bar */
 
         if (es_set) {
@@ -130,8 +171,17 @@ int draw(struct gb *b, struct gb *cl, struct screen *s, int cl_active,
             *num_str = '\0';
         }
 
-        sb = s->vs_n + ((s->h - 2) * s->w);
-        len = snprintf((char *) sb, s->w, "%c%c %s (%lu,%lu) %02X %s",
+        move(h - 2, 0);
+
+        if (*sb_s < w) {
+            if ((tmp = realloc(*sb, w + 1)) == NULL)
+                return ERR;
+
+            *sb = tmp;
+            *sb_s = w + 1;
+        }
+
+        len = snprintf(*sb, *sb_s, "%c%c %s (%lu,%lu) %02X %s",
                        rv ? '!' : ' ', b->mod ? '*' : ' ', b->fn,
                        (unsigned long) b->r, (unsigned long) b->col,
                        cl_active ? *(cl->a + cl->c) : *(b->a + b->c),
@@ -139,76 +189,89 @@ int draw(struct gb *b, struct gb *cl, struct screen *s, int cl_active,
         if (len < 0)
             return ERR;
 
-        /* Overwrite \0 char */
-        if ((size_t) len >= s->w)       /* Truncated */
-            *(sb + s->w - 1) = ' ';
-        else
-            *(sb + len) = ' ';
+        if ((size_t) len < *sb_s) {
+            memset(*sb + len, ' ', w - len);
+            *(*sb + w) = '\0';
+        }
 
-        /* Virtually highlight */
-        for (k = 0; k < s->w; ++k)
-            *(sb + k) |= '\x80';
+        standout();
+
+        if (addnstr(*sb, w) == ERR)
+            return ERR;
+
+        standend();
     }
 
-    if (s->h >= 3) {
+    if (h >= 3) {
         /* Command line */
       cl_start:
-        s->v_hl = 0;
+        standend();
 
         if (cl->m_set && cl->m < cl->d)
-            s->v_hl = 1;
+            standout();
 
         /* Start of last line in virtual screen */
-        s->v_i = (s->h - 1) * s->w;
+        move(h - 1, 0);
 
         /* Erase virtual line */
-        memset(s->vs_n + s->v_i, ' ', s->w);
+        clrtoeol();
 
         if (cl->d > cl->g)
             cl->d = cl->g;
 
         /* Before the gap */
         i = cl->d;
-        while (i < cl->g && s->v_i < s->vs_s) {
+        getyx(stdscr, y, x);
+        si = y * w + x;
+
+        while (i < cl->g && si < s) {
             if (cl->m_set && cl->m == i)
-                s->v_hl = 1;
+                standout();
 
             ch = *((cl)->a + i);
-            print_ch(s, ch);
+            addch(clean_ch(ch));
             ++i;
+
+            getyx(stdscr, y, x);
+            si = y * w + x;
         }
 
-        if (s->v_i >= s->vs_s) {
+        if (si >= s) {
             /* Off screen */
             cl->d = cl->g;      /* Draw from cursor */
             goto cl_start;
         }
 
         /* At the cursor */
-        if (cl_active)
-            cursor_pos = s->v_i;
+        if (cl_active) {
+            c_y = y;
+            c_x = x;
+        }
 
         if (cl->m_set) {
             if (cl->m < cl->c)
-                s->v_hl = 0;    /* End of region */
+                standend();     /* End of region */
             else
-                s->v_hl = 1;    /* Start of region */
+                standout();     /* Start of region */
         }
 
         /* After the gap (from the cursor onwards) */
         i = cl->c;
-        while (i <= cl->e && s->v_i < s->vs_s) {
+        while (i <= cl->e && si < s) {
             if (cl->m_set && cl->m == i)
-                s->v_hl = 0;
+                standend();
 
             ch = *((cl)->a + i);
-            print_ch(s, ch);
+            addch(clean_ch(ch));
             ++i;
+
+            getyx(stdscr, y, x);
+            si = y * w + x;
         }
     }
 
-    s->v_i = cursor_pos;
-    refresh_screen(s);
+    move(c_y, c_x);
+    refresh();
 
     return 0;
 }
@@ -223,12 +286,15 @@ int main(int argc, char **argv)
     int rv = 0;                 /* Return value of last internal command */
     int es_set = 0;
     int es = 0;                 /* Exit status of last shell command */
+    char *sb = NULL;            /* Memory for status bar */
+    size_t sb_s = 0;            /* Size of status bar memory */
+    int centre = 0;             /* Vertically centre cursor on the screen */
+    int clr = 0;                /* Redraw physical screen */
     int i, x, y;
-    struct screen *s = NULL;
     struct gb *b = NULL;        /* Text buffers linked together */
     struct gb *p = NULL;        /* Paste buffer */
     struct gb *cl = NULL;       /* Command line buffer */
-    struct gb *sb = NULL;       /* Search buffer */
+    struct gb *se = NULL;       /* Search buffer */
     struct gb *tmp = NULL;      /* Temporary buffer */
     struct gb *t;               /* For switching gap buffers */
     char search_type = ' ';     /* s = Exact search, z = Regex search */
@@ -236,9 +302,20 @@ int main(int argc, char **argv)
     char op = ' ';              /* The cl operation which is in progress */
 
 
-    if ((s = init_screen()) == NULL)
-        return ERR;
+    if (initscr() == NULL)
+        goto clean_up;
 
+    if (raw() == ERR)
+        goto clean_up;
+
+    if (noecho() == ERR)
+        goto clean_up;
+
+    if (keypad(stdscr, TRUE) == ERR)
+        goto clean_up;
+
+    if (set_tabsize(8) == ERR)
+        goto clean_up;
 
     if (argc > 1) {
         for (i = 1; i < argc; ++i) {
@@ -259,53 +336,55 @@ int main(int argc, char **argv)
     if ((cl = init_gb(INIT_GB_SIZE)) == NULL)
         goto clean_up;
 
-    if ((sb = init_gb(INIT_GB_SIZE)) == NULL)
+    if ((se = init_gb(INIT_GB_SIZE)) == NULL)
         goto clean_up;
 
     if ((tmp = init_gb(INIT_GB_SIZE)) == NULL)
         goto clean_up;
 
     while (running) {
-        if (draw(b, cl, s, cl_active, rv, es_set, es))
+        if (draw
+            (b, cl, cl_active, &sb, &sb_s, &centre, &clr, rv, es_set, es))
             goto clean_up;
 
         rv = 0;
         es_set = 0;
         es = 0;
 
-        x = get_key();
+        x = getch();
 
         switch (x) {
         case C('b'):
-        case LEFT_KEY:
+        case KEY_LEFT:
             rv = left_ch(z);
             break;
         case C('f'):
-        case RIGHT_KEY:
+        case KEY_RIGHT:
             rv = right_ch(z);
             break;
         case C('p'):
-        case UP_KEY:
+        case KEY_UP:
             rv = up_line(z);
             break;
         case C('n'):
-        case DOWN_KEY:
+        case KEY_DOWN:
             rv = down_line(z);
             break;
         case C('d'):
-        case DEL_KEY:
+        case KEY_DC:
             rv = delete_ch(z);
             break;
         case C('h'):
         case 127:
+        case KEY_BACKSPACE:
             rv = backspace_ch(z);
             break;
         case C('a'):
-        case HOME_KEY:
+        case KEY_HOME:
             start_of_line(z);
             break;
         case C('e'):
-        case END_KEY:
+        case KEY_END:
             end_of_line(z);
             break;
         case 0:
@@ -322,8 +401,8 @@ int main(int argc, char **argv)
             }
             break;
         case C('l'):
-            s->centre = 1;
-            s->clear = 1;
+            centre = 1;
+            clr = 1;
             break;
         case C('w'):
             rv = copy_region(z, p, 1);
@@ -363,7 +442,7 @@ int main(int argc, char **argv)
             op = 'q';
             break;
         case ESC:
-            y = get_key();
+            y = getch();
             switch (y) {
             case 'b':
                 left_word(z);
@@ -388,9 +467,9 @@ int main(int argc, char **argv)
             case 'n':
                 /* Repeat last search */
                 if (search_type == 's')
-                    rv = exact_forward_search(b, sb);
+                    rv = exact_forward_search(b, se);
                 else if (search_type == 'z')
-                    rv = regex_forward_search(b, sb);
+                    rv = regex_forward_search(b, se);
                 else
                     rv = 1;
 
@@ -432,7 +511,7 @@ int main(int argc, char **argv)
             }
             break;
         case C('x'):
-            y = get_key();
+            y = getch();
             switch (y) {
             case C('x'):
                 rv = swap_cursor_and_mark(z);
@@ -453,12 +532,12 @@ int main(int argc, char **argv)
                 cl_active = 1;
                 op = 'i';
                 break;
-            case LEFT_KEY:
+            case KEY_LEFT:
                 if (b->prev != NULL)
                     b = b->prev;
 
                 break;
-            case RIGHT_KEY:
+            case KEY_RIGHT:
                 if (b->next != NULL)
                     b = b->next;
 
@@ -471,21 +550,21 @@ int main(int argc, char **argv)
                 switch (op) {
                 case 's':
                     /* Swap gap buffers */
-                    t = sb;
-                    sb = cl;
+                    t = se;
+                    se = cl;
                     cl = t;
                     delete_gb(cl);
                     search_type = op;
-                    rv = exact_forward_search(b, sb);
+                    rv = exact_forward_search(b, se);
                     break;
                 case 'z':
                     /* Swap gap buffers */
-                    t = sb;
-                    sb = cl;
+                    t = se;
+                    se = cl;
                     cl = t;
                     delete_gb(cl);
                     search_type = op;
-                    rv = regex_forward_search(b, sb);
+                    rv = regex_forward_search(b, se);
                     break;
                 case 'r':
                     rv = regex_replace_region(b, cl);
@@ -534,13 +613,15 @@ int main(int argc, char **argv)
 
 
   clean_up:
-    if (free_screen(s))
+    if (endwin() == ERR)
         ret = ERR;
+
+    free(sb);
 
     free_gb_list(b);
     free_gb(p);
     free_gb(cl);
-    free_gb(sb);
+    free_gb(se);
     free_gb(tmp);
 
     return ret;
