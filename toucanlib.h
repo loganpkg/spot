@@ -166,38 +166,15 @@ typedef int (*Fptr)(void *);
 
 
 /*
- * Input buffer. Characters are stored in reverse order.
+ * Input buffer: Characters are stored in reverse order.
  * Operated on by get and unget functions.
- */
-struct ibuf {
-    char *a;                    /* Memory */
-    size_t i;                   /* Write index */
-    size_t s;                   /* Allocated size in bytes */
-};
-
-/*
- * Ouput buffer. Characters are stored in normal order.
+ *
+ * Ouput buffer: Characters are stored in normal order.
  * Operated on by put functions.
  */
-struct obuf {
-    char *a;                    /* Memory */
-    size_t i;                   /* Write index */
-    size_t s;                   /* Allocated size in bytes */
-};
 
-/* Buffer of long integers */
-struct lbuf {
-    long *a;                    /* Memory */
-    size_t i;                   /* Write index */
-    size_t n;                   /* Number of elements, not bytes */
-};
+#include "buf_structs.h"
 
-/* Buffer of pointers */
-struct pbuf {
-    void **a;                   /* Array of pointers */
-    size_t i;                   /* Write index */
-    size_t n;                   /* Number of elements, not bytes */
-};
 
 struct gb {
     char *fn;
@@ -243,10 +220,21 @@ int str_to_size_t(const char *str, size_t *res);
 int hex_to_val(unsigned char h[2], unsigned char *res);
 int lop(long *a, long b, char op);
 int lpow(long *a, long b);
-struct ibuf *init_ibuf(size_t s);
-struct obuf *init_obuf(size_t s);
+struct ibuf *init_ibuf(size_t n);
 void free_ibuf(struct ibuf *b);
+int add_i(struct ibuf *b, char x);
+struct obuf *init_obuf(size_t n);
 void free_obuf(struct obuf *b);
+int add_o(struct obuf *b, char x);
+struct lbuf *init_lbuf(size_t n);
+void free_lbuf(struct lbuf *b);
+int add_l(struct lbuf *b, long x);
+struct sbuf *init_sbuf(size_t n);
+void free_sbuf(struct sbuf *b);
+int add_s(struct sbuf *b, size_t x);
+struct pbuf *init_pbuf(size_t n);
+void free_pbuf(struct pbuf *b);
+int add_p(struct pbuf *b, void *x);
 int unget_ch(struct ibuf *b, char ch);
 int put_ch(struct obuf *b, char ch);
 int unget_str(struct ibuf *b, const char *str);
@@ -264,12 +252,6 @@ int put_stream(struct obuf *b, FILE * fp);
 int write_obuf(struct obuf *b, const char *fn);
 int flush_obuf(struct obuf *b);
 char *obuf_to_str(struct obuf **b);
-struct lbuf *init_lbuf(size_t n);
-void free_lbuf(struct lbuf *b);
-int add_l(struct lbuf *b, long x);
-struct pbuf *init_pbuf(size_t n);
-void free_pbuf(struct pbuf *b);
-int add_p(struct pbuf *b, void *ptr);
 struct gb *init_gb(size_t s);
 void free_gb(struct gb *b);
 void free_gb_list(struct gb *b);

@@ -224,7 +224,8 @@ This version of m4 has advanced safety features to make it easier to detect
 unintended usage. Built-in macros do not have _name pass-through_ when called
 without arguments. To use a built-in macro name without detection it must be
 quoted. All macros must be passed the correct number of arguments, variadic
-macros are not allowed.
+macros are not allowed. The starting quotes strings are `<[` and `]>`, not the
+backtick and apostrophe.
 
 Example
 -------
@@ -285,7 +286,8 @@ changequote: left_quote, right_quote
 Sets the left and right quote strings. Please note that they must be different,
 non-empty strings that can only contain graph, non-comma, non-parentheses
 characters. It is normally a good idea to pick strings that are not a commonly
-used in any downstream programming language. I like to use `[[` and `]]`.
+used in any downstream programming language. The starting quote strings
+are `<[` and `]>`.
 
 ```m4
 define: macro_name, macro_def

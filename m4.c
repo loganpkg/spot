@@ -34,11 +34,17 @@
 /* Number of buckets in hash table */
 #define NUM_BUCKETS 1024
 
+/*
+ * Macros can collect any number of arguments, but only args 0 to 9
+ * can be referenced. Arg 0 is the macro name.
+ */
+#define NUM_ARGS 10
+
+
 #define INIT_BUF_SIZE 512
 
-/* Do not change */
-#define DEFAULT_LEFT_QUOTE "`"
-#define DEFAULT_RIGHT_QUOTE "'"
+#define DEFAULT_LEFT_QUOTE "<["
+#define DEFAULT_RIGHT_QUOTE "]>"
 
 /*
  * Do not change.
@@ -48,33 +54,20 @@
 #define NUM_DIVS 11
 
 /*
- * Do not change.
- * Macro name is index 0.
- * Only arguments 1 to 9 are allowed.
- */
-#define NUM_ARGS 10
-
-/*
  * When there is no stack, the output will be the active diversion.
  * Otherwise, during argument collection, the output will be the store buffer.
  * (Definitions and argument strings in the store are referenced by the stack).
  */
 #define output (m4->stack == NULL ? m4->div[m4->active_div] : m4->store)
 
-/* Arguments that have not been collected reference the empty string */
-#define arg(n) (m4->store->a + m4->stack->arg_i[n])
+#define m_def (m4->store->a + *(m4->str_start->a + m4->stack->m_i))
+#define arg(n) (m4->store->a + *(m4->str_start->a + m4->stack->m_i + 1 + n))
 
+#define num_args_collected (m4->str_start->i - (m4->stack->m_i + 2))
 
 struct macro_call {
     Fptr mfp;
-    size_t def_i;               /* Index into store */
-    /*
-     * Indexes into store.
-     * Name is arg 0 ($0), followed by collected args 1 to 9 ($1 to $9).
-     * Uncollected args reference the empty string in store at index 0.
-     */
-    size_t arg_i[NUM_ARGS];
-    size_t active_arg;          /* 0 is the macro name. First arg is 1. */
+    size_t m_i;                 /* Index into str_start */
     size_t bracket_depth;       /* Depth of unquoted brackets */
     struct macro_call *next;    /* For nested macro calls */
 };
@@ -89,7 +82,18 @@ struct m4_info {
     /* There is only one input. Characters are stored in reverse order. */
     struct ibuf *input;
     struct obuf *token;
-    struct obuf *store;         /* Stores strings referenced by the stack */
+    /*
+     * store:
+     * def, macro name, arg 1, arg 2, def, macro name, arg 1, arg 2, ...
+     * ^    ^           ^      ^      ^    ^           ^      ^
+     * |    |           |      |      |    |           |      |
+     * str_start
+     * ^                              ^
+     * |                              |
+     * m_i                            m_i
+     */
+    struct obuf *store;
+    struct sbuf *str_start;     /* Indices to the start of strings in store */
     struct macro_call *stack;
     struct obuf *tmp;           /* Used for substituting arguments */
     struct obuf *div[NUM_DIVS];
@@ -106,7 +110,6 @@ struct m4_info {
 struct macro_call *init_mc(void)
 {
     struct macro_call *mc;
-    size_t i;
 
     if ((mc = malloc(sizeof(struct macro_call))) == NULL) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
@@ -114,11 +117,7 @@ struct macro_call *init_mc(void)
     }
 
     mc->mfp = NULL;
-    mc->def_i = 0;
-    for (i = 0; i < NUM_ARGS; ++i)
-        mc->arg_i[i] = 0;       /* References the empty string in store */
-
-    mc->active_arg = 0;
+    mc->m_i = 0;
     mc->bracket_depth = 0;
     mc->next = NULL;
     return mc;
@@ -163,7 +162,7 @@ int sub_args(M4ptr m4)
     size_t x, x_max;
 
     m4->tmp->i = 0;
-    p = m4->store->a + m4->stack->def_i;
+    p = m_def;
 
     x_max = 0;
     while (1) {
@@ -178,7 +177,7 @@ int sub_args(M4ptr m4)
             if (isdigit(next_ch)) {
                 x = next_ch - '0';
                 /* Can only access args that were collected */
-                if (x > m4->stack->active_arg) {
+                if (x > num_args_collected) {
                     fprintf(stderr, "%s:%d: %s: Usage error: "
                             "Uncollected argument number %lu accessed\n",
                             __FILE__, __LINE__, arg(0), x);
@@ -208,10 +207,10 @@ int sub_args(M4ptr m4)
         ++p;
     }
 
-    if (x_max != m4->stack->active_arg) {
+    if (x_max != num_args_collected) {
         fprintf(stderr, "%s:%d: %s: Usage error: "
                 "Too many arguments collected: Expected: %lu, Received: %lu\n",
-                __FILE__, __LINE__, arg(0), x_max, m4->stack->active_arg);
+                __FILE__, __LINE__, arg(0), x_max, num_args_collected);
         return USAGE_ERR;
     }
 
@@ -228,17 +227,14 @@ int end_macro(M4ptr m4)
     int ret;
     if (m4->stack->mfp != NULL) {
         if ((ret = (*m4->stack->mfp) (m4)))
-            fprintf(stderr, "m4: %s: Failed\n",
-                    m4->store->a + m4->stack->arg_i[0]);
+            fprintf(stderr, "m4: %s: Failed\n", arg(0));
     } else {
         ret = sub_args(m4);
     }
 
-    /*
-     * Truncate store.
-     * Minus 1 for \0 char added at start of macro section.
-     */
-    m4->store->i = m4->stack->def_i - 1;
+    /* Truncate */
+    m4->str_start->i = m4->stack->m_i;
+    m4->store->i = *(m4->str_start->a + m4->str_start->i);
 
     /* Pop redirectes output to the next node (if any) */
     pop_mc(&m4->stack);
@@ -282,6 +278,7 @@ M4ptr init_m4(void)
     m4->input = NULL;
     m4->token = NULL;
     m4->store = NULL;
+    m4->str_start = NULL;
     m4->stack = NULL;
     /* Used for substituting arguments */
     m4->tmp = NULL;
@@ -310,8 +307,7 @@ M4ptr init_m4(void)
         goto error;
     }
 
-    /* Setup empty string for uncollected args to reference at index 0 */
-    if (put_ch(m4->store, '\0')) {
+    if ((m4->str_start = init_sbuf(INIT_BUF_SIZE)) == NULL) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
         goto error;
     }
@@ -351,29 +347,11 @@ M4ptr init_m4(void)
     return NULL;
 }
 
-int dump_stack(M4ptr m4)
+int dump_store(M4ptr m4)
 {
-    struct macro_call *mc;
-    size_t i;
-
-    /* Make sure store is \0 terminated */
-    if (put_ch(m4->store, '\0'))
+    fprintf(stderr, "Store:\n");
+    if (fwrite(m4->store->a, 1, m4->store->i, stderr) != m4->store->i)
         return ERR;
-
-    mc = m4->stack;
-    while (mc != NULL) {
-        fprintf(stderr, "\nDef  : %s\n",
-                mc->mfp == NULL ? m4->store->a + mc->def_i : "built-in");
-
-        for (i = 0; i <= mc->active_arg; ++i)
-            fprintf(stderr, "Arg %lu: %s\n", (unsigned long) i,
-                    m4->store->a + mc->arg_i[i]);
-
-        mc = mc->next;
-    }
-
-    /* Undo \0 termination */
-    --m4->store->i;
 
     return 0;
 }
@@ -410,12 +388,13 @@ int validate_quote(const char *quote)
         fprintf(stderr, "%s: %s: %s\n", "built-in", esf(NM), par_desc); \
         return 0;                                                       \
     }                                                                   \
-    if (m4->stack->active_arg != num_pars) {                            \
+    if (num_args_collected != num_pars) {                               \
         fprintf(stderr, "%s:%d: Usage: %s: %s\n", __FILE__, __LINE__,   \
                 esf(NM), par_desc);                                     \
         return USAGE_ERR;                                               \
     }                                                                   \
 } while (0)
+
 
 
 /* ********** Built-in macros ********** */
@@ -973,7 +952,7 @@ int NM(void *v)
 
     usage(0, "");
 
-    if (unget_str(m4->input, m4->store->a + m4->stack->def_i)) {
+    if (unget_str(m4->input, m_def)) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
         return ERR;
     }
@@ -1402,30 +1381,23 @@ int main(int argc, char **argv)
         if (m4->quote_depth) {
             /* Quoted */
             if (put_str(output, m4->token->a)) {
-
                 fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
                 goto error;
             }
         } else if (m4->stack != NULL && m4->stack->bracket_depth == 1
                    && !strcmp(m4->token->a, ",")) {
             if (put_ch(output, '\0')) {
-
                 fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
                 goto error;
             }
 
-            ++m4->stack->active_arg;
-            if (m4->stack->active_arg == NUM_ARGS) {
-                fprintf(stderr, "m4: %s: Too many arguments\n",
-                        m4->store->a + m4->stack->arg_i[0]);
+            if (add_s(m4->str_start, m4->store->i)) {
+                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
                 goto error;
             }
 
-            m4->stack->arg_i[m4->stack->active_arg] = m4->store->i;
-
             /* Argument separator */
             if (eat_whitespace(m4->input, m4->read_stdin)) {
-
                 fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
                 goto error;
             }
@@ -1434,7 +1406,6 @@ int main(int argc, char **argv)
                    && !strcmp(m4->token->a, ")")) {
             /* End of argument collection */
             if (put_ch(output, '\0')) {
-
                 fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
                 goto error;
             }
@@ -1449,7 +1420,6 @@ int main(int argc, char **argv)
         } else if (m4->stack != NULL && !strcmp(m4->token->a, "(")) {
             /* Nested unquoted open bracket */
             if (put_str(output, m4->token->a)) {
-
                 fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
                 goto error;
             }
@@ -1459,7 +1429,6 @@ int main(int argc, char **argv)
                    && !strcmp(m4->token->a, ")")) {
             /* Nested unquoted close bracket */
             if (put_str(output, m4->token->a)) {
-
                 fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
                 goto error;
             }
@@ -1470,7 +1439,6 @@ int main(int argc, char **argv)
             if (e == NULL) {
                 /* Not a macro, so pass through */
                 if (put_str(output, m4->token->a)) {
-
                     fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
                     goto error;
                 }
@@ -1483,43 +1451,37 @@ int main(int argc, char **argv)
                     goto error;
                 }
 
-                /*
-                 * Place a \0 char at the start of the new macro section in
-                 * the store. This is to terminate the partially collected,
-                 * in-progress, argument of the previous macro, so that
-                 * dump_stack reports the correct information.
-                 */
-                if (put_ch(m4->store, '\0')) {
-
-                    fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                    goto error;
-                }
-
                 m4->stack->bracket_depth = 1;
                 m4->stack->mfp = e->func_p;
-                /* One more than the start of the macro section in store */
-                m4->stack->def_i = m4->store->i;
+
+                m4->stack->m_i = m4->str_start->i;
+
+                if (add_s(m4->str_start, m4->store->i)) {
+                    fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+                    goto error;
+                }
+
                 if (e->def != NULL && put_str(m4->store, e->def)) {
-
                     fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
                     goto error;
                 }
 
                 if (put_ch(m4->store, '\0')) {
-
                     fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
                     goto error;
                 }
 
-                m4->stack->arg_i[m4->stack->active_arg] = m4->store->i;
+                if (add_s(m4->str_start, m4->store->i)) {
+                    fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+                    goto error;
+                }
+
                 if (put_str(m4->store, e->name)) {
-
                     fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
                     goto error;
                 }
 
                 if (put_ch(m4->store, '\0')) {
-
                     fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
                     goto error;
                 }
@@ -1544,12 +1506,14 @@ int main(int argc, char **argv)
                         }
                     }
                 } else {
-                    ++m4->stack->active_arg;
-                    m4->stack->arg_i[m4->stack->active_arg] = m4->store->i;
+                    if (add_s(m4->str_start, m4->store->i)) {
+                        fprintf(stderr, "%s:%d: Error\n", __FILE__,
+                                __LINE__);
+                        goto error;
+                    }
 
                     /* Ready to collect arg 1 */
                     if (eat_whitespace(m4->input, m4->read_stdin)) {
-
                         fprintf(stderr, "%s:%d: Error\n", __FILE__,
                                 __LINE__);
                         goto error;
@@ -1579,7 +1543,7 @@ int main(int argc, char **argv)
         fprintf(stderr, "error_exit: %d\n", m4->error_exit);
         fprintf(stderr, "left_quote: %s\n", m4->left_quote);
         fprintf(stderr, "right_quote: %s\n", m4->right_quote);
-        dump_stack(m4);
+        dump_store(m4);
     }
 
     free_m4(m4);

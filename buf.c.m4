@@ -1,4 +1,4 @@
-/*
+<[/*
  * Copyright (c) 2023 Logan Ryan McLintock
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
@@ -26,22 +26,37 @@
 
 #define READ_BLOCK_SIZE BUFSIZ
 
+]>divert(1)dnl
+<[#ifndef BUF_STRUCTS_H
+#define BUF_STRUCTS_H
 
-struct ibuf *init_ibuf(size_t n)
+#include <stddef.h>
+
+]>divert(0)dnl
+define(common_funcs,
+<[divert(1)dnl
+struct $1buf {
+    $2 *a;                      /* Memory */
+    size_t i;                   /* Write index */
+    size_t n;                   /* Allocated number of elements */
+};
+
+divert(0)dnl
+struct $1buf *init_$1buf(size_t n)
 {
-    struct ibuf *b;
+    struct $1buf *b;
 
-    if ((b = malloc(sizeof(struct ibuf))) == NULL) {
+    if ((b = malloc(sizeof(struct $1buf))) == NULL) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
         return NULL;
     }
 
-    if (mof(n, sizeof(char), SIZE_MAX)) {
+    if (mof(n, sizeof($2), SIZE_MAX)) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
         return NULL;
     }
 
-    if ((b->a = malloc(n * sizeof(char))) == NULL) {
+    if ((b->a = malloc(n * sizeof($2))) == NULL) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
         return NULL;
     }
@@ -51,7 +66,7 @@ struct ibuf *init_ibuf(size_t n)
     return b;
 }
 
-void free_ibuf(struct ibuf *b)
+void free_$1buf(struct $1buf *b)
 {
     if (b != NULL) {
         free(b->a);
@@ -59,9 +74,9 @@ void free_ibuf(struct ibuf *b)
     }
 }
 
-static int grow_ibuf(struct ibuf *b, size_t will_use)
+static int grow_$1buf(struct $1buf *b, size_t will_use)
 {
-    char *t;
+    $2 *t;
     size_t new_n;
 
     if (aof(b->n, will_use, SIZE_MAX)) {
@@ -78,90 +93,12 @@ static int grow_ibuf(struct ibuf *b, size_t will_use)
 
     new_n *= 2;
 
-    if (mof(new_n, sizeof(char), SIZE_MAX)) {
+    if (mof(new_n, sizeof($2), SIZE_MAX)) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
         return ERR;
     }
 
-    if ((t = realloc(b->a, new_n * sizeof(char))) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
-
-    b->a = t;
-    b->n = new_n;
-    return 0;
-}
-
-int add_i(struct ibuf *b, char x)
-{
-    if (b->i == b->n && grow_ibuf(b, 1)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
-
-    *(b->a + b->i) = x;
-    ++b->i;
-    return 0;
-}
-
-struct obuf *init_obuf(size_t n)
-{
-    struct obuf *b;
-
-    if ((b = malloc(sizeof(struct obuf))) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return NULL;
-    }
-
-    if (mof(n, sizeof(char), SIZE_MAX)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return NULL;
-    }
-
-    if ((b->a = malloc(n * sizeof(char))) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return NULL;
-    }
-
-    b->i = 0;
-    b->n = n;
-    return b;
-}
-
-void free_obuf(struct obuf *b)
-{
-    if (b != NULL) {
-        free(b->a);
-        free(b);
-    }
-}
-
-static int grow_obuf(struct obuf *b, size_t will_use)
-{
-    char *t;
-    size_t new_n;
-
-    if (aof(b->n, will_use, SIZE_MAX)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
-
-    new_n = b->n + will_use;
-
-    if (mof(new_n, 2, SIZE_MAX)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
-
-    new_n *= 2;
-
-    if (mof(new_n, sizeof(char), SIZE_MAX)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
-
-    if ((t = realloc(b->a, new_n * sizeof(char))) == NULL) {
+    if ((t = realloc(b->a, new_n * sizeof($2))) == NULL) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
         return ERR;
     }
@@ -171,9 +108,9 @@ static int grow_obuf(struct obuf *b, size_t will_use)
     return 0;
 }
 
-int add_o(struct obuf *b, char x)
+int add_$1(struct $1buf *b, $2 x)
 {
-    if (b->i == b->n && grow_obuf(b, 1)) {
+    if (b->i == b->n && grow_$1buf(b, 1)) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
         return ERR;
     }
@@ -182,242 +119,18 @@ int add_o(struct obuf *b, char x)
     ++b->i;
     return 0;
 }
+]>)
+common_funcs(i, char)dnl
+common_funcs(o, char)dnl
+common_funcs(l, long)dnl
+common_funcs(s, size_t)dnl
+common_funcs(p, void *)dnl
+divert(1)dnl
+<[#endif
+]>divert(0)dnl
+writediv(1, buf_structs.h)dnl
 
-struct lbuf *init_lbuf(size_t n)
-{
-    struct lbuf *b;
-
-    if ((b = malloc(sizeof(struct lbuf))) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return NULL;
-    }
-
-    if (mof(n, sizeof(long), SIZE_MAX)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return NULL;
-    }
-
-    if ((b->a = malloc(n * sizeof(long))) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return NULL;
-    }
-
-    b->i = 0;
-    b->n = n;
-    return b;
-}
-
-void free_lbuf(struct lbuf *b)
-{
-    if (b != NULL) {
-        free(b->a);
-        free(b);
-    }
-}
-
-static int grow_lbuf(struct lbuf *b, size_t will_use)
-{
-    long *t;
-    size_t new_n;
-
-    if (aof(b->n, will_use, SIZE_MAX)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
-
-    new_n = b->n + will_use;
-
-    if (mof(new_n, 2, SIZE_MAX)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
-
-    new_n *= 2;
-
-    if (mof(new_n, sizeof(long), SIZE_MAX)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
-
-    if ((t = realloc(b->a, new_n * sizeof(long))) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
-
-    b->a = t;
-    b->n = new_n;
-    return 0;
-}
-
-int add_l(struct lbuf *b, long x)
-{
-    if (b->i == b->n && grow_lbuf(b, 1)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
-
-    *(b->a + b->i) = x;
-    ++b->i;
-    return 0;
-}
-
-struct sbuf *init_sbuf(size_t n)
-{
-    struct sbuf *b;
-
-    if ((b = malloc(sizeof(struct sbuf))) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return NULL;
-    }
-
-    if (mof(n, sizeof(size_t), SIZE_MAX)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return NULL;
-    }
-
-    if ((b->a = malloc(n * sizeof(size_t))) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return NULL;
-    }
-
-    b->i = 0;
-    b->n = n;
-    return b;
-}
-
-void free_sbuf(struct sbuf *b)
-{
-    if (b != NULL) {
-        free(b->a);
-        free(b);
-    }
-}
-
-static int grow_sbuf(struct sbuf *b, size_t will_use)
-{
-    size_t *t;
-    size_t new_n;
-
-    if (aof(b->n, will_use, SIZE_MAX)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
-
-    new_n = b->n + will_use;
-
-    if (mof(new_n, 2, SIZE_MAX)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
-
-    new_n *= 2;
-
-    if (mof(new_n, sizeof(size_t), SIZE_MAX)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
-
-    if ((t = realloc(b->a, new_n * sizeof(size_t))) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
-
-    b->a = t;
-    b->n = new_n;
-    return 0;
-}
-
-int add_s(struct sbuf *b, size_t x)
-{
-    if (b->i == b->n && grow_sbuf(b, 1)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
-
-    *(b->a + b->i) = x;
-    ++b->i;
-    return 0;
-}
-
-struct pbuf *init_pbuf(size_t n)
-{
-    struct pbuf *b;
-
-    if ((b = malloc(sizeof(struct pbuf))) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return NULL;
-    }
-
-    if (mof(n, sizeof(void *), SIZE_MAX)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return NULL;
-    }
-
-    if ((b->a = malloc(n * sizeof(void *))) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return NULL;
-    }
-
-    b->i = 0;
-    b->n = n;
-    return b;
-}
-
-void free_pbuf(struct pbuf *b)
-{
-    if (b != NULL) {
-        free(b->a);
-        free(b);
-    }
-}
-
-static int grow_pbuf(struct pbuf *b, size_t will_use)
-{
-    void **t;
-    size_t new_n;
-
-    if (aof(b->n, will_use, SIZE_MAX)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
-
-    new_n = b->n + will_use;
-
-    if (mof(new_n, 2, SIZE_MAX)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
-
-    new_n *= 2;
-
-    if (mof(new_n, sizeof(void *), SIZE_MAX)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
-
-    if ((t = realloc(b->a, new_n * sizeof(void *))) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
-
-    b->a = t;
-    b->n = new_n;
-    return 0;
-}
-
-int add_p(struct pbuf *b, void *x)
-{
-    if (b->i == b->n && grow_pbuf(b, 1)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
-
-    *(b->a + b->i) = x;
-    ++b->i;
-    return 0;
-}
-
-int unget_ch(struct ibuf *b, char ch)
+<[int unget_ch(struct ibuf *b, char ch)
 {
     return add_i(b, ch);
 }
@@ -895,4 +608,4 @@ char *obuf_to_str(struct obuf **b)
     free(*b);
     *b = NULL;
     return str;
-}
+}]>

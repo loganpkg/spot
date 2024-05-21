@@ -20,16 +20,17 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
+changequote([, ])
 divert(0)
 define(x, y)
 x
-undefine(`x')
+undefine([x])
 x
 define(x, $1 and $2)
 x(wow, cool)
 x(x(a, b), x(c, d))
 x(a, (b, c))
-`define'
+[define]
 divert(8)
 divnum
 cool
@@ -52,7 +53,6 @@ undivert(3)
 divert(0)
 divnum
 undivert(2)
-changequote([, ])
 define([x], cool)
 ifdef([x], dog, cat)
 ifelse(x, cool, nice, wow)
@@ -72,7 +72,7 @@ define(
 x(a, b, c)
 cool dnl world
 define(hello, wow)
-changequote(`, ')
-esyscmd(echo `hello' > .t)
+changequote({, })
+esyscmd(echo {hello} > .t)
 include(.t)
 esyscmd(rm .t)
