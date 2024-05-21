@@ -57,14 +57,18 @@ use of non-standard libraries. To install, edit one of the scripts below
 (depending upon your operating system) to set `install_dir`.
 Then simply run:
 ```
-./install.sh
+$ make
+$ PREFIX="$HOME" make install
+$ make clean
 ```
 or
 ```
-< winstall.txt cmd
+> nmake /F nMakefile
+> set PREFIX=%HOMEDRIVE%%HOMEPATH%&& nmake /F nMakefile install
+> nmake /F nMakefile clean
 ```
-(actually type the `<` character) and make sure `install_dir` is included in
-your `PATH`.
+
+Make sure `PREFIX/bin` is included in your `PATH`.
 
 
 spot

@@ -1,0 +1,63 @@
+#
+# Copyright (c) 2024 Logan Ryan McLintock
+#
+# Permission is hereby granted, free of charge, to any person obtaining a
+# copy of this software and associated documentation files (the "Software"),
+# to deal in the Software without restriction, including without limitation
+# the rights to use, copy, modify, merge, publish, distribute, sublicense,
+# and/or sell copies of the Software, and to permit persons to whom the
+# Software is furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included
+# in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+# THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+# FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+# DEALINGS IN THE SOFTWARE.
+#
+
+CFLAGS = /Od /Zi /MT /Qspectre /Wall /I .
+apps = spot.exe m4.exe bc.exe freq.exe lsed.exe
+
+all: $(apps)
+
+curses.obj: curses.h
+
+gen.obj: toucanlib.h
+num.obj: toucanlib.h
+buf.obj: toucanlib.h
+gb.obj: toucanlib.h
+eval.obj: toucanlib.h
+ht.obj: toucanlib.h
+regex.obj: toucanlib.h
+fs.obj: toucanlib.h
+
+toucanlib.lib: gen.obj num.obj buf.obj gb.obj eval.obj ht.obj regex.obj fs.obj
+	lib gen.obj num.obj buf.obj gb.obj eval.obj ht.obj regex.obj fs.obj \
+		/OUT:toucanlib.lib
+
+spot.exe: spot.c curses.obj toucanlib.lib
+	cl $(CFLAGS) spot.c curses.obj toucanlib.lib
+
+m4.exe: m4.c toucanlib.lib
+	cl $(CFLAGS) m4.c toucanlib.lib
+
+bc.exe: bc.c toucanlib.lib
+	cl $(CFLAGS) bc.c toucanlib.lib
+
+freq.exe: freq.c toucanlib.lib
+	cl $(CFLAGS) freq.c toucanlib.lib
+
+lsed.exe: lsed.c toucanlib.lib
+	cl $(CFLAGS) lsed.c toucanlib.lib
+
+install:
+	if not exist $(PREFIX)\bin mkdir $(PREFIX)\bin
+        for %i in ($(apps)) do copy %i $(PREFIX)\bin
+
+clean:
+	del *.obj *.lib *.ilk *.pdb $(apps)
