@@ -914,7 +914,7 @@ int save(struct gb *b)
     if (b->fn == NULL || *b->fn == '\0')
         return ERR;
 
-    if ((fp = fopen_w(b->fn)) == NULL)
+    if ((fp = fopen_w(b->fn, 0)) == NULL)
         return ERR;
 
     if (fwrite(b->a, 1, b->g, fp) != b->g) {

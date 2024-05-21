@@ -446,10 +446,11 @@ It is important to note that no processing occurs during this, macros are not
 expanded.
 
 ```m4
-writediv: div_num, filename
+writediv: div_num, filename, append
 ```
 `writediv` empties the specified diversion to file. Creates missing directories
-in the file path.
+in the file path. If append is 1, then it will append to the end of the file,
+otherwise the file will be overwritten.
 
 
 bc

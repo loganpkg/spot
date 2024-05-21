@@ -130,14 +130,15 @@ void *quick_search(const void *mem, size_t mem_len, const void *find,
     return NULL;
 }
 
-FILE *fopen_w(const char *fn)
+FILE *fopen_w(const char *fn, int append)
 {
     /* Creates missing directories and opens a file for writing */
     FILE *fp;
     char *p, *q, ch;
+    char *mode = append ? "ab" : "wb";
 
     errno = 0;
-    fp = fopen(fn, "wb");
+    fp = fopen(fn, mode);
     if (fp != NULL)
         return fp;
 
@@ -170,5 +171,5 @@ FILE *fopen_w(const char *fn)
 
     free(p);
 
-    return fopen(fn, "wb");
+    return fopen(fn, mode);
 }

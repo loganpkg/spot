@@ -128,7 +128,7 @@ common_funcs(p, void *)dnl
 divert(1)dnl
 <[#endif
 ]>divert(0)dnl
-writediv(1, buf_structs.h)dnl
+writediv(1, buf_structs.h, 0)dnl
 
 <[int unget_ch(struct ibuf *b, char ch)
 {
@@ -547,7 +547,7 @@ int put_stream(struct obuf *b, FILE * fp)
     return ERR;
 }
 
-int write_obuf(struct obuf *b, const char *fn)
+int write_obuf(struct obuf *b, const char *fn, int append)
 {
     /* Empties b to file fn */
     FILE *fp;
@@ -557,7 +557,7 @@ int write_obuf(struct obuf *b, const char *fn)
         return ERR;
     }
 
-    if ((fp = fopen_w(fn)) == NULL) {
+    if ((fp = fopen_w(fn, append)) == NULL) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
         return ERR;
     }

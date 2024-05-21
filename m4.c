@@ -573,14 +573,20 @@ int NM(void *v)
 int NM(void *v)
 {
     M4ptr m4 = (M4ptr) v;
+    int append = 0;
     char ch;
 
-    usage(2, "div_num, filename");
+    usage(3, "div_num, filename, append");
+
+    if (!strcmp(arg(3), "1"))
+        append = 1;
 
     ch = *arg(1);
+
+
     /* Cannot write diversions 0 and -1 */
     if (strlen(arg(1)) == 1 && isdigit(ch) && ch != '0') {
-        if (write_obuf(m4->div[ch - '0'], arg(2))) {
+        if (write_obuf(m4->div[ch - '0'], arg(2), append)) {
             fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
             return ERR;
         }

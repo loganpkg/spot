@@ -214,7 +214,7 @@ int sane_io(void);
 char *concat(const char *str, ...);
 void *quick_search(const void *mem, size_t mem_len, const void *find,
                    size_t find_len);
-FILE *fopen_w(const char *fn);
+FILE *fopen_w(const char *fn, int append);
 int str_to_num(const char *str, unsigned long max_val, unsigned long *res);
 int str_to_size_t(const char *str, size_t *res);
 int hex_to_val(unsigned char h[2], unsigned char *res);
@@ -249,7 +249,7 @@ int put_mem(struct obuf *b, const char *mem, size_t mem_len);
 int put_obuf(struct obuf *b, struct obuf *t);
 int put_file(struct obuf *b, const char *fn);
 int put_stream(struct obuf *b, FILE * fp);
-int write_obuf(struct obuf *b, const char *fn);
+int write_obuf(struct obuf *b, const char *fn, int append);
 int flush_obuf(struct obuf *b);
 char *obuf_to_str(struct obuf **b);
 struct gb *init_gb(size_t s);
