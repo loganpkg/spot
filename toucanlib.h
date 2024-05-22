@@ -167,13 +167,46 @@ typedef int (*Fptr)(void *);
 
 /*
  * Input buffer: Characters are stored in reverse order.
+ * Unget file links in a new struct at the head.
  * Operated on by get and unget functions.
- *
+ */
+struct ibuf {
+    char *nm;                   /* Associated filename or name of stream */
+    FILE *fp;                   /* File pointer */
+    size_t rn;                  /* Row number in file, starting from 1 */
+    char *a;                    /* Memory */
+    size_t i;                   /* Write index */
+    size_t n;                   /* Allocated number of elements */
+    struct ibuf *next;          /* Link to next struct */
+};
+
+/*
  * Ouput buffer: Characters are stored in normal order.
  * Operated on by put functions.
  */
+struct obuf {
+    char *a;                    /* Memory */
+    size_t i;                   /* Write index */
+    size_t n;                   /* Allocated number of elements */
+};
 
-#include "buf_structs.h"
+struct lbuf {
+    long *a;                    /* Memory */
+    size_t i;                   /* Write index */
+    size_t n;                   /* Allocated number of elements */
+};
+
+struct sbuf {
+    size_t *a;                  /* Memory */
+    size_t i;                   /* Write index */
+    size_t n;                   /* Allocated number of elements */
+};
+
+struct pbuf {
+    void **a;                   /* Memory */
+    size_t i;                   /* Write index */
+    size_t n;                   /* Allocated number of elements */
+};
 
 
 struct gb {
@@ -220,8 +253,8 @@ int str_to_size_t(const char *str, size_t *res);
 int hex_to_val(unsigned char h[2], unsigned char *res);
 int lop(long *a, long b, char op);
 int lpow(long *a, long b);
-struct ibuf *init_ibuf(size_t n);
-void free_ibuf(struct ibuf *b);
+struct ibuf *init_ibuf(size_t n, int read_stdin);
+int free_ibuf(struct ibuf *b);
 int add_i(struct ibuf *b, char x);
 struct obuf *init_obuf(size_t n);
 void free_obuf(struct obuf *b);
@@ -238,12 +271,12 @@ int add_p(struct pbuf *b, void *x);
 int unget_ch(struct ibuf *b, char ch);
 int put_ch(struct obuf *b, char ch);
 int unget_str(struct ibuf *b, const char *str);
-int unget_file(struct ibuf *b, const char *fn);
-int get_ch(struct ibuf *input, char *ch, int read_stdin);
-int eat_str_if_match(struct ibuf *input, const char *str, int read_stdin);
-int get_word(struct ibuf *input, struct obuf *token, int read_stdin);
-int eat_whitespace(struct ibuf *input, int read_stdin);
-int delete_to_nl(struct ibuf *input, int read_stdin);
+int unget_file(struct ibuf **b, const char *fn);
+int get_ch(struct ibuf **input, char *ch);
+int eat_str_if_match(struct ibuf **input, const char *str);
+int get_word(struct ibuf **input, struct obuf *token);
+int eat_whitespace(struct ibuf **input);
+int delete_to_nl(struct ibuf **input);
 int put_str(struct obuf *b, const char *str);
 int put_mem(struct obuf *b, const char *mem, size_t mem_len);
 int put_obuf(struct obuf *b, struct obuf *t);
@@ -290,7 +323,7 @@ int save(struct gb *b);
 int rename_gb(struct gb *b, const char *fn);
 int new_gb(struct gb **b, const char *fn, size_t s);
 void remove_gb(struct gb **b);
-int eval(struct ibuf *input, int read_stdin, long *res, int verbose);
+int eval(struct ibuf **input, long *res, int verbose);
 int eval_str(const char *math_str, long *res, int verbose);
 struct ht *init_ht(size_t num_buckets);
 void free_ht(struct ht *ht);

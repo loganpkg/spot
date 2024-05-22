@@ -45,20 +45,21 @@ int main(void)
         return ERR;
     }
 
-    if ((input = init_ibuf(INIT_BUF_SIZE)) == NULL) {
+    if ((input = init_ibuf(INIT_BUF_SIZE, 1)) == NULL) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
         return ERR;
     }
 
     while (1) {
-        ret = eval(input, 1, &x, 0);
+        ret = eval(&input, &x, 0);
 
         if (!ret)
             printf("%ld\n", x);
         else if (ret == ERR || ret == EOF)
             break;
         else
-            fprintf(stderr, "bc: Math error\n");
+            fprintf(stderr, "%s:%lu: Math error\n", input->nm,
+                    input->rn - 1);
     }
 
     free_ibuf(input);

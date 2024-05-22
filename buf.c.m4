@@ -1,4 +1,4 @@
-<[/*
+changequote(<[, ]>)<[/*
  * Copyright (c) 2023 Logan Ryan McLintock
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
@@ -25,54 +25,78 @@
 #include "toucanlib.h"
 
 #define READ_BLOCK_SIZE BUFSIZ
+#define INIT_BUF_SIZE 512
 
-]>divert(1)dnl
-<[#ifndef BUF_STRUCTS_H
-#define BUF_STRUCTS_H
-
-#include <stddef.h>
-
-]>divert(0)dnl
-define(common_funcs,
-<[divert(1)dnl
-struct $1buf {
-    $2 *a;                      /* Memory */
-    size_t i;                   /* Write index */
-    size_t n;                   /* Allocated number of elements */
-};
-
-divert(0)dnl
-struct $1buf *init_$1buf(size_t n)
+]>define(common_funcs,
+<[struct $1buf *init_$1buf(size_t n ifelse($1, i, <[, int read_stdin]>, ))
 {
-    struct $1buf *b;
+    struct $1buf *b = NULL;
 
-    if ((b = malloc(sizeof(struct $1buf))) == NULL) {
+    if ((b = calloc(1, sizeof(struct $1buf))) == NULL) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return NULL;
+        goto error;
     }
 
     if (mof(n, sizeof($2), SIZE_MAX)) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return NULL;
+        goto error;
     }
 
     if ((b->a = malloc(n * sizeof($2))) == NULL) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return NULL;
+        goto error;
     }
 
+    ifelse($1, i,
+    if (read_stdin) {
+        if ((b->nm = strdup("stdin")) == NULL) {
+              fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+              goto error;
+        }
+
+        b->fp = stdin;
+        b->rn = 1;
+    }
+
+    , )dnl
     b->i = 0;
     b->n = n;
     return b;
+
+error:
+    free_$1buf(b);
+    return NULL;
 }
 
+ifelse($1, i,
+int free_$1buf(struct $1buf *b)
+{
+    int ret = 0;
+    struct $1buf *t;
+    while (b != NULL) {
+        t = b->next;
+
+        if (b->nm != NULL)
+            free(b->nm);
+
+        if (b->fp != NULL && b->fp != stdin)
+            if (fclose(b->fp))
+                  ret = ERR; /* Continue */
+
+        free(b->a);
+        free(b);
+        b = t;
+    }
+
+    return ret;
+},
 void free_$1buf(struct $1buf *b)
 {
     if (b != NULL) {
         free(b->a);
         free(b);
     }
-}
+})
 
 static int grow_$1buf(struct $1buf *b, size_t will_use)
 {
@@ -125,10 +149,6 @@ common_funcs(o, char)dnl
 common_funcs(l, long)dnl
 common_funcs(s, size_t)dnl
 common_funcs(p, void *)dnl
-divert(1)dnl
-<[#endif
-]>divert(0)dnl
-writediv(1, buf_structs.h, 0)dnl
 
 <[int unget_ch(struct ibuf *b, char ch)
 {
@@ -167,98 +187,92 @@ int unget_str(struct ibuf *b, const char *str)
     return 0;
 }
 
-int unget_file(struct ibuf *b, const char *fn)
+int unget_file(struct ibuf **b, const char *fn)
 {
-    int ret = ERR;
-    FILE *fp = NULL;
-    size_t fs, j;
-    char *p;
-    int x;
+    /* Creates a new struct head */
+    struct ibuf *t = NULL;
 
     if (fn == NULL || *fn == '\0') {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
         return ERR;
     }
 
-    if ((fp = fopen(fn, "rb")) == NULL) {
-        ret = ERR;
+    if ((t = init_ibuf(INIT_BUF_SIZE, 0)) == NULL) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto clean_up;
+        goto error;
     }
 
-    if (get_file_size(fn, &fs)) {
-        ret = ERR;
+    if ((t->fp = fopen(fn, "rb")) == NULL) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto clean_up;
+        goto error;
     }
 
-    if (!fs) {
-        ret = ERR;
+    if ((t->nm = strdup(fn)) == NULL) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto done;
+        goto error;
     }
 
-    if (fs > b->n - b->i && grow_ibuf(b, fs)) {
-        ret = ERR;
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto clean_up;
-    }
+    t->rn = 1;
 
-    p = b->a + b->i + fs - 1;
-    j = fs;
-    while (j) {
-        if ((x = getc(fp)) == EOF) {
-            ret = ERR;
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            goto clean_up;
-        }
+    /* Link in */
+    t->next = *b;
+    *b = t;
 
-        *p = x;
-        --p;
-        --j;
-    }
-    if (ferror(fp)) {
-        ret = ERR;
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto clean_up;
-    }
+    return 0;
 
-    b->i += fs;
+  error:
+    free_ibuf(t);
 
-  done:
-    ret = 0;
-  clean_up:
-    if (fp != NULL && fclose(fp))
-        ret = ERR;
-
-    return ret;
+    return ERR;
 }
 
-int get_ch(struct ibuf *input, char *ch, int read_stdin)
+int get_ch(struct ibuf **input, char *ch)
 {
+    struct ibuf *t = NULL;
     int x;
 
-    if (input->i) {
-        --input->i;
-        *ch = *(input->a + input->i);
+top:
+    if ((*input)->i) {
+        --(*input)->i;
+        *ch = *((*input)->a + (*input)->i);
         return 0;
     }
-    if (!read_stdin)
-        return EOF;
 
-    if ((x = getchar()) == EOF) {
-        if (feof(stdin) && !ferror(stdin))
-            return EOF;
-        else {
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            return ERR;
+    if ((*input)->fp != NULL ) {
+        if ((x = getc((*input)->fp)) == EOF) {
+            if (ferror((*input)->fp)) {
+                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+                return ERR;
+            } else if (feof((*input)->fp)) {
+                if ((*input)->next != NULL) {
+                    t = (*input)->next;
+                    /* Isolate old head */
+                    (*input)->next = NULL;
+                    if (free_ibuf(*input)) {
+                        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+                        return ERR;
+                    }
+                    /* Update head */
+                    *input = t;
+                    goto top;
+                } else {
+                      return EOF;
+                }
+            }
+        } else {
+            if (x == '\n')
+                ++(*input)->rn;
+
+            *ch = x;
+            return 0;
+
         }
     }
-    *ch = x;
-    return 0;
+
+    return EOF;
 }
 
-int eat_str_if_match(struct ibuf *input, const char *str, int read_stdin)
+int eat_str_if_match(struct ibuf **input, const char *str)
 {
     /*
      * Checks for str at the start of input and eats it if there is a match.
@@ -276,7 +290,7 @@ int eat_str_if_match(struct ibuf *input, const char *str, int read_stdin)
         if (x == '\0')
             break;
 
-        r = get_ch(input, &ch, read_stdin);
+        r = get_ch(input, &ch);
         if (r == ERR) {
             fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
             return ERR;
@@ -284,7 +298,7 @@ int eat_str_if_match(struct ibuf *input, const char *str, int read_stdin)
             goto no_match;
 
         if (x != ch) {
-            if (unget_ch(input, ch)) {
+            if (unget_ch(*input, ch)) {
                 fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
                 return ERR;
             }
@@ -300,7 +314,7 @@ int eat_str_if_match(struct ibuf *input, const char *str, int read_stdin)
   no_match:
     /* Return the read characters */
     while (i) {
-        if (unget_ch(input, *(str + i - 1))) {
+        if (unget_ch(*input, *(str + i - 1))) {
             fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
             return ERR;
         }
@@ -311,13 +325,13 @@ int eat_str_if_match(struct ibuf *input, const char *str, int read_stdin)
     return NO_MATCH;
 }
 
-int get_word(struct ibuf *input, struct obuf *token, int read_stdin)
+int get_word(struct ibuf **input, struct obuf *token)
 {
     int r;
     char ch, type;
 
     do {
-        if ((r = get_ch(input, &ch, read_stdin)) != 0)
+        if ((r = get_ch(input, &ch)) != 0)
             return r;
     } while (ch == '\0' || ch == '\r'); /* Discard these chars */
 
@@ -337,7 +351,7 @@ int get_word(struct ibuf *input, struct obuf *token, int read_stdin)
 
     while (1) {
         do {
-            r = get_ch(input, &ch, read_stdin);
+            r = get_ch(input, &ch);
             if (r == ERR) {
                 fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
                 return ERR;
@@ -353,7 +367,7 @@ int get_word(struct ibuf *input, struct obuf *token, int read_stdin)
                 return ERR;
             }
         } else {
-            if (unget_ch(input, ch)) {
+            if (unget_ch(*input, ch)) {
                 fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
                 return ERR;
             }
@@ -371,13 +385,13 @@ int get_word(struct ibuf *input, struct obuf *token, int read_stdin)
     return 0;
 }
 
-int eat_whitespace(struct ibuf *input, int read_stdin)
+int eat_whitespace(struct ibuf **input)
 {
     int r;
     char ch;
 
     while (1) {
-        r = get_ch(input, &ch, read_stdin);
+        r = get_ch(input, &ch);
         if (r == ERR) {
             fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
             return ERR;
@@ -385,7 +399,7 @@ int eat_whitespace(struct ibuf *input, int read_stdin)
             break;
 
         if (!(isspace(ch) || ch == '\0')) {
-            if (unget_ch(input, ch)) {
+            if (unget_ch(*input, ch)) {
                 fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
                 return ERR;
             }
@@ -396,14 +410,14 @@ int eat_whitespace(struct ibuf *input, int read_stdin)
     return 0;
 }
 
-int delete_to_nl(struct ibuf *input, int read_stdin)
+int delete_to_nl(struct ibuf **input)
 {
     /* Delete to (and including) the next newline character */
     int r;
     char ch;
 
     while (1) {
-        r = get_ch(input, &ch, read_stdin);
+        r = get_ch(input, &ch);
         if (r == ERR) {
             fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
             return ERR;

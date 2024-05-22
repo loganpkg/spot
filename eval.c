@@ -72,7 +72,7 @@ static int process_operator(struct lbuf *x, char h, int verbose)
     return 0;
 }
 
-int eval(struct ibuf *input, int read_stdin, long *res, int verbose)
+int eval(struct ibuf **input, long *res, int verbose)
 {
     /* res is OK to use if return value is not ERR (EOF is OK) */
     int ret = ERR;
@@ -106,7 +106,7 @@ int eval(struct ibuf *input, int read_stdin, long *res, int verbose)
     }
 
     while (1) {
-        r = get_word(input, token, read_stdin);
+        r = get_word(input, token);
         if (r == ERR) {
             ret = ERR;
             fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
@@ -121,7 +121,7 @@ int eval(struct ibuf *input, int read_stdin, long *res, int verbose)
 
         first_read = 0;
 
-        if (r == EOF || (read_stdin && *token->a == '\n')) {
+        if (r == EOF || ((*input)->fp == stdin && *token->a == '\n')) {
             while (y->i) {
                 h = *(y->a + y->i - 1);
                 if (h == '(') {
@@ -329,8 +329,7 @@ int eval(struct ibuf *input, int read_stdin, long *res, int verbose)
 
     if (ret) {
         /* Eat the rest of the line if not already at the end of the line */
-        if (r != EOF && *token->a != '\n'
-            && delete_to_nl(input, read_stdin))
+        if (r != EOF && *token->a != '\n' && delete_to_nl(input))
             ret = ERR;
     }
 
@@ -346,7 +345,7 @@ int eval_str(const char *math_str, long *res, int verbose)
     int ret = ERR;
     struct ibuf *input = NULL;
 
-    if ((input = init_ibuf(INIT_BUF_SIZE)) == NULL) {
+    if ((input = init_ibuf(INIT_BUF_SIZE, 0)) == NULL) {
         ret = ERR;
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
         goto clean_up;
@@ -358,7 +357,7 @@ int eval_str(const char *math_str, long *res, int verbose)
         goto clean_up;
     }
 
-    if ((ret = eval(input, 0, res, verbose))) {
+    if ((ret = eval(&input, res, verbose))) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
         goto clean_up;
     }

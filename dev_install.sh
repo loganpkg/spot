@@ -32,7 +32,7 @@ set -x
 install_dir="$HOME"/bin
 flags='-ansi -g -Og -Wall -Wextra -pedantic'
 # Change to 'N' to use ncurses
-use_built_in_curses='N'
+use_built_in_curses='Y'
 #################
 
 
@@ -56,7 +56,7 @@ find . -type f ! -path '*.git*' -exec cp -p '{}' "$build_dir" \;
 
 cd "$build_dir" || exit 1
 
-m4 buf.c.m4 > buf.c
+/usr/bin/m4 buf.c.m4 > buf.c
 
 rm -f err
 
@@ -85,7 +85,7 @@ find . -type f ! -path '*.git*' -name '*.c' \
     ! -name 'spot.c' ! -name 'tornado_dodge.c' \
     -exec cc -c $flags '{}' \;
 
-if [ use_built_in_curses = 'Y' ]
+if [ "$use_built_in_curses" = 'Y' ]
 then
     # To look in the current working directory for <curses.h>
     cc -c $flags -I . spot.c
@@ -99,7 +99,7 @@ ld -r gen.o num.o buf.o gb.o eval.o ht.o regex.o fs.o -o toucanlib.o
 
 cc $flags -o m4 m4.o toucanlib.o
 
-if [ use_built_in_curses = 'Y' ]
+if [ "$use_built_in_curses" = 'Y' ]
 then
     cc $flags -o spot spot.o curses.o toucanlib.o
     cc $flags -o tornado_dodge tornado_dodge.o curses.o toucanlib.o

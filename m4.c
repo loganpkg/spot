@@ -43,8 +43,8 @@
 
 #define INIT_BUF_SIZE 512
 
-#define DEFAULT_LEFT_QUOTE "<["
-#define DEFAULT_RIGHT_QUOTE "]>"
+#define DEFAULT_LEFT_QUOTE "`"
+#define DEFAULT_RIGHT_QUOTE "'"
 
 /*
  * Do not change.
@@ -52,6 +52,12 @@
  * Diversion -1 is index 10 which is continuously discarded.
  */
 #define NUM_DIVS 11
+
+#define mgoto(lb) do {                                        \
+    fprintf(stderr, "[%s:%d]: Error\n", __FILE__, __LINE__);  \
+    goto lb;                                                  \
+} while (0)
+
 
 /*
  * When there is no stack, the output will be the active diversion.
@@ -78,7 +84,6 @@ typedef struct m4_info *M4ptr;
 struct m4_info {
     int req_exit_val;           /* User requested exit value */
     struct ht *ht;
-    int read_stdin;
     /* There is only one input. Characters are stored in reverse order. */
     struct ibuf *input;
     struct obuf *token;
@@ -227,7 +232,8 @@ int end_macro(M4ptr m4)
     int ret;
     if (m4->stack->mfp != NULL) {
         if ((ret = (*m4->stack->mfp) (m4)))
-            fprintf(stderr, "m4: %s: Failed\n", arg(0));
+            fprintf(stderr, "%s:%lu: %s: Failed\n", m4->input->nm,
+                    m4->input->rn, arg(0));
     } else {
         ret = sub_args(m4);
     }
@@ -251,6 +257,7 @@ void free_m4(M4ptr m4)
         free_ibuf(m4->input);
         free_obuf(m4->token);
         free_obuf(m4->store);
+        free_sbuf(m4->str_start);
         free_mc_stack(&m4->stack);
         free_obuf(m4->tmp);
         for (i = 0; i < NUM_DIVS; ++i)
@@ -263,7 +270,7 @@ void free_m4(M4ptr m4)
     }
 }
 
-M4ptr init_m4(void)
+M4ptr init_m4(int read_stdin)
 {
     M4ptr m4;
     size_t i;
@@ -285,55 +292,35 @@ M4ptr init_m4(void)
     for (i = 0; i < NUM_DIVS; ++i)
         m4->div[i] = NULL;
 
-    if ((m4->ht = init_ht(NUM_BUCKETS)) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto error;
-    }
+    if ((m4->ht = init_ht(NUM_BUCKETS)) == NULL)
+        mgoto(error);
 
-    m4->read_stdin = 0;
+    if ((m4->input = init_ibuf(INIT_BUF_SIZE, read_stdin)) == NULL)
+        mgoto(error);
 
-    if ((m4->input = init_ibuf(INIT_BUF_SIZE)) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto error;
-    }
+    if ((m4->token = init_obuf(INIT_BUF_SIZE)) == NULL)
+        mgoto(error);
 
-    if ((m4->token = init_obuf(INIT_BUF_SIZE)) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto error;
-    }
+    if ((m4->store = init_obuf(INIT_BUF_SIZE)) == NULL)
+        mgoto(error);
 
-    if ((m4->store = init_obuf(INIT_BUF_SIZE)) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto error;
-    }
+    if ((m4->str_start = init_sbuf(INIT_BUF_SIZE)) == NULL)
+        mgoto(error);
 
-    if ((m4->str_start = init_sbuf(INIT_BUF_SIZE)) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto error;
-    }
-
-    if ((m4->tmp = init_obuf(INIT_BUF_SIZE)) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto error;
-    }
+    if ((m4->tmp = init_obuf(INIT_BUF_SIZE)) == NULL)
+        mgoto(error);
 
     for (i = 0; i < NUM_DIVS; ++i)
-        if ((m4->div[i] = init_obuf(INIT_BUF_SIZE)) == NULL) {
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            goto error;
-        }
+        if ((m4->div[i] = init_obuf(INIT_BUF_SIZE)) == NULL)
+            mgoto(error);
 
     m4->active_div = 0;
 
-    if ((m4->left_quote = strdup(DEFAULT_LEFT_QUOTE)) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto error;
-    }
+    if ((m4->left_quote = strdup(DEFAULT_LEFT_QUOTE)) == NULL)
+        mgoto(error);
 
-    if ((m4->right_quote = strdup(DEFAULT_RIGHT_QUOTE)) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto error;
-    }
+    if ((m4->right_quote = strdup(DEFAULT_RIGHT_QUOTE)) == NULL)
+        mgoto(error);
 
     m4->quote_depth = 0;
     m4->error_exit = 0;
@@ -383,16 +370,16 @@ int validate_quote(const char *quote)
     return 0;
 }
 
-#define usage(num_pars, par_desc) do {                                  \
-    if (m4->help) {                                                     \
-        fprintf(stderr, "%s: %s: %s\n", "built-in", esf(NM), par_desc); \
-        return 0;                                                       \
-    }                                                                   \
-    if (num_args_collected != num_pars) {                               \
-        fprintf(stderr, "%s:%d: Usage: %s: %s\n", __FILE__, __LINE__,   \
-                esf(NM), par_desc);                                     \
-        return USAGE_ERR;                                               \
-    }                                                                   \
+#define usage(num_pars, par_desc) do {                                    \
+    if (m4->help) {                                                       \
+        fprintf(stderr, "%s: %s: %s\n", "built-in", esf(NM), par_desc);   \
+        return 0;                                                         \
+    }                                                                     \
+    if (num_args_collected != num_pars) {                                 \
+        fprintf(stderr, "%s:%lu [%s:%d]: Usage: %s: %s\n", m4->input->nm, \
+            m4->input->rn, __FILE__, __LINE__, esf(NM), par_desc);        \
+        return USAGE_ERR;                                                 \
+    }                                                                     \
 } while (0)
 
 
@@ -635,7 +622,7 @@ int NM(void *v)
 
     usage(1, "filename");
 
-    if (unget_file(m4->input, arg(1))) {
+    if (unget_file(&m4->input, arg(1))) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
         return ERR;
     }
@@ -652,7 +639,7 @@ int NM(void *v)
 
     usage(0, "");
 
-    return delete_to_nl(m4->input, m4->read_stdin);
+    return delete_to_nl(&m4->input);
 }
 
 #undef NM
@@ -1144,174 +1131,43 @@ int main(int argc, char **argv)
         return ERR;
     }
 
-    if ((m4 = init_m4()) == NULL) {
+    if ((m4 = init_m4(argc > 1 ? 0 : 1)) == NULL)
+        mgoto(error);
 
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto error;
-    }
-
-    /* Load built-in macros */
-    if (upsert(m4->ht, "define", NULL, &define)) {
-
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto error;
-    }
-
-    if (upsert(m4->ht, "undefine", NULL, &undefine)) {
-
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto error;
-    }
-
-    if (upsert(m4->ht, "changequote", NULL, &changequote)) {
-
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto error;
-    }
-
-    if (upsert(m4->ht, "divert", NULL, &divert)) {
-
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto error;
-    }
-
-    if (upsert(m4->ht, "undivert", NULL, &undivert)) {
-
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto error;
-    }
-
-    if (upsert(m4->ht, "writediv", NULL, &writediv)) {
-
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto error;
-    }
-
-    if (upsert(m4->ht, "divnum", NULL, &divnum)) {
-
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto error;
-    }
-
-    if (upsert(m4->ht, "include", NULL, &include)) {
-
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto error;
-    }
-
-    if (upsert(m4->ht, "dnl", NULL, &dnl)) {
-
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto error;
-    }
-
-    if (upsert(m4->ht, "tnl", NULL, &tnl)) {
-
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto error;
-    }
-
-    if (upsert(m4->ht, "regexrep", NULL, &regexrep)) {
-
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto error;
-    }
-
-    if (upsert(m4->ht, "lsdir", NULL, &lsdir)) {
-
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto error;
-    }
-
-    if (upsert(m4->ht, "ifdef", NULL, &ifdef)) {
-
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto error;
-    }
-
-    if (upsert(m4->ht, "ifelse", NULL, &ifelse)) {
-
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto error;
-    }
-
-    if (upsert(m4->ht, "dumpdef", NULL, &dumpdef)) {
-
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto error;
-    }
-
-    if (upsert(m4->ht, "dumpdefall", NULL, &dumpdefall)) {
-
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto error;
-    }
-
-    if (upsert(m4->ht, "errprint", NULL, &errprint)) {
-
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto error;
-    }
-
-    if (upsert(m4->ht, "incr", NULL, &incr)) {
-
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto error;
-    }
-
-    if (upsert(m4->ht, "evalmath", NULL, &evalmath)) {
-
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto error;
-    }
-
-    if (upsert(m4->ht, "esyscmd", NULL, &esyscmd)) {
-
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto error;
-    }
-
-    if (upsert(m4->ht, "sysval", NULL, &sysval)) {
-
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto error;
-    }
-
-    if (upsert(m4->ht, "m4exit", NULL, &m4exit)) {
-
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto error;
-    }
-
-    if (upsert(m4->ht, "errok", NULL, &errok)) {
-
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto error;
-    }
-
-    if (upsert(m4->ht, "errexit", NULL, &errexit)) {
-
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto error;
-    }
-
-    if (upsert(m4->ht, "recrm", NULL, &recrm)) {
-
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto error;
-    }
-
-
-    if (argc > 1) {
+    if (argc > 1)
         for (i = argc - 1; i >= 1; --i)
-            if (unget_file(m4->input, *(argv + i))) {
+            if (unget_file(&m4->input, *(argv + i)))
+                mgoto(error);
 
-                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                goto error;
-            }
-    } else {
-        m4->read_stdin = 1;
-    }
+/* Load built-in macros */
+#define load_bi(m) if (upsert(m4->ht, #m, NULL, &m)) \
+    mgoto(error)
+
+    load_bi(define);
+    load_bi(undefine);
+    load_bi(changequote);
+    load_bi(divert);
+    load_bi(undivert);
+    load_bi(writediv);
+    load_bi(divnum);
+    load_bi(include);
+    load_bi(dnl);
+    load_bi(tnl);
+    load_bi(regexrep);
+    load_bi(lsdir);
+    load_bi(ifdef);
+    load_bi(ifelse);
+    load_bi(dumpdef);
+    load_bi(dumpdefall);
+    load_bi(errprint);
+    load_bi(incr);
+    load_bi(evalmath);
+    load_bi(esyscmd);
+    load_bi(sysval);
+    load_bi(m4exit);
+    load_bi(errok);
+    load_bi(errexit);
+    load_bi(recrm);
 
     /*
      * Loops until the input is exhausted, or the user requests to exit,
@@ -1327,46 +1183,31 @@ int main(int argc, char **argv)
         /* Need to clear macro return value */
         mrv = 0;
 
-        if (flush_obuf(m4->div[0])) {
-
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            goto error;
-        }
+        if (flush_obuf(m4->div[0]))
+            mgoto(error);
 
         m4->div[NUM_ARGS]->i = 0;
 
-        r = eat_str_if_match(m4->input, m4->left_quote, m4->read_stdin);
-        if (r == ERR) {
-
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            goto error;
-        }
+        r = eat_str_if_match(&m4->input, m4->left_quote);
+        if (r == ERR)
+            mgoto(error);
 
         if (r == MATCH) {
-            if (m4->quote_depth && put_str(output, m4->left_quote)) {
-
-                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                goto error;
-            }
+            if (m4->quote_depth && put_str(output, m4->left_quote))
+                mgoto(error);
 
             ++m4->quote_depth;
             /* As might have multiple quotes in a row */
             goto top;
         }
 
-        r = eat_str_if_match(m4->input, m4->right_quote, m4->read_stdin);
-        if (r == ERR) {
-
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            goto error;
-        }
+        r = eat_str_if_match(&m4->input, m4->right_quote);
+        if (r == ERR)
+            mgoto(error);
 
         if (r == MATCH) {
-            if (m4->quote_depth != 1 && put_str(output, m4->right_quote)) {
-
-                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                goto error;
-            }
+            if (m4->quote_depth != 1 && put_str(output, m4->right_quote))
+                mgoto(error);
 
             if (m4->quote_depth)
                 --m4->quote_depth;
@@ -1376,154 +1217,108 @@ int main(int argc, char **argv)
         }
 
         /* Not a quote, so read a token */
-        r = get_word(m4->input, m4->token, m4->read_stdin);
-        if (r == ERR) {
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            goto error;
-        } else if (r == EOF) {
+        r = get_word(&m4->input, m4->token);
+        if (r == ERR)
+            mgoto(error);
+        else if (r == EOF)
             break;
-        }
 
         if (m4->quote_depth) {
             /* Quoted */
-            if (put_str(output, m4->token->a)) {
-                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                goto error;
-            }
+            if (put_str(output, m4->token->a))
+                mgoto(error);
         } else if (m4->stack != NULL && m4->stack->bracket_depth == 1
                    && !strcmp(m4->token->a, ",")) {
-            if (put_ch(output, '\0')) {
-                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                goto error;
-            }
+            if (put_ch(output, '\0'))
+                mgoto(error);
 
-            if (add_s(m4->str_start, m4->store->i)) {
-                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                goto error;
-            }
+            if (add_s(m4->str_start, m4->store->i))
+                mgoto(error);
 
             /* Argument separator */
-            if (eat_whitespace(m4->input, m4->read_stdin)) {
-                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                goto error;
-            }
-
+            if (eat_whitespace(&m4->input))
+                mgoto(error);
         } else if (m4->stack != NULL && m4->stack->bracket_depth == 1
                    && !strcmp(m4->token->a, ")")) {
             /* End of argument collection */
-            if (put_ch(output, '\0')) {
-                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                goto error;
-            }
+            if (put_ch(output, '\0'))
+                mgoto(error);
 
             if ((mrv = end_macro(m4))) {
                 ret = mrv;      /* Save for exit time */
                 if ((mrv == ERR || m4->error_exit)) {
-                    fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+                    fprintf(stderr, "%s:%lu [%s:%d]: Error\n",
+                            m4->input->nm, m4->input->rn, __FILE__,
+                            __LINE__);
                     goto error;
                 }
             }
         } else if (m4->stack != NULL && !strcmp(m4->token->a, "(")) {
             /* Nested unquoted open bracket */
-            if (put_str(output, m4->token->a)) {
-                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                goto error;
-            }
+            if (put_str(output, m4->token->a))
+                mgoto(error);
 
             ++m4->stack->bracket_depth;
         } else if (m4->stack != NULL && m4->stack->bracket_depth > 1
                    && !strcmp(m4->token->a, ")")) {
             /* Nested unquoted close bracket */
-            if (put_str(output, m4->token->a)) {
-                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                goto error;
-            }
+            if (put_str(output, m4->token->a))
+                mgoto(error);
 
             --m4->stack->bracket_depth;
         } else {
             e = lookup(m4->ht, m4->token->a);
             if (e == NULL) {
                 /* Not a macro, so pass through */
-                if (put_str(output, m4->token->a)) {
-                    fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                    goto error;
-                }
+                if (put_str(output, m4->token->a))
+                    mgoto(error);
             } else {
                 /*  Macro */
 
-                if (stack_mc(&m4->stack)) {
-
-                    fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                    goto error;
-                }
+                if (stack_mc(&m4->stack))
+                    mgoto(error);
 
                 m4->stack->bracket_depth = 1;
                 m4->stack->mfp = e->func_p;
 
                 m4->stack->m_i = m4->str_start->i;
 
-                if (add_s(m4->str_start, m4->store->i)) {
-                    fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                    goto error;
-                }
+                if (add_s(m4->str_start, m4->store->i))
+                    mgoto(error);
 
-                if (e->def != NULL && put_str(m4->store, e->def)) {
-                    fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                    goto error;
-                }
+                if (e->def != NULL && put_str(m4->store, e->def))
+                    mgoto(error);
 
-                if (put_ch(m4->store, '\0')) {
-                    fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                    goto error;
-                }
+                if (put_ch(m4->store, '\0'))
+                    mgoto(error);
 
-                if (add_s(m4->str_start, m4->store->i)) {
-                    fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                    goto error;
-                }
+                if (add_s(m4->str_start, m4->store->i))
+                    mgoto(error);
 
-                if (put_str(m4->store, e->name)) {
-                    fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                    goto error;
-                }
+                if (put_str(m4->store, e->name))
+                    mgoto(error);
 
-                if (put_ch(m4->store, '\0')) {
-                    fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                    goto error;
-                }
+                if (put_ch(m4->store, '\0'))
+                    mgoto(error);
 
                 /* See if called with or without brackets */
-                if ((r =
-                     eat_str_if_match(m4->input, "(",
-                                      m4->read_stdin)) == ERR) {
-
-                    fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                    goto error;
-                }
+                if ((r = eat_str_if_match(&m4->input, "(")) == ERR)
+                    mgoto(error);
 
                 if (r == NO_MATCH) {
                     /* Called without arguments */
                     if ((mrv = end_macro(m4))) {
                         ret = mrv;      /* Save for exit time */
-                        if (mrv == ERR || m4->error_exit) {
-                            fprintf(stderr, "%s:%d: Error\n", __FILE__,
-                                    __LINE__);
-                            goto error;
-                        }
+                        if (mrv == ERR || m4->error_exit)
+                            mgoto(error);
                     }
                 } else {
-                    if (add_s(m4->str_start, m4->store->i)) {
-                        fprintf(stderr, "%s:%d: Error\n", __FILE__,
-                                __LINE__);
-                        goto error;
-                    }
+                    if (add_s(m4->str_start, m4->store->i))
+                        mgoto(error);
 
                     /* Ready to collect arg 1 */
-                    if (eat_whitespace(m4->input, m4->read_stdin)) {
-                        fprintf(stderr, "%s:%d: Error\n", __FILE__,
-                                __LINE__);
-                        goto error;
-                    }
+                    if (eat_whitespace(&m4->input))
+                        mgoto(error);
                 }
             }
         }
