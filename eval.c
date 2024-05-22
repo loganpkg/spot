@@ -89,28 +89,24 @@ int eval(struct ibuf **input, long *res, int verbose)
 
     if ((token = init_obuf(INIT_BUF_SIZE)) == NULL) {
         ret = ERR;
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto clean_up;
+        mgoto(clean_up);
     }
 
     if ((x = init_lbuf(INIT_BUF_SIZE)) == NULL) {
         ret = ERR;
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto clean_up;
+        mgoto(clean_up);
     }
 
     if ((y = init_obuf(INIT_BUF_SIZE)) == NULL) {
         ret = ERR;
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto clean_up;
+        mgoto(clean_up);
     }
 
     while (1) {
         r = get_word(input, token);
         if (r == ERR) {
             ret = ERR;
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            goto clean_up;
+            mgoto(clean_up);
         }
 
         if (r == EOF && first_read) {
@@ -131,10 +127,8 @@ int eval(struct ibuf **input, long *res, int verbose)
                     goto clean_up;
                 }
 
-                if ((ret = process_operator(x, h, verbose))) {
-                    fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                    goto clean_up;
-                }
+                if ((ret = process_operator(x, h, verbose)))
+                    mgoto(clean_up);
 
                 --y->i;
             }
@@ -144,18 +138,14 @@ int eval(struct ibuf **input, long *res, int verbose)
         t = *token->a;
 
         if (isdigit(t)) {
-            if ((ret = str_to_num(token->a, LONG_MAX, &num))) {
-                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                goto clean_up;
-            }
+            if ((ret = str_to_num(token->a, LONG_MAX, &num)))
+                mgoto(clean_up);
 
             if (verbose)
                 printf("%lu ", num);
 
-            if ((ret = add_l(x, (long) num))) {
-                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                goto clean_up;
-            }
+            if ((ret = add_l(x, (long) num)))
+                mgoto(clean_up);
 
             if (n) {
                 ret = SYNTAX_ERR;
@@ -178,8 +168,7 @@ int eval(struct ibuf **input, long *res, int verbose)
             case '(':
                 if (put_ch(y, t)) {
                     ret = ERR;
-                    fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                    goto clean_up;
+                    mgoto(clean_up);
                 }
 
                 u = 1;
@@ -202,11 +191,8 @@ int eval(struct ibuf **input, long *res, int verbose)
                         break;
                     }
 
-                    if ((ret = process_operator(x, h, verbose))) {
-                        fprintf(stderr, "%s:%d: Error\n", __FILE__,
-                                __LINE__);
-                        goto clean_up;
-                    }
+                    if ((ret = process_operator(x, h, verbose)))
+                        mgoto(clean_up);
 
                     --y->i;
                 }
@@ -219,18 +205,14 @@ int eval(struct ibuf **input, long *res, int verbose)
                     if (h == '(' || (h != 'p' && h != 'm'))
                         break;
 
-                    if ((ret = process_operator(x, h, verbose))) {
-                        fprintf(stderr, "%s:%d: Error\n", __FILE__,
-                                __LINE__);
-                        goto clean_up;
-                    }
+                    if ((ret = process_operator(x, h, verbose)))
+                        mgoto(clean_up);
 
                     --y->i;
                 }
                 if (put_ch(y, t)) {
                     ret = ERR;
-                    fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                    goto clean_up;
+                    mgoto(clean_up);
                 }
 
                 u = 1;
@@ -244,18 +226,14 @@ int eval(struct ibuf **input, long *res, int verbose)
                     if (h == '(' || h == '+' || h == '-')
                         break;
 
-                    if ((ret = process_operator(x, h, verbose))) {
-                        fprintf(stderr, "%s:%d: Error\n", __FILE__,
-                                __LINE__);
-                        goto clean_up;
-                    }
+                    if ((ret = process_operator(x, h, verbose)))
+                        mgoto(clean_up);
 
                     --y->i;
                 }
                 if (put_ch(y, t)) {
                     ret = ERR;
-                    fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                    goto clean_up;
+                    mgoto(clean_up);
                 }
 
                 u = 1;
@@ -267,9 +245,7 @@ int eval(struct ibuf **input, long *res, int verbose)
                     /* Unary + or -, highest precedence */
                     if (put_ch(y, t == '+' ? 'p' : 'm')) {
                         ret = ERR;
-                        fprintf(stderr, "%s:%d: Error\n", __FILE__,
-                                __LINE__);
-                        goto clean_up;
+                        mgoto(clean_up);
                     }
                 } else {
                     /* Binary + or - */
@@ -278,19 +254,14 @@ int eval(struct ibuf **input, long *res, int verbose)
                         if (h == '(')
                             break;
 
-                        if ((ret = process_operator(x, h, verbose))) {
-                            fprintf(stderr, "%s:%d: Error\n", __FILE__,
-                                    __LINE__);
-                            goto clean_up;
-                        }
+                        if ((ret = process_operator(x, h, verbose)))
+                            mgoto(clean_up);
 
                         --y->i;
                     }
                     if (put_ch(y, t)) {
                         ret = ERR;
-                        fprintf(stderr, "%s:%d: Error\n", __FILE__,
-                                __LINE__);
-                        goto clean_up;
+                        mgoto(clean_up);
                     }
                 }
                 u = 1;
@@ -347,20 +318,16 @@ int eval_str(const char *math_str, long *res, int verbose)
 
     if ((input = init_ibuf(INIT_BUF_SIZE, 0)) == NULL) {
         ret = ERR;
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto clean_up;
+        mgoto(clean_up);
     }
 
     if (unget_str(input, math_str)) {
         ret = ERR;
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto clean_up;
+        mgoto(clean_up);
     }
 
-    if ((ret = eval(&input, res, verbose))) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto clean_up;
-    }
+    if ((ret = eval(&input, res, verbose)))
+        mgoto(clean_up);
 
     ret = 0;
   clean_up:

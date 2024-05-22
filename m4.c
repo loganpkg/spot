@@ -53,11 +53,6 @@
  */
 #define NUM_DIVS 11
 
-#define mgoto(lb) do {                                        \
-    fprintf(stderr, "[%s:%d]: Error\n", __FILE__, __LINE__);  \
-    goto lb;                                                  \
-} while (0)
-
 
 /*
  * When there is no stack, the output will be the active diversion.

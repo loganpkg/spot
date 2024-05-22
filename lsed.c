@@ -39,7 +39,7 @@ int main(int argc, char **argv)
 
     if (argc != 4 && argc != 5) {
         print_usage;
-        goto clean_up;
+        mgoto(clean_up);
     }
 
     if (!strcmp(*(argv + 3), "-nls")) {
@@ -48,43 +48,36 @@ int main(int argc, char **argv)
         nl_sen = 0;
     } else {
         print_usage;
-        goto clean_up;
+        mgoto(clean_up);
     }
 
     if (sane_io())
-        goto clean_up;
+        mgoto(clean_up);
 
     if (argc == 4) {
-        if ((b = init_obuf(BUFSIZ)) == NULL) {
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            goto clean_up;
-        }
-        if (put_stream(b, stdin)) {
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            goto clean_up;
-        }
+        if ((b = init_obuf(BUFSIZ)) == NULL)
+            mgoto(clean_up);
+
+        if (put_stream(b, stdin))
+            mgoto(clean_up);
+
         q = b->a;
         q_s = b->i;
     } else {
-        if (mmap_file_ro(*(argv + 4), &p, &fs)) {
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            goto clean_up;
-        }
+        if (mmap_file_ro(*(argv + 4), &p, &fs))
+            mgoto(clean_up);
+
         q = p;
         q_s = fs;
     }
 
     if (regex_replace(q, q_s,
                       *(argv + 1), *(argv + 2),
-                      strlen(*(argv + 2)), nl_sen, &res, &res_len, 0)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto clean_up;
-    }
+                      strlen(*(argv + 2)), nl_sen, &res, &res_len, 0))
+        mgoto(clean_up);
 
-    if (fwrite(res, 1, res_len, stdout) != res_len) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto clean_up;
-    }
+    if (fwrite(res, 1, res_len, stdout) != res_len)
+        mgoto(clean_up);
 
     ret = 0;
 

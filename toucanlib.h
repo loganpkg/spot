@@ -97,6 +97,12 @@
 #endif
 
 
+#define mgoto(lb) do {                                        \
+    fprintf(stderr, "[%s:%d]: Error\n", __FILE__, __LINE__);  \
+    goto lb;                                                  \
+} while (0)
+
+
 #ifdef _WIN32
 #define DIR_SEP_STR "\\"
 #else

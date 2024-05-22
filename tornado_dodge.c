@@ -64,30 +64,30 @@ int main(void)
     char *man_vert = " o \n" " V \n" " | ";
 
     if (initscr() == NULL)
-        goto clean_up;
+        mgoto(clean_up);
 
     if (raw() == ERR)
-        goto clean_up;
+        mgoto(clean_up);
 
     if (noecho() == ERR)
-        goto clean_up;
+        mgoto(clean_up);
 
     if (keypad(stdscr, TRUE) == ERR)
-        goto clean_up;
+        mgoto(clean_up);
 
     if (set_tabsize(8) == ERR)
-        goto clean_up;
+        mgoto(clean_up);
 
     while (1) {
         if (erase())
-            goto clean_up;
+            mgoto(clean_up);
 
         if (man_x % 2) {
             if (print_object(man_y, man_x, man_vert))
-                goto clean_up;
+                mgoto(clean_up);
         } else {
             if (print_object(man_y, man_x, man))
-                goto clean_up;
+                mgoto(clean_up);
         }
 
         refresh();

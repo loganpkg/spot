@@ -60,7 +60,7 @@ int main(int argc, char **argv)
 
         /* Overflow check */
         if (freq[u] == SIZE_MAX)
-            goto clean_up;
+            mgoto(clean_up);
 
         ++freq[u];
     }

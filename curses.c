@@ -112,39 +112,39 @@ WINDOW *initscr(void)
     /* Setup terminal */
 #ifdef _WIN32
     if (_setmode(_fileno(stdin), _O_BINARY) == -1)
-        goto clean_up;
+        mgoto(clean_up);
 
     if (_setmode(_fileno(stdout), _O_BINARY) == -1)
-        goto clean_up;
+        mgoto(clean_up);
 
     if (_setmode(_fileno(stderr), _O_BINARY) == -1)
-        goto clean_up;
+        mgoto(clean_up);
 
     if ((stdscr->term_handle =
          GetStdHandle(STD_OUTPUT_HANDLE)) == INVALID_HANDLE_VALUE)
-        goto clean_up;
+        mgoto(clean_up);
 
     if (!GetConsoleMode(stdscr->term_handle, &stdscr->term_orig))
-        goto clean_up;
+        mgoto(clean_up);
 
     stdscr->term_new =
         stdscr->term_orig | ENABLE_PROCESSED_OUTPUT |
         ENABLE_VIRTUAL_TERMINAL_PROCESSING;
 
     if (!SetConsoleMode(stdscr->term_handle, stdscr->term_new))
-        goto clean_up;
+        mgoto(clean_up);
 
 #else
 
     if (tcgetattr(STDIN_FILENO, &stdscr->term_orig))
-        goto clean_up;
+        mgoto(clean_up);
 
     stdscr->term_new = stdscr->term_orig;
 
     cfmakeraw(&stdscr->term_new);
 
     if (tcsetattr(STDIN_FILENO, TCSANOW, &stdscr->term_new))
-        goto clean_up;
+        mgoto(clean_up);
 #endif
 
     return stdscr;

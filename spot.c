@@ -303,49 +303,49 @@ int main(int argc, char **argv)
 
 
     if (initscr() == NULL)
-        goto clean_up;
+        mgoto(clean_up);
 
     if (raw() == ERR)
-        goto clean_up;
+        mgoto(clean_up);
 
     if (noecho() == ERR)
-        goto clean_up;
+        mgoto(clean_up);
 
     if (keypad(stdscr, TRUE) == ERR)
-        goto clean_up;
+        mgoto(clean_up);
 
     if (set_tabsize(8) == ERR)
-        goto clean_up;
+        mgoto(clean_up);
 
     if (argc > 1) {
-        for (i = 1; i < argc; ++i) {
+        for (i = 1; i < argc; ++i)
             if (new_gb(&b, *(argv + i), INIT_GB_SIZE))
-                goto clean_up;
-        }
+                mgoto(clean_up);
+
         while (b->prev)
             b = b->prev;
     } else {
         /* No args */
         if (new_gb(&b, NULL, INIT_GB_SIZE))
-            goto clean_up;
+            mgoto(clean_up);
     }
 
     if ((p = init_gb(INIT_GB_SIZE)) == NULL)
-        goto clean_up;
+        mgoto(clean_up);
 
     if ((cl = init_gb(INIT_GB_SIZE)) == NULL)
-        goto clean_up;
+        mgoto(clean_up);
 
     if ((se = init_gb(INIT_GB_SIZE)) == NULL)
-        goto clean_up;
+        mgoto(clean_up);
 
     if ((tmp = init_gb(INIT_GB_SIZE)) == NULL)
-        goto clean_up;
+        mgoto(clean_up);
 
     while (running) {
         if (draw
             (b, cl, cl_active, &sb, &sb_s, &centre, &clr, rv, es_set, es))
-            goto clean_up;
+            mgoto(clean_up);
 
         rv = 0;
         es_set = 0;

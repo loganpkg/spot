@@ -32,26 +32,18 @@ struct ibuf *init_ibuf(size_t n, int read_stdin)
 {
     struct ibuf *b = NULL;
 
-    if ((b = calloc(1, sizeof(struct ibuf))) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto error;
-    }
+    if ((b = calloc(1, sizeof(struct ibuf))) == NULL)
+        mgoto(error);
 
-    if (mof(n, sizeof(char), SIZE_MAX)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto error;
-    }
+    if (mof(n, sizeof(char), SIZE_MAX))
+        mgoto(error);
 
-    if ((b->a = malloc(n * sizeof(char))) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto error;
-    }
+    if ((b->a = malloc(n * sizeof(char))) == NULL)
+        mgoto(error);
 
     if (read_stdin) {
-        if ((b->nm = strdup("stdin")) == NULL) {
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            goto error;
-        }
+        if ((b->nm = strdup("stdin")) == NULL)
+            mgoto(error);
 
         b->fp = stdin;
         b->rn = 1;
@@ -138,20 +130,14 @@ struct obuf *init_obuf(size_t n)
 {
     struct obuf *b = NULL;
 
-    if ((b = calloc(1, sizeof(struct obuf))) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto error;
-    }
+    if ((b = calloc(1, sizeof(struct obuf))) == NULL)
+        mgoto(error);
 
-    if (mof(n, sizeof(char), SIZE_MAX)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto error;
-    }
+    if (mof(n, sizeof(char), SIZE_MAX))
+        mgoto(error);
 
-    if ((b->a = malloc(n * sizeof(char))) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto error;
-    }
+    if ((b->a = malloc(n * sizeof(char))) == NULL)
+        mgoto(error);
 
     b->i = 0;
     b->n = n;
@@ -220,20 +206,14 @@ struct lbuf *init_lbuf(size_t n)
 {
     struct lbuf *b = NULL;
 
-    if ((b = calloc(1, sizeof(struct lbuf))) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto error;
-    }
+    if ((b = calloc(1, sizeof(struct lbuf))) == NULL)
+        mgoto(error);
 
-    if (mof(n, sizeof(long), SIZE_MAX)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto error;
-    }
+    if (mof(n, sizeof(long), SIZE_MAX))
+        mgoto(error);
 
-    if ((b->a = malloc(n * sizeof(long))) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto error;
-    }
+    if ((b->a = malloc(n * sizeof(long))) == NULL)
+        mgoto(error);
 
     b->i = 0;
     b->n = n;
@@ -302,20 +282,14 @@ struct sbuf *init_sbuf(size_t n)
 {
     struct sbuf *b = NULL;
 
-    if ((b = calloc(1, sizeof(struct sbuf))) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto error;
-    }
+    if ((b = calloc(1, sizeof(struct sbuf))) == NULL)
+        mgoto(error);
 
-    if (mof(n, sizeof(size_t), SIZE_MAX)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto error;
-    }
+    if (mof(n, sizeof(size_t), SIZE_MAX))
+        mgoto(error);
 
-    if ((b->a = malloc(n * sizeof(size_t))) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto error;
-    }
+    if ((b->a = malloc(n * sizeof(size_t))) == NULL)
+        mgoto(error);
 
     b->i = 0;
     b->n = n;
@@ -384,20 +358,14 @@ struct pbuf *init_pbuf(size_t n)
 {
     struct pbuf *b = NULL;
 
-    if ((b = calloc(1, sizeof(struct pbuf))) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto error;
-    }
+    if ((b = calloc(1, sizeof(struct pbuf))) == NULL)
+        mgoto(error);
 
-    if (mof(n, sizeof(void *), SIZE_MAX)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto error;
-    }
+    if (mof(n, sizeof(void *), SIZE_MAX))
+        mgoto(error);
 
-    if ((b->a = malloc(n * sizeof(void *))) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto error;
-    }
+    if ((b->a = malloc(n * sizeof(void *))) == NULL)
+        mgoto(error);
 
     b->i = 0;
     b->n = n;
@@ -509,20 +477,14 @@ int unget_file(struct ibuf **b, const char *fn)
         return ERR;
     }
 
-    if ((t = init_ibuf(INIT_BUF_SIZE, 0)) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto error;
-    }
+    if ((t = init_ibuf(INIT_BUF_SIZE, 0)) == NULL)
+        mgoto(error);
 
-    if ((t->fp = fopen(fn, "rb")) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto error;
-    }
+    if ((t->fp = fopen(fn, "rb")) == NULL)
+        mgoto(error);
 
-    if ((t->nm = strdup(fn)) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto error;
-    }
+    if ((t->nm = strdup(fn)) == NULL)
+        mgoto(error);
 
     t->rn = 1;
 
@@ -798,32 +760,27 @@ int put_file(struct obuf *b, const char *fn)
 
     if ((fp = fopen(fn, "rb")) == NULL) {
         ret = ERR;
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto clean_up;
+        mgoto(clean_up);
     }
 
     if (get_file_size(fn, &fs)) {
         ret = ERR;
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto clean_up;
+        mgoto(clean_up);
     }
 
     if (!fs) {
         ret = ERR;
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto done;
+        mgoto(done);
     }
 
     if (fs > b->n - b->i && grow_obuf(b, fs)) {
         ret = ERR;
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto clean_up;
+        mgoto(clean_up);
     }
 
     if (fread(b->a + b->i, 1, fs, fp) != fs) {
         ret = ERR;
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto clean_up;
+        mgoto(clean_up);
     }
 
     b->i += fs;
@@ -850,21 +807,17 @@ int put_stream(struct obuf *b, FILE * fp)
     i_backup = b->i;
 
     while (1) {
-        if (READ_BLOCK_SIZE > b->n - b->i && grow_obuf(b, READ_BLOCK_SIZE)) {
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            goto error;
-        }
+        if (READ_BLOCK_SIZE > b->n - b->i && grow_obuf(b, READ_BLOCK_SIZE))
+            mgoto(error);
 
         rs = fread(b->a + b->i, 1, READ_BLOCK_SIZE, fp);
         b->i += rs;
 
         if (rs != READ_BLOCK_SIZE) {
-            if (feof(fp) && !ferror(fp)) {
+            if (feof(fp) && !ferror(fp))
                 break;
-            } else {
-                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                goto error;
-            }
+            else
+                mgoto(error);
         }
     }
     return 0;

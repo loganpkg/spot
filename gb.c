@@ -188,17 +188,17 @@ int insert_file(struct gb *b, const char *fn)
     }
 
     if (get_file_size(fn, &fs))
-        goto clean_up;
+        mgoto(clean_up);
 
     if (!fs)
         goto done;
 
     if (fs > b->c - b->g && grow_gap(b, fs))
-        goto clean_up;
+        mgoto(clean_up);
 
     /* Right side of gap insert */
     if (fread(b->a + b->c - fs, 1, fs, fp) != fs)
-        goto clean_up;
+        mgoto(clean_up);
 
     b->c -= fs;
     b->m_set = 0;
@@ -521,16 +521,16 @@ int regex_replace_region(struct gb *b, struct gb *cl)
     size_t res_len;
 
     if (!b->m_set)
-        goto clean_up;
+        mgoto(clean_up);
 
     start_of_gb(cl);
     if (cl->c == cl->e)
-        goto clean_up;
+        mgoto(clean_up);
 
     delim = *(cl->a + cl->c);
     find = (char *) cl->a + cl->c + 1;
     if ((sep = memchr(find, delim, cl->e - (cl->c + 1))) == NULL)
-        goto clean_up;
+        mgoto(clean_up);
 
     *sep = '\0';
     replace = sep + 1;
@@ -538,12 +538,12 @@ int regex_replace_region(struct gb *b, struct gb *cl)
     /* Move cursor to start of region */
     if (b->c > b->m)
         if (swap_cursor_and_mark(b))
-            goto clean_up;
+            mgoto(clean_up);
 
     if (regex_replace((char *) b->a + b->c, b->m - b->c, find, replace,
                       (char *) cl->a + cl->e - replace, 1, &res, &res_len,
                       0))
-        goto clean_up;
+        mgoto(clean_up);
 
     /* Delete region */
     b->c = b->m;
@@ -552,7 +552,7 @@ int regex_replace_region(struct gb *b, struct gb *cl)
     b->mod = 1;
 
     if (insert_mem(b, res, res_len))
-        goto clean_up;
+        mgoto(clean_up);
 
     ret = 0;
   clean_up:

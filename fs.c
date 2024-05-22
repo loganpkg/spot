@@ -124,20 +124,17 @@ int walk_dir_inner(const char *dir, int rec, void *info,
 #ifdef _WIN32
     if ((dir_wc = concat(dir, "\\*", NULL)) == NULL) {
         ret = ERR;
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto clean_up;
+        mgoto(clean_up);
     }
 
     if ((h = FindFirstFile(dir_wc, &d)) == INVALID_HANDLE_VALUE) {
         ret = ERR;
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto clean_up;
+        mgoto(clean_up);
     }
 #else
     if ((h = opendir(dir)) == NULL) {
         ret = ERR;
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto clean_up;
+        mgoto(clean_up);
     }
 #endif
 
@@ -155,8 +152,7 @@ int walk_dir_inner(const char *dir, int rec, void *info,
 #endif
         if ((path = concat(dir, DIR_SEP_STR, fn, NULL)) == NULL) {
             ret = ERR;
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            goto clean_up;
+            mgoto(clean_up);
         }
 
         attr = 0;
@@ -176,8 +172,7 @@ int walk_dir_inner(const char *dir, int rec, void *info,
         if (d->d_type == DT_UNKNOWN)
             if (get_path_attr(path, &attr)) {
                 ret = ERR;
-                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                goto clean_up;
+                mgoto(clean_up);
             }
 #endif
         if (!strcmp(fn, ".") || !strcmp(fn, ".."))
@@ -186,14 +181,12 @@ int walk_dir_inner(const char *dir, int rec, void *info,
         if (rec && IS_DIR(attr) && !IS_SLINK(attr) && !IS_DOTDIR(attr))
             if (walk_dir_inner(path, rec, info, func_p)) {      /* Recurse */
                 ret = ERR;
-                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                goto clean_up;
+                mgoto(clean_up);
             }
 
         if ((*func_p) (rec ? path : fn, attr, info)) {
             ret = ERR;
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            goto clean_up;
+            mgoto(clean_up);
         }
 
         free(path);
@@ -207,14 +200,12 @@ int walk_dir_inner(const char *dir, int rec, void *info,
 #ifdef _WIN32
     if (GetLastError() != ERROR_NO_MORE_FILES) {
         ret = ERR;
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto clean_up;
+        mgoto(clean_up);
     }
 #else
     if (errno) {
         ret = ERR;
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto clean_up;
+        mgoto(clean_up);
     }
 #endif
 
@@ -341,32 +332,27 @@ char *ls_dir(const char *dir)
 
     if ((lsi = calloc(1, sizeof(struct ls_info))) == NULL) {
         err = ERR;
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto clean_up;
+        mgoto(clean_up);
     }
 
     if ((lsi->d = init_pbuf(INIT_LS_ENTRY_NUM)) == NULL) {
         err = ERR;
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto clean_up;
+        mgoto(clean_up);
     }
 
     if ((lsi->f = init_pbuf(INIT_LS_ENTRY_NUM)) == NULL) {
         err = ERR;
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto clean_up;
+        mgoto(clean_up);
     }
 
     if ((b = init_obuf(INIT_BUF_SIZE)) == NULL) {
         err = ERR;
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto clean_up;
+        mgoto(clean_up);
     }
 
     if (walk_dir_inner(dir, 0, lsi, &add_fn)) {
         err = ERR;
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto clean_up;
+        mgoto(clean_up);
     }
 
     /* Sort the results */
@@ -377,41 +363,35 @@ char *ls_dir(const char *dir)
     for (j = 0; j < lsi->d->i; ++j) {
         if (put_str(b, *(lsi->d->a + j))) {
             err = ERR;
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            goto clean_up;
+            mgoto(clean_up);
         }
 
         if (put_ch(b, '\n')) {
             err = ERR;
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            goto clean_up;
+            mgoto(clean_up);
         }
     }
 
     if (put_str(b, "----------\n")) {
         err = ERR;
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto clean_up;
+        mgoto(clean_up);
     }
 
     for (j = 0; j < lsi->f->i; ++j) {
         if (put_str(b, *(lsi->f->a + j))) {
             err = ERR;
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            goto clean_up;
+            mgoto(clean_up);
         }
 
         if (put_ch(b, '\n')) {
             err = ERR;
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            goto clean_up;
+            mgoto(clean_up);
         }
     }
 
     if ((t = obuf_to_str(&b)) == NULL) {
         err = ERR;
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto clean_up;
+        mgoto(clean_up);
     }
 
     err = 0;
@@ -476,22 +456,19 @@ int mmap_file_ro(const char *fn, void **mem, size_t *fs)
                     FILE_ATTRIBUTE_NORMAL,
                     NULL)) == INVALID_HANDLE_VALUE) {
         ret = ERR;
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto clean_up;
+        mgoto(clean_up);
     }
 
     if ((map_h =
          CreateFileMapping(file_h, NULL, PAGE_READONLY, 0, 0,
                            NULL)) == NULL) {
         ret = ERR;
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto clean_up;
+        mgoto(clean_up);
     }
 
     if ((p = MapViewOfFile(map_h, FILE_MAP_READ, 0, 0, 0)) == NULL) {
         ret = ERR;
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        goto clean_up;
+        mgoto(clean_up);
     }
 
     ret = 0;

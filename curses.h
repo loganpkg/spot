@@ -34,6 +34,12 @@
 #include <stddef.h>
 
 
+#define mgoto(lb) do {                                        \
+    fprintf(stderr, "[%s:%d]: Error\n", __FILE__, __LINE__);  \
+    goto lb;                                                  \
+} while (0)
+
+
 struct screen {
 #ifdef _WIN32
     HANDLE term_handle;
