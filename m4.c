@@ -103,6 +103,7 @@ struct m4_info {
     size_t quote_depth;
     /* Exit upon user related error. Turned off by default. */
     int error_exit;
+    int trace;
     int help;                   /* Print help information for a macro */
 };
 
@@ -329,13 +330,32 @@ M4ptr init_m4(int read_stdin)
     return NULL;
 }
 
-int dump_store(M4ptr m4)
+void dump_stack(M4ptr m4)
 {
-    fprintf(stderr, "Store:\n");
-    if (fwrite(m4->store->a, 1, m4->store->i, stderr) != m4->store->i)
-        return ERR;
+    struct macro_call *t;
+    size_t i, num_arg, j;
 
-    return 0;
+    t = m4->stack;
+    i = m4->str_start->i;
+
+    fprintf(stderr, "Stack dump:\n");
+
+    while (t != NULL) {
+        num_arg = i - (t->m_i + 2);
+        fprintf(stderr, "%s macro:\n",
+                t->mfp == NULL ? "User-defined" : "Built-in");
+        fprintf(stderr, "Bracket depth: %lu\n", t->bracket_depth);
+        fprintf(stderr, "Def: %s\n",
+                m4->store->a + *(m4->str_start->a + t->m_i));
+        fprintf(stderr, "Macro: %s\n",
+                m4->store->a + *(m4->str_start->a + t->m_i + 1));
+        for (j = 1; j <= num_arg; ++j)
+            fprintf(stderr, "Arg %lu: %s\n", j,
+                    m4->store->a + *(m4->str_start->a + t->m_i + 1 + j));
+
+        i = t->m_i;
+        t = t->next;
+    }
 }
 
 int validate_quote(const char *quote)
@@ -365,16 +385,17 @@ int validate_quote(const char *quote)
     return 0;
 }
 
-#define usage(num_pars, par_desc) do {                                    \
-    if (m4->help) {                                                       \
-        fprintf(stderr, "%s: %s: %s\n", "built-in", esf(NM), par_desc);   \
-        return 0;                                                         \
-    }                                                                     \
-    if (num_args_collected != num_pars) {                                 \
-        fprintf(stderr, "%s:%lu [%s:%d]: Usage: %s: %s\n", m4->input->nm, \
-            m4->input->rn, __FILE__, __LINE__, esf(NM), par_desc);        \
-        return USAGE_ERR;                                                 \
-    }                                                                     \
+
+#define usage(num_pars, par_desc) do {                                  \
+    if (m4->help) {                                                     \
+        fprintf(stderr, "%s: %s%s\n", "built-in", esf(NM), par_desc);   \
+        return 0;                                                       \
+    }                                                                   \
+    if (num_args_collected != num_pars) {                               \
+        fprintf(stderr, "%s:%lu [%s:%d]: Usage: %s%s\n", m4->input->nm, \
+            m4->input->rn, __FILE__, __LINE__, esf(NM), par_desc);      \
+        return USAGE_ERR;                                               \
+    }                                                                   \
 } while (0)
 
 
@@ -392,7 +413,7 @@ int NM(void *v)
     size_t x, i;
     char present[NUM_ARGS];
 
-    usage(2, "macro_name, macro_def");
+    usage(2, "(`macro_name', `macro_def')");
 
     /* Validate definition */
     memset(present, 'N', NUM_ARGS);
@@ -443,7 +464,7 @@ int NM(void *v)
 {
     M4ptr m4 = (M4ptr) v;
 
-    usage(1, "quoted_macro_name");
+    usage(1, "(`macro_name')");
 
     if (delete_entry(m4->ht, arg(1))) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
@@ -460,7 +481,7 @@ int NM(void *v)
 {
     M4ptr m4 = (M4ptr) v;
 
-    usage(2, "left_quote, right_quote");
+    usage(2, "(left_quote, right_quote)");
 
     if (validate_quote(arg(1)) || validate_quote(arg(2))) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
@@ -498,7 +519,7 @@ int NM(void *v)
 {
     M4ptr m4 = (M4ptr) v;
 
-    usage(1, "div_num");
+    usage(1, "(div_num)");
 
     if (!strcmp(arg(1), "-1")) {
         m4->active_div = 10;
@@ -522,7 +543,7 @@ int NM(void *v)
     char ch;
     size_t x;
 
-    usage(1, "div_num_or_filename");
+    usage(1, "(div_num_or_filename)");
 
     ch = *arg(1);
     if (ch == '\0') {
@@ -558,7 +579,7 @@ int NM(void *v)
     int append = 0;
     char ch;
 
-    usage(3, "div_num, filename, append");
+    usage(3, "(div_num, filename, append)");
 
     if (!strcmp(arg(3), "1"))
         append = 1;
@@ -615,7 +636,7 @@ int NM(void *v)
 {
     M4ptr m4 = (M4ptr) v;
 
-    usage(1, "filename");
+    usage(1, "(filename)");
 
     if (unget_file(&m4->input, arg(1))) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
@@ -645,7 +666,7 @@ int NM(void *v)
     M4ptr m4 = (M4ptr) v;
     char *p, *q, ch;
 
-    usage(1, "str");
+    usage(1, "(str)");
 
     p = arg(1);
     q = NULL;
@@ -682,7 +703,7 @@ int NM(void *v)
     int nl_sen = 0;             /* Newline sensitive (off) */
     int verbose = 0;            /* Prints information about the regex */
 
-    usage(5, "text, regex_find, replace, newline_sensitive, verbose");
+    usage(5, "(text, regex_find, replace, newline_sensitive, verbose)");
 
     if (!strcmp(arg(4), "1"))
         nl_sen = 1;             /* Newline sensitive on */
@@ -714,7 +735,7 @@ int NM(void *v)
     M4ptr m4 = (M4ptr) v;
     char *res;
 
-    usage(1, "dir_name");
+    usage(1, "(dir_name)");
 
     if ((res = ls_dir(arg(1))) == NULL) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
@@ -740,8 +761,7 @@ int NM(void *v)
     M4ptr m4 = (M4ptr) v;
     struct entry *e;
 
-    usage(3,
-          "quoted_macro_name, quoted_when_defined, quoted_when_undefined");
+    usage(3, "(`macro_name', `when_defined', `when_undefined')");
 
     e = lookup(m4->ht, arg(1));
     if (e != NULL) {
@@ -764,20 +784,38 @@ int NM(void *v)
 int NM(void *v)
 {
     M4ptr m4 = (M4ptr) v;
+    char *par_desc;
+    size_t i;
 
-    usage(4, "A, B, quoted_when_same, quoted_when_different");
+    par_desc =
+        "(switch, case_a, `when_a', case_b, `when_b', ... , `default')";
 
-    if (!strcmp(arg(1), arg(2))) {
-        if (unget_str(m4->input, arg(3))) {
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            return ERR;
-        }
-    } else {
-        if (unget_str(m4->input, arg(4))) {
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            return ERR;
-        }
+    if (m4->help) {
+        fprintf(stderr, "%s: %s%s\n", "built-in", esf(NM), par_desc);
+        return 0;
     }
+
+    if (!(num_args_collected >= 4 && num_args_collected % 2 == 0)) {
+        fprintf(stderr, "%s:%lu [%s:%d]: Usage: %s%s\n", m4->input->nm,
+                m4->input->rn, __FILE__, __LINE__, esf(NM), par_desc);
+        return USAGE_ERR;
+    }
+
+    for (i = 2; i <= num_args_collected - 2; i += 2)
+        if (!strcmp(arg(1), arg(i))) {
+            if (unget_str(m4->input, arg(i + 1))) {
+                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+                return ERR;
+            }
+            return 0;
+        }
+
+    /* Default */
+    if (unget_str(m4->input, arg(num_args_collected))) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return ERR;
+    }
+
     return 0;
 }
 
@@ -788,31 +826,50 @@ int NM(void *v)
 {
     M4ptr m4 = (M4ptr) v;
     int ret;
+    char *par_desc;
+    size_t i;
     struct entry *e;
 
-    usage(1, "quoted_macro_name");
+    par_desc = "(`macro_name', ...)";
 
-    if (*arg(1) == '\0') {
-        fprintf(stderr, "%s:%d:%s: Usage error: "
-                "Argument is empty string\n", __FILE__, __LINE__, esf(NM));
+    if (m4->help) {
+        fprintf(stderr, "%s: %s%s\n", "built-in", esf(NM), par_desc);
+        return 0;
+    }
+
+    if (num_args_collected < 1) {
+        fprintf(stderr, "%s:%lu [%s:%d]: Usage: %s%s\n", m4->input->nm,
+                m4->input->rn, __FILE__, __LINE__, esf(NM), par_desc);
         return USAGE_ERR;
     }
 
-    e = lookup(m4->ht, arg(1));
-    if (e == NULL) {
-        fprintf(stderr, "Undefined: %s\n", arg(1));
-    } else {
-        if (e->func_p == NULL) {
-            fprintf(stderr, "User-def: %s: %s\n", e->name, e->def);
-        } else {
-            m4->help = 1;
-            if ((ret = (*e->func_p) (m4))) {
-                m4->help = 0;
-                return ret;
-            }
+    m4->help = 1;
+
+    for (i = 1; i <= num_args_collected; ++i) {
+        if (*arg(i) == '\0') {
+            fprintf(stderr, "%s:%d:%s: Usage error: "
+                    "Argument is empty string\n", __FILE__, __LINE__,
+                    esf(NM));
             m4->help = 0;
+            return USAGE_ERR;
+        }
+
+        e = lookup(m4->ht, arg(i));
+        if (e == NULL) {
+            fprintf(stderr, "Undefined: %s\n", arg(i));
+        } else {
+            if (e->func_p == NULL) {
+                fprintf(stderr, "User-def: %s: %s\n", e->name, e->def);
+            } else {
+                if ((ret = (*e->func_p) (m4))) {
+                    m4->help = 0;
+                    return ret;
+                }
+            }
         }
     }
+
+    m4->help = 0;
 
     return 0;
 }
@@ -858,7 +915,7 @@ int NM(void *v)
 {
     M4ptr m4 = (M4ptr) v;
 
-    usage(1, "error_message");
+    usage(1, "(error_message)");
 
     fprintf(stderr, "%s\n", arg(1));
     return 0;
@@ -874,7 +931,7 @@ int NM(void *v)
     char num[NUM_BUF_SIZE];
     int r;
 
-    usage(1, "number");
+    usage(1, "(number)");
 
     if (str_to_size_t(arg(1), &x)) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
@@ -909,7 +966,7 @@ int NM(void *v)
     int r;
     int verbose = 0;
 
-    usage(2, "arithmetic_expression, verbose");
+    usage(2, "(arithmetic_expression, verbose)");
 
     if (!strcmp(arg(2), "1"))
         verbose = 1;
@@ -959,7 +1016,7 @@ int NM(void *v)
     int x, st, r;
     char num[NUM_BUF_SIZE];
 
-    usage(1, "shell_command");
+    usage(1, "(shell_command)");
 
     if ((fp = popen(arg(1), "r")) == NULL) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
@@ -1032,7 +1089,7 @@ int NM(void *v)
     M4ptr m4 = (M4ptr) v;
     size_t x;
 
-    usage(1, "exit_value");
+    usage(1, "(exit_value)");
 
     if (str_to_size_t(arg(1), &x)) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
@@ -1078,13 +1135,41 @@ int NM(void *v)
 }
 
 #undef NM
+#define NM traceon
+
+int NM(void *v)
+{
+    M4ptr m4 = (M4ptr) v;
+
+    usage(0, "");
+
+    m4->trace = 1;
+
+    return 0;
+}
+
+#undef NM
+#define NM traceoff
+
+int NM(void *v)
+{
+    M4ptr m4 = (M4ptr) v;
+
+    usage(0, "");
+
+    m4->trace = 0;
+
+    return 0;
+}
+
+#undef NM
 #define NM recrm
 
 int NM(void *v)
 {
     M4ptr m4 = (M4ptr) v;
 
-    usage(1, "file_path");
+    usage(1, "(file_path)");
 
     if (*arg(1) == '\0') {
         fprintf(stderr, "%s:%d:%s: Usage error: "
@@ -1162,6 +1247,8 @@ int main(int argc, char **argv)
     load_bi(m4exit);
     load_bi(errok);
     load_bi(errexit);
+    load_bi(traceon);
+    load_bi(traceoff);
     load_bi(recrm);
 
     /*
@@ -1296,6 +1383,10 @@ int main(int argc, char **argv)
                 if (put_ch(m4->store, '\0'))
                     mgoto(error);
 
+                if (m4->trace)
+                    fprintf(stderr, "Trace: %s:%lu: %s\n", m4->input->nm,
+                            m4->input->rn, e->name);
+
                 /* See if called with or without brackets */
                 if ((r = eat_str_if_match(&m4->input, "(")) == ERR)
                     mgoto(error);
@@ -1335,11 +1426,12 @@ int main(int argc, char **argv)
         flush_obuf(m4->div[i]);
 
   clean_up:
-    if (ret == ERR) {
-        fprintf(stderr, "error_exit: %d\n", m4->error_exit);
-        fprintf(stderr, "left_quote: %s\n", m4->left_quote);
-        fprintf(stderr, "right_quote: %s\n", m4->right_quote);
-        dump_store(m4);
+    if (ret) {
+        fprintf(stderr, "Error mode: %s\n",
+                m4->error_exit ? "Error exit" : "Error OK");
+        fprintf(stderr, "Left quote: %s\n", m4->left_quote);
+        fprintf(stderr, "Right quote: %s\n", m4->right_quote);
+        dump_stack(m4);
     }
 
     free_m4(m4);
