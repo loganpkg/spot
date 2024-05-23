@@ -388,12 +388,13 @@ branch in logic. So, the second and third arguments should also be quoted.
 ```m4
 ifelse(switch, case_a, `when_a', case_b, `when_b', ... , `default')
 ```
-`ifelse` compares the first and second arguments (after any expansions that
-occur during collection), and if they are equal, pushes the third argument
-back into the input. Otherwise, the fourth argument is pushed back into the
+`ifelse` is like a switch statement in C. The first argument is the str
+that is compared against the 2, 4, 6, ... arguments, and upon the first match
+the next argument is pushed back into the input. Finally, if there is no
+match, then the default argument (the last argument) is pushed back into the
 input. Remember that arguments will be expanded and processed during argument
-collection, which occurs _before_ the branch in logic. So, it is a good idea to
-quote the third and fourth arguments.
+collection, which occurs _before_ the branch in logic. So, it is a good idea
+to quote the 3, 5, 7, ... and last arguments.
 
 ```m4
 include(filename)
