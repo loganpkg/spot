@@ -112,15 +112,11 @@ struct macro_call *init_mc(void)
 {
     struct macro_call *mc;
 
-    if ((mc = malloc(sizeof(struct macro_call))) == NULL) {
+    if ((mc = calloc(1, sizeof(struct macro_call))) == NULL) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
         return NULL;
     }
 
-    mc->mfp = NULL;
-    mc->m_i = 0;
-    mc->bracket_depth = 0;
-    mc->next = NULL;
     return mc;
 }
 
@@ -271,20 +267,13 @@ M4ptr init_m4(int read_stdin)
     M4ptr m4;
     size_t i;
 
-    if ((m4 = malloc(sizeof(struct m4_info))) == NULL) {
+    if ((m4 = calloc(1, sizeof(struct m4_info))) == NULL) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
         return NULL;
     }
 
     m4->req_exit_val = -1;
-    m4->ht = NULL;
-    m4->input = NULL;
-    m4->token = NULL;
-    m4->store = NULL;
-    m4->str_start = NULL;
-    m4->stack = NULL;
-    /* Used for substituting arguments */
-    m4->tmp = NULL;
+
     for (i = 0; i < NUM_DIVS; ++i)
         m4->div[i] = NULL;
 
@@ -310,17 +299,11 @@ M4ptr init_m4(int read_stdin)
         if ((m4->div[i] = init_obuf(INIT_BUF_SIZE)) == NULL)
             mgoto(error);
 
-    m4->active_div = 0;
-
     if ((m4->left_quote = strdup(DEFAULT_LEFT_QUOTE)) == NULL)
         mgoto(error);
 
     if ((m4->right_quote = strdup(DEFAULT_RIGHT_QUOTE)) == NULL)
         mgoto(error);
-
-    m4->quote_depth = 0;
-    m4->error_exit = 0;
-    m4->help = 0;
 
     return m4;
 
