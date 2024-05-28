@@ -24,6 +24,8 @@
 
 #include "toucanlib.h"
 
+#define INIT_BUF_SIZE 100
+
 
 int str_to_num(const char *str, unsigned long max_val, unsigned long *res)
 {
@@ -99,6 +101,19 @@ int str_to_size_t(const char *str, size_t *res)
     return 0;
 }
 
+int str_to_uint(const char *str, unsigned int *res)
+{
+    unsigned long n;
+
+    if (str_to_num(str, UINT_MAX, &n)) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return ERR;
+    }
+
+    *res = (unsigned int) n;
+    return 0;
+}
+
 int hex_to_val(unsigned char h[2], unsigned char *res)
 {
     unsigned char x;
@@ -128,7 +143,7 @@ int hex_to_val(unsigned char h[2], unsigned char *res)
 int lop(long *a, long b, unsigned char op)
 {
     /*
-     * long operation. Checks for signed long overflow.
+     * long operation: Checks for signed long overflow.
      * Result is stored in a. b is only used in binary operations.
      */
 
@@ -136,7 +151,13 @@ int lop(long *a, long b, unsigned char op)
     case POSITIVE:             /* Nothing to do */
         break;
     case NEGATIVE:
-        return lop(a, -1, MULTIPLICATION);
+        if (*a == LONG_MIN) {
+            fprintf(stderr, "%s:%d: User overflow error\n", __FILE__,
+                    __LINE__);
+            return USER_OVERFLOW_ERR;
+        }
+        *a *= -1;
+        break;
     case BITWISE_COMPLEMENT:
         *a = ~*a;
         break;
@@ -291,4 +312,69 @@ int lpow(long *a, long b)
 
     *a = x;
     return 0;
+}
+
+char *ltostr(long a, unsigned int base, unsigned int pad)
+{
+    /* pad is the minimum width, excluding the negative sign */
+    int neg;
+    unsigned long num, r;
+    struct obuf *b = NULL;
+    char *res_str = NULL;
+    size_t width = 0;
+    size_t j;
+
+    if (base < 2 || base > 10 + 'z' - 'a') {
+        fprintf(stderr, "%s:%d: Usage error: Base out of range\n",
+                __FILE__, __LINE__);
+        return NULL;
+    }
+
+    if ((b = init_obuf(INIT_BUF_SIZE)) == NULL)
+        mgoto(clean_up);
+
+    if (a < 0) {
+        neg = 1;
+        num = a * -1;
+    } else {
+        neg = 0;
+        num = a;
+    }
+
+    /* Buffer will be reversed later, so \0 goes first */
+    if (put_ch(b, '\0'))
+        mgoto(clean_up);
+
+    while (1) {
+        r = num % base;
+        if (put_ch(b, r < 10 ? '0' + r : 'a' + r - 10))
+            mgoto(clean_up);
+
+        ++width;
+
+        num /= base;
+        if (!num)
+            break;
+    }
+
+    while (width < pad) {
+        if (put_ch(b, '0'))
+            mgoto(clean_up);
+
+        ++width;
+    }
+
+    if (neg && put_ch(b, '-'))
+        mgoto(clean_up);
+
+    if ((res_str = malloc(b->i)) == NULL)
+        mgoto(clean_up);
+
+    /* Reverse buffer */
+    for (j = 0; j < b->i; ++j)
+        res_str[j] = *(b->a + b->i - 1 - j);
+
+  clean_up:
+    free_obuf(b);
+    return res_str;
 }

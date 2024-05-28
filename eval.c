@@ -28,14 +28,16 @@
 #define INIT_BUF_SIZE 100
 
 
-struct operator                                  {
+struct operator  {
     unsigned char prec;
     unsigned char assoc;
     unsigned char num_operands;
     char *symbol_str;
 };
 
-struct operator                           oper[NUM_OPERATORS] = {
+struct operator
+ oper[NUM_OPERATORS]
+    = {
     { 12, '_', 0, "(" },        /* LEFT_PARENTHESIS */
     { 12, '_', 0, ")" },        /* RIGHT_PARENTHESIS */
     { 11, 'R', 1, "+" },        /* POSITIVE */

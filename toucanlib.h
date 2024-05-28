@@ -289,9 +289,11 @@ void *quick_search(const void *mem, size_t mem_len, const void *find,
 FILE *fopen_w(const char *fn, int append);
 int str_to_num(const char *str, unsigned long max_val, unsigned long *res);
 int str_to_size_t(const char *str, size_t *res);
+int str_to_uint(const char *str, unsigned int *res);
 int hex_to_val(unsigned char h[2], unsigned char *res);
 int lop(long *a, long b, unsigned char op);
 int lpow(long *a, long b);
+char *ltostr(long a, unsigned int base, unsigned int pad);
 struct ibuf *init_ibuf(size_t n, int read_stdin);
 int free_ibuf(struct ibuf *b);
 int add_i(struct ibuf *b, char x);

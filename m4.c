@@ -945,28 +945,43 @@ int NM(void *v)
     M4ptr m4 = (M4ptr) v;
     int ret = ERR;
     long x;
-    char num[NUM_BUF_SIZE];
-    int r;
+    unsigned int base, pad;
+    char *num_str = NULL;
     int verbose = 0;
 
+/*
     usage(2, "(arithmetic_expression, verbose)");
+
 
     if (!strcmp(arg(2), "1"))
         verbose = 1;
+*/
+    verbose = 1;
 
     if ((ret = eval_str(arg(1), &x, verbose)))
         return ret;
 
-    r = snprintf(num, NUM_BUF_SIZE, "%ld", x);
-    if (r < 0 || r >= NUM_BUF_SIZE) {
+    if (str_to_uint(arg(2), &base)) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
         return ERR;
     }
 
-    if (unget_str(m4->input, num)) {
+    if (str_to_uint(arg(3), &pad)) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
         return ERR;
     }
+
+    if ((num_str = ltostr(x, base, pad)) == NULL) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return ERR;
+    }
+
+    if (unget_str(m4->input, num_str)) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return ERR;
+    }
+
+    free(num_str);
 
     return 0;
 }
