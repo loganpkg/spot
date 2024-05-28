@@ -31,15 +31,16 @@ curses.o: curses.h
 
 gen.o: toucanlib.h
 num.o: toucanlib.h
-buf.o: toucanlib.h
+expanded_buf.o: toucanlib.h
 gb.o: toucanlib.h
 eval.o: toucanlib.h
 ht.o: toucanlib.h
 regex.o: toucanlib.h
 fs.o: toucanlib.h
 
-toucanlib.o: gen.o num.o buf.o gb.o eval.o ht.o regex.o fs.o
-	ld -r gen.o num.o buf.o gb.o eval.o ht.o regex.o fs.o -o toucanlib.o
+toucanlib.o: gen.o num.o expanded_buf.o gb.o eval.o ht.o regex.o fs.o
+	ld -r gen.o num.o expanded_buf.o gb.o eval.o ht.o regex.o fs.o \
+		-o toucanlib.o
 
 spot: spot.c curses.o toucanlib.o
 m4: m4.c toucanlib.o

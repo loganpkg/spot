@@ -304,17 +304,18 @@ int eat_str_if_match(struct ibuf **input, const char *str)
     return NO_MATCH;
 }
 
-int get_word(struct ibuf **input, struct obuf *token)
+int get_word(struct ibuf **input, struct obuf *token, int interpret_hex)
 {
     int r;
     char ch, type;
+    int second_ch;
+
+    token->i = 0;
 
     do {
         if ((r = get_ch(input, &ch)) != 0)
             return r;
     } while (ch == '\0' || ch == '\r'); /* Discard these chars */
-
-    token->i = 0;
 
     if (put_ch(token, ch)) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
@@ -322,12 +323,13 @@ int get_word(struct ibuf **input, struct obuf *token)
     }
 
     if (isdigit(ch))
-        type = 'd';             /* Decimal number */
+        type = 'd';             /* Decimal (or octal) number */
     else if (isalpha(ch) || ch == '_')  /* First char cannot be a digit */
-        type = 'w';             /* Word */
+        type = 'w';             /* Word (valid variable or macro name) */
     else
         goto end;               /* Send a single char */
 
+    second_ch = 1;
     while (1) {
         do {
             r = get_ch(input, &ch);
@@ -338,9 +340,13 @@ int get_word(struct ibuf **input, struct obuf *token)
                 goto end;
         } while (ch == '\0' || ch == '\r');
 
-        if ((type == 'd' && isdigit(ch))
-            || (type == 'w' && (isalnum(ch) || ch == '_'))) {
+        if (interpret_hex && second_ch && type == 'd' && (ch == 'x' || ch == 'X'))
+                type = 'h';  /* Hexadecimal number */
+
             /* More of the same type. Words can include digits here. */
+        if ((type == 'd' && isdigit(ch))
+            || (type == 'w' && (isalnum(ch) || ch == '_'))
+            || (type == 'h' && (second_ch || isxdigit(ch)))) {
             if (put_ch(token, ch)) {
                 fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
                 return ERR;
@@ -353,6 +359,8 @@ int get_word(struct ibuf **input, struct obuf *token)
 
             goto end;
         }
+
+      second_ch = 0;
     }
 
   end:

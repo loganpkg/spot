@@ -29,30 +29,54 @@ int str_to_num(const char *str, unsigned long max_val, unsigned long *res)
 {
     unsigned char ch;
     unsigned long x = 0;
+    unsigned int base = 10;     /* Decimal */
+    unsigned int n;
 
     if (str == NULL || *str == '\0') {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
         return ERR;
     }
 
+    if (*str == '0') {
+        ++str;                  /* Eat char */
+        if (*str == 'x' || *str == 'X') {
+            ++str;              /* Eat char */
+            base = 16;          /* Hexadecimal */
+        } else {
+            base = 8;           /* Octal */
+        }
+    }
+
     while ((ch = *str) != '\0') {
-        if (isdigit(ch)) {
-            if (mof(x, 10, max_val)) {
+        if ((base == 10 && isdigit(ch)) || (base == 16 && isxdigit(ch))
+            || (base == 8 && ch >= '0' && ch <= '7')) {
+            if (mof(x, base, max_val)) {
                 fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
                 return ERR;
             }
 
-            x *= 10;
-            if (aof(x, ch - '0', max_val)) {
+            x *= base;
+
+            if (isdigit(ch))
+                n = ch - '0';
+            else if (islower(ch))
+                n = 10 + ch - 'a';
+            else
+                n = 10 + ch - 'A';
+
+            if (aof(x, n, max_val)) {
                 fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
                 return ERR;
             }
 
-            x += ch - '0';
+            x += n;
         } else {
             fprintf(stderr,
-                    "%s:%d: Syntax error: Character is not a digit\n",
-                    __FILE__, __LINE__);
+                    "%s:%d: Syntax error: Character is not a %s digit\n",
+                    __FILE__, __LINE__,
+                    base == 10 ? "decimal" : (base ==
+                                              16 ? "hexadecimal" :
+                                              "octal"));
             return SYNTAX_ERR;
         }
 
@@ -101,10 +125,27 @@ int hex_to_val(unsigned char h[2], unsigned char *res)
     return 0;
 }
 
-int lop(long *a, long b, char op)
+int lop(long *a, long b, unsigned char op)
 {
-    /* long operation. Checks for signed long overflow. */
-    if (op == '*') {
+    /*
+     * long operation. Checks for signed long overflow.
+     * Result is stored in a. b is only used in binary operations.
+     */
+
+    switch (op) {
+    case POSITIVE:             /* Nothing to do */
+        break;
+    case NEGATIVE:
+        return lop(a, -1, MULTIPLICATION);
+    case BITWISE_COMPLEMENT:
+        *a = ~*a;
+        break;
+    case LOGICAL_NEGATION:
+        *a = !*a;
+        break;
+    case EXPONENTIATION:
+        return lpow(a, b);
+    case MULTIPLICATION:
         if (!*a)
             return 0;
 
@@ -137,9 +178,10 @@ int lop(long *a, long b, char op)
                     __LINE__);
             return USER_OVERFLOW_ERR;
         }
-
         *a *= b;
-    } else if (op == '/' || op == '%') {
+        break;
+    case DIVISION:
+    case MODULO:
         if (!b) {
             fprintf(stderr, "%s:%d: Divide by zero\n", __FILE__, __LINE__);
             return DIV_BY_ZERO_ERR;
@@ -150,12 +192,13 @@ int lop(long *a, long b, char op)
                     __LINE__);
             return USER_OVERFLOW_ERR;
         }
-
-        if (op == '/')
+        if (op == DIVISION)
             *a /= b;
         else
             *a %= b;
-    } else if (op == '+') {
+
+        break;
+    case ADDITION:
         /* Need to be the same sign to overflow */
         if ((*a > 0 && b > 0 && *a > LONG_MAX - b)
             || (*a < 0 && b < 0 && *a < LONG_MIN - b)) {
@@ -163,19 +206,60 @@ int lop(long *a, long b, char op)
                     __LINE__);
             return USER_OVERFLOW_ERR;
         }
-
         *a += b;
-    } else if (op == '-') {
+        break;
+    case SUBTRACTION:
         if ((b < 0 && *a > LONG_MAX + b)
             || (b > 0 && *a < LONG_MIN + b)) {
             fprintf(stderr, "%s:%d: User overflow error\n", __FILE__,
                     __LINE__);
             return USER_OVERFLOW_ERR;
         }
-
         *a -= b;
-    } else if (op == '^') {
-        return lpow(a, b);
+        break;
+    case BITWISE_LEFT_SHIFT:
+        *a <<= b;
+        break;
+    case BITWISE_RIGHT_SHIFT:
+        *a >>= b;
+        break;
+    case LESS_THAN:
+        *a = *a < b;
+        break;
+    case LESS_THAN_OR_EQUAL:
+        *a = *a <= b;
+        break;
+    case GREATER_THAN:
+        *a = *a > b;
+        break;
+    case GREATER_THAN_OR_EQUAL:
+        *a = *a >= b;
+        break;
+    case EQUAL:
+        *a = *a == b;
+        break;
+    case NOT_EQUAL:
+        *a = *a != b;
+        break;
+    case BITWISE_AND:
+        *a &= b;
+        break;
+    case BITWISE_XOR:
+        *a ^= b;
+        break;
+    case BITWISE_OR:
+        *a |= b;
+        break;
+    case LOGICAL_AND:
+        *a = *a && b;
+        break;
+    case LOGICAL_OR:
+        *a = *a || b;
+        break;
+    default:
+        fprintf(stderr, "%s:%d: Syntax error: Invalid operator\n",
+                __FILE__, __LINE__);
+        return SYNTAX_ERR;
     }
 
     return 0;
@@ -202,7 +286,7 @@ int lpow(long *a, long b)
 
     x = *a;
     while (--b)
-        if ((ret = lop(&x, *a, '*')))
+        if ((ret = lop(&x, *a, MULTIPLICATION)))
             return ret;
 
     *a = x;

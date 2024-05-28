@@ -140,6 +140,40 @@
 #define NUM_BUF_SIZE 32
 
 
+#define NUM_OPERATORS 25
+
+/* Parentheses */
+#define LEFT_PARENTHESIS 0
+#define RIGHT_PARENTHESIS 1
+
+/* Unary operators */
+#define POSITIVE 2
+#define NEGATIVE 3
+#define BITWISE_COMPLEMENT 4
+#define LOGICAL_NEGATION 5
+
+/* Binary operators */
+#define EXPONENTIATION 6
+#define MULTIPLICATION 7
+#define DIVISION 8
+#define MODULO 9
+#define ADDITION 10
+#define SUBTRACTION 11
+#define BITWISE_LEFT_SHIFT 12
+#define BITWISE_RIGHT_SHIFT 13
+#define LESS_THAN 14
+#define LESS_THAN_OR_EQUAL 15
+#define GREATER_THAN 16
+#define GREATER_THAN_OR_EQUAL 17
+#define EQUAL 18
+#define NOT_EQUAL 19
+#define BITWISE_AND 20
+#define BITWISE_XOR 21
+#define BITWISE_OR 22
+#define LOGICAL_AND 23
+#define LOGICAL_OR 24
+
+
 /* Stringify. Converts text to a string literal. */
 #define sf(text) #text
 /* Expanded stringify. Stringifies the definition of macro_name. */
@@ -152,11 +186,10 @@
 #define IS_DOTDIR(attr) ((attr) & 1 << 2)
 
 
-/* Unsigned overflow tests */
-/* Addition */
+/* Unsigned addition overflow test */
 #define aof(a, b, max_val) ((a) > (max_val) - (b))
 
-/* Multiplication */
+/* Unsigned multiplication overflow test */
 #define mof(a, b, max_val) ((a) && (b) > (max_val) / (a))
 
 #define start_of_gb(b) while (!left_ch(b))
@@ -257,7 +290,7 @@ FILE *fopen_w(const char *fn, int append);
 int str_to_num(const char *str, unsigned long max_val, unsigned long *res);
 int str_to_size_t(const char *str, size_t *res);
 int hex_to_val(unsigned char h[2], unsigned char *res);
-int lop(long *a, long b, char op);
+int lop(long *a, long b, unsigned char op);
 int lpow(long *a, long b);
 struct ibuf *init_ibuf(size_t n, int read_stdin);
 int free_ibuf(struct ibuf *b);
@@ -280,7 +313,7 @@ int unget_str(struct ibuf *b, const char *str);
 int unget_file(struct ibuf **b, const char *fn);
 int get_ch(struct ibuf **input, char *ch);
 int eat_str_if_match(struct ibuf **input, const char *str);
-int get_word(struct ibuf **input, struct obuf *token);
+int get_word(struct ibuf **input, struct obuf *token, int interpret_hex);
 int eat_whitespace(struct ibuf **input);
 int delete_to_nl(struct ibuf **input);
 int put_str(struct obuf *b, const char *str);
@@ -329,7 +362,7 @@ int save(struct gb *b);
 int rename_gb(struct gb *b, const char *fn);
 int new_gb(struct gb **b, const char *fn, size_t s);
 void remove_gb(struct gb **b);
-int eval(struct ibuf **input, long *res, int verbose);
+int eval_ibuf(struct ibuf **input, long *res, int verbose);
 int eval_str(const char *math_str, long *res, int verbose);
 struct ht *init_ht(size_t num_buckets);
 void free_ht(struct ht *ht);

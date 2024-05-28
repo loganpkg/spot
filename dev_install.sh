@@ -56,7 +56,7 @@ find . -type f ! -path '*.git*' -exec cp -p '{}' "$build_dir" \;
 
 cd "$build_dir" || exit 1
 
-/usr/bin/m4 buf.c.m4 > buf.c
+/usr/bin/m4 buf.c.m4 > expanded_buf.c
 
 rm -f err
 
@@ -75,7 +75,7 @@ find . -type f ! -path '*.git*' ! -name '*~' \
     -exec grep -H -n -E '.{80}' '{}' \;
 
 
-./func_dec.sh toucanlib.h gen.c num.c buf.c gb.c eval.c ht.c regex.c fs.c
+./func_dec.sh toucanlib.h gen.c num.c expanded_buf.c gb.c eval.c ht.c regex.c fs.c
 ./func_dec.sh curses.h curses.c
 
 find . -type f ! -path '*.git*' -name '*.h' \
@@ -95,7 +95,7 @@ else
     cc -c $flags tornado_dodge.c
 fi
 
-ld -r gen.o num.o buf.o gb.o eval.o ht.o regex.o fs.o -o toucanlib.o
+ld -r gen.o num.o expanded_buf.o gb.o eval.o ht.o regex.o fs.o -o toucanlib.o
 
 cc $flags -o m4 m4.o toucanlib.o
 

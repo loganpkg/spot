@@ -938,7 +938,7 @@ int NM(void *v)
 }
 
 #undef NM
-#define NM evalmath
+#define NM eval
 
 int NM(void *v)
 {
@@ -1224,7 +1224,7 @@ int main(int argc, char **argv)
     load_bi(dumpdefall);
     load_bi(errprint);
     load_bi(incr);
-    load_bi(evalmath);
+    load_bi(eval);
     load_bi(esyscmd);
     load_bi(sysval);
     load_bi(m4exit);
@@ -1282,7 +1282,7 @@ int main(int argc, char **argv)
         }
 
         /* Not a quote, so read a token */
-        r = get_word(&m4->input, m4->token);
+        r = get_word(&m4->input, m4->token, 0);
         if (r == ERR)
             mgoto(error);
         else if (r == EOF)

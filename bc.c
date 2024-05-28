@@ -51,7 +51,7 @@ int main(void)
     }
 
     while (1) {
-        ret = eval(&input, &x, 0);
+        ret = eval_ibuf(&input, &x, 0);
 
         if (!ret)
             printf("%ld\n", x);

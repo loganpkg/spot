@@ -368,7 +368,7 @@ esyscmd(shell_command)
 `stdout` of that command into the input.
 
 ```m4
-evalmath(arithmetic_expression, verbose)
+eval(arithmetic_expression, verbose)
 ```
 `evalmath` evaluates an arithmetic expression. It understands `(`, `)`, `^`,
 `*`, `/`, `%` (modulus), and _unary_ and binary `+` and `-`. Works with signed
