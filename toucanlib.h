@@ -269,7 +269,9 @@ struct entry {
     char *name;                 /* Macro name */
     char *def;                  /* User-defined macro definition */
     Fptr func_p;                /* Function Pointer */
-    struct entry *next;         /* To chain collisions */
+    struct entry *hist;         /* For entry history */
+    struct entry *prev;         /* Previous entry in collision chain */
+    struct entry *next;         /* Next entry in collision chain */
 };
 
 /* Hash table */
@@ -369,8 +371,9 @@ int eval_str(const char *math_str, long *res, int verbose);
 struct ht *init_ht(size_t num_buckets);
 void free_ht(struct ht *ht);
 struct entry *lookup(struct ht *ht, const char *name);
-int delete_entry(struct ht *ht, const char *name);
-int upsert(struct ht *ht, const char *name, const char *def, Fptr func_p);
+int delete_entry(struct ht *ht, const char *name, int pop_hist);
+int upsert(struct ht *ht, const char *name, const char *def, Fptr func_p,
+           int push_hist);
 int regex_search(const char *mem, size_t mem_len,
                  const char *regex_find_str, int sol,
                  int nl_sen, size_t *match_offset, size_t *match_len);

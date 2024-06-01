@@ -28,7 +28,7 @@
 #define INIT_BUF_SIZE 100
 
 
-struct operator  {
+struct operator                                                      {
     unsigned char prec;
     unsigned char assoc;
     unsigned char num_operands;

@@ -294,15 +294,31 @@ used in any downstream programming language, such as `<[` and `]>`.
 ```m4
 define(`macro_name', `macro_def')
 ```
-`define` is used to create user-defined macros. If the macro already exists,
-then the old macro will be replaced, even if it is a built-in macro (which
-loses the ability to bring it back). Please note that quotes are needed
-when replacing a macro, otherwise the macro will expand during argument
-collection, prior to the `define` macro being executed. Macro names must start
-with an alpha character or underscore followed by none or more alpha, digit or
-underscore characters. The macro definition is the text that the macro will
-expand into. It can take argument placeholders, `$0` to `$9`. `$0` is the
-macro name. `$1` to `$9` are the arguments collected when the macro is called.
+`define` creates a new user-defined macro (if it does not already exist), or
+*updates* the current history of an existing macro, retaining any prior history
+that may exist (but not-preserving the current history).
+
+If the current history is a built-in macro, then it will still be updated, but
+the ability to bring back the built-in nature will be lost.
+
+Please note that quotes are needed when replacing a macro, otherwise the macro
+will expand during argument collection, prior to the `define` macro being
+executed.
+
+Macro names must start with an alpha character or underscore followed
+by none or more alpha, digit or underscore characters.
+
+The macro definition is the text that the macro will expand into.
+It can take argument placeholders, `$0` to `$9`. `$0` is the macro name.
+`$1` to `$9` are the arguments collected when the macro is called.
+
+```m4
+pushdef(`macro_name', `macro_def')
+```
+`pushdef` acts like `define`, except that if the macro already exists, then
+the new definition will be stacked onto the history stack for that macro.
+The current history will be preserved, and will become the macro definition
+immediately below the new definition in the history stack.
 
 ```m4
 divert(div_num)
@@ -344,6 +360,17 @@ Exit upon the first user-related error.
 errok
 ```
 Continue execution even with user-related errors.
+
+```m4
+warnerr
+```
+`warnerr` treats warnings as errors, which will then be affected by `errexit`
+and `errok`.
+
+```m4
+warnok
+```
+`warnok` makes warnings not to be teated as errors.
 
 ```m4
 traceon
@@ -447,8 +474,15 @@ tnl(str)
 ```m4
 undefine(`macro_name')
 ```
-`undefine` removes a macro from the hash table. It is necessary to quote the
-macro name. Built-in macros cannot be retrieved once undefined.
+`undefine` removes a macro and all of it history stack. It is necessary to
+quote the macro name. Built-in macros cannot be retrieved once undefined.
+
+```m4
+popdef(`macro_name')
+```
+`popdef` removes the current history from the history stack, making the new
+macro what the prior history was. If there was no prior history, then `popdef`
+has the same effect as `undefine`.
 
 ```m4
 undivert(div_num_or_filename)
