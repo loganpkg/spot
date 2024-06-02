@@ -106,6 +106,7 @@ struct m4_info {
     char *left_quote;
     char *right_quote;
     size_t quote_depth;
+    int line_direct;            /* Print #line directives for C preprocessor */
     /* Exit upon user related error. Turned off by default. */
     int error_exit;             /* Exit upon the first error */
     int warn_to_error;          /* Treat warnings as errors */
@@ -270,7 +271,7 @@ void free_m4(M4ptr m4)
     }
 }
 
-M4ptr init_m4(int read_stdin)
+M4ptr init_m4(void)
 {
     M4ptr m4;
     size_t i;
@@ -286,9 +287,6 @@ M4ptr init_m4(int read_stdin)
         m4->div[i] = NULL;
 
     if ((m4->ht = init_ht(NUM_BUCKETS)) == NULL)
-        mgoto(error);
-
-    if ((m4->input = init_ibuf(INIT_BUF_SIZE, read_stdin)) == NULL)
         mgoto(error);
 
     if ((m4->token = init_obuf(INIT_BUF_SIZE)) == NULL)
@@ -512,8 +510,12 @@ int NM(void *v)
     usage(1, "(`macro_name')");
 
     if (delete_entry(m4->ht, arg(1), 0)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
+        fprintf(stderr,
+                "%s:%d:%s: Usage warning: "
+                "Macro does not exist: %s\n",
+                __FILE__, __LINE__, esf(NM), arg(1));
+        if (m4->warn_to_error)
+            return SYNTAX_ERR;
     }
 
     return 0;
@@ -530,8 +532,12 @@ int NM(void *v)
 
     /* Pop history */
     if (delete_entry(m4->ht, arg(1), 1)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
+        fprintf(stderr,
+                "%s:%d:%s: Usage warning: "
+                "Macro does not exist: %s\n",
+                __FILE__, __LINE__, esf(NM), arg(1));
+        if (m4->warn_to_error)
+            return SYNTAX_ERR;
     }
 
     return 0;
@@ -851,20 +857,20 @@ int NM(void *v)
     size_t i;
 
     par_desc =
-        "(switch, case_a, `when_a', case_b, `when_b', ... , `default')";
+        "(switch, case_a, `when_a'[, case_b, `when_b',] ... [, `default'])";
 
     if (m4->help) {
         fprintf(stderr, "%s: %s%s\n", "built-in", esf(NM), par_desc);
         return 0;
     }
 
-    if (!(num_args_collected >= 4 && num_args_collected % 2 == 0)) {
+    if (num_args_collected < 3) {
         fprintf(stderr, "%s:%lu [%s:%d]: Usage: %s%s\n", m4->input->nm,
                 m4->input->rn, __FILE__, __LINE__, esf(NM), par_desc);
         return USAGE_ERR;
     }
 
-    for (i = 2; i <= num_args_collected - 2; i += 2)
+    for (i = 2; i <= num_args_collected - 1; i += 2)
         if (!strcmp(arg(1), arg(i))) {
             if (unget_str(m4->input, arg(i + 1))) {
                 fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
@@ -874,7 +880,8 @@ int NM(void *v)
         }
 
     /* Default */
-    if (unget_str(m4->input, arg(num_args_collected))) {
+    if (num_args_collected > 3 && num_args_collected % 2 == 0
+        && unget_str(m4->input, arg(num_args_collected))) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
         return ERR;
     }
@@ -1307,19 +1314,16 @@ int main(int argc, char **argv)
     M4ptr m4;
     struct entry *e;            /* Used for macro lookups */
     int i, r;
+    char *p;
+    int no_file = 1;            /* No files specified on the command line */
 
     if (sane_io()) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
         return ERR;
     }
 
-    if ((m4 = init_m4(argc > 1 ? 0 : 1)) == NULL)
+    if ((m4 = init_m4()) == NULL)
         mgoto(error);
-
-    if (argc > 1)
-        for (i = argc - 1; i >= 1; --i)
-            if (unget_file(&m4->input, *(argv + i)))
-                mgoto(error);
 
 /* Load built-in macros */
 #define load_bi(m) if (upsert(m4->ht, #m, NULL, &m, 0)) \
@@ -1356,6 +1360,65 @@ int main(int argc, char **argv)
     load_bi(traceon);
     load_bi(traceoff);
     load_bi(recrm);
+
+#define program_usage "m4 [-s] [-D macro_name[=macro_def]] ... " \
+    "[-U macro_name] ... file ..."
+
+    /* Process command line arguments */
+    for (i = 1; i < argc; ++i) {
+        if (!strcmp(*(argv + i), "-s")) {
+            m4->line_direct = 1;
+        } else if (!strcmp(*(argv + i), "-D")) {
+            if (i + 1 == argc) {
+                fprintf(stderr, "[%s:%d]: Error: Usage: %s\n", __FILE__,
+                        __LINE__, program_usage);
+                ret = USAGE_ERR;
+                goto error;
+            }
+
+            if ((p = strchr(*(argv + i + 1), '=')) == NULL) {
+                if (upsert(m4->ht, *(argv + i + 1), NULL, NULL, 0))
+                    mgoto(error);
+            } else {
+                *p = '\0';
+                if (upsert(m4->ht, *(argv + i + 1), p + 1, NULL, 0))
+                    mgoto(error);
+            }
+            ++i;
+        } else if (!strcmp(*(argv + i), "-U")) {
+            if (i + 1 == argc) {
+                fprintf(stderr, "[%s:%d]: Error: Usage: %s\n", __FILE__,
+                        __LINE__, program_usage);
+                ret = USAGE_ERR;
+                goto error;
+            }
+            if (delete_entry(m4->ht, *(argv + i + 1), 0)) {
+                fprintf(stderr,
+                        "[%s:%d]: Usage warning: Macro does not exist: %s\n",
+                        __FILE__, __LINE__, *(argv + i + 1));
+                if (m4->warn_to_error) {
+                    ret = USAGE_ERR;
+                    goto error;
+                }
+            }
+
+            ++i;
+        } else if (!strcmp(*(argv + i), "-")) {
+            if (append_stream(&m4->input, stdin, "stdin"))
+                mgoto(error);
+
+            no_file = 0;
+        } else {
+            if (append_file(&m4->input, *(argv + i)))
+                mgoto(error);
+
+            no_file = 0;
+        }
+    }
+
+    if (no_file && append_stream(&m4->input, stdin, "stdin"))
+        mgoto(error);
+
 
     /*
      * Loops until the input is exhausted, or the user requests to exit,

@@ -28,7 +28,7 @@
 #define INIT_BUF_SIZE 512
 
 
-struct ibuf *init_ibuf(size_t n, int read_stdin)
+struct ibuf *init_ibuf(size_t n)
 {
     struct ibuf *b = NULL;
 
@@ -40,14 +40,6 @@ struct ibuf *init_ibuf(size_t n, int read_stdin)
 
     if ((b->a = malloc(n * sizeof(char))) == NULL)
         mgoto(error);
-
-    if (read_stdin) {
-        if ((b->nm = strdup("stdin")) == NULL)
-            mgoto(error);
-
-        b->fp = stdin;
-        b->rn = 1;
-    }
 
     b->i = 0;
     b->n = n;
@@ -467,28 +459,22 @@ int unget_str(struct ibuf *b, const char *str)
     return 0;
 }
 
-int unget_file(struct ibuf **b, const char *fn)
+int unget_stream(struct ibuf **b, FILE * fp, const char *nm)
 {
-    /* Creates a new struct head */
+    /* Creates a new struct head. *b can be NULL. */
     struct ibuf *t = NULL;
 
-    if (fn == NULL || *fn == '\0') {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
-
-    if ((t = init_ibuf(INIT_BUF_SIZE, 0)) == NULL)
+    if ((t = init_ibuf(INIT_BUF_SIZE)) == NULL)
         mgoto(error);
 
-    if ((t->fp = fopen(fn, "rb")) == NULL)
+    if ((t->nm = strdup(nm)) == NULL)
         mgoto(error);
 
-    if ((t->nm = strdup(fn)) == NULL)
-        mgoto(error);
+    t->fp = fp;
 
     t->rn = 1;
 
-    /* Link in */
+    /* Link in front */
     t->next = *b;
     *b = t;
 
@@ -498,6 +484,63 @@ int unget_file(struct ibuf **b, const char *fn)
     free_ibuf(t);
 
     return ERR;
+}
+
+int unget_file(struct ibuf **b, const char *fn)
+{
+    FILE *fp = NULL;
+    if ((fp = fopen(fn, "rb")) == NULL) {
+        fprintf(stderr, "[%s:%d]: Error\n", __FILE__, __LINE__);
+        return ERR;
+    }
+
+    return unget_stream(b, fp, fn);
+}
+
+int append_stream(struct ibuf **b, FILE * fp, const char *nm)
+{
+    /* Links a new stream in at the tail of the list. *b can be NULL. */
+    struct ibuf *t = NULL;
+    struct ibuf *w = NULL;
+
+    if ((t = init_ibuf(INIT_BUF_SIZE)) == NULL)
+        mgoto(error);
+
+    if ((t->nm = strdup(nm)) == NULL)
+        mgoto(error);
+
+    t->fp = fp;
+
+    t->rn = 1;
+
+    /* Link at end */
+    if (*b != NULL) {
+        w = *b;
+        while (w->next != NULL)
+            w = w->next;
+
+        w->next = t;
+    } else {
+        *b = t;
+    }
+
+    return 0;
+
+  error:
+    free_ibuf(t);
+
+    return ERR;
+}
+
+int append_file(struct ibuf **b, const char *fn)
+{
+    FILE *fp = NULL;
+    if ((fp = fopen(fn, "rb")) == NULL) {
+        fprintf(stderr, "[%s:%d]: Error\n", __FILE__, __LINE__);
+        return ERR;
+    }
+
+    return append_stream(b, fp, fn);
 }
 
 int get_ch(struct ibuf **input, char *ch)

@@ -170,6 +170,20 @@ to the C preprocessor, although it is not tied to any specific language. It
 performs programmatic find-and-replace on text, but can also perform other
 tasks, such as executing shell commands.
 
+Usage
+-----
+
+```sh
+m4 [-s] [-D macro_name[=macro_def]] ... [-U macro_name] ... file ...
+```
+Where:
+*  `-s` prints `#line` directive for the C preprocessor.
+* `-D` defines the macro specified in the next argument, with optionally,
+    the macro's definition given after a separating `=` character.
+* `-U` undefines the macro name specified in the next argument.
+* `file` is a list of regular files, with `-` denoting `stdin`. If no files
+    are specified, then `stdin` is read by default.
+
 How m4 works
 ------------
 

@@ -132,11 +132,8 @@ int delete_entry(struct ht *ht, const char *name, int pop_hist)
 
     e = lookup(ht, name);
 
-    if (e == NULL) {
-        /* Error as not found */
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (e == NULL)
+        return ERR;             /* Error as not found */
 
     bucket = hash_func(name, ht->n);
 

@@ -45,7 +45,7 @@ int main(void)
         return ERR;
     }
 
-    if ((input = init_ibuf(INIT_BUF_SIZE, 1)) == NULL) {
+    if (unget_stream(&input, stdin, "stdin")) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
         return ERR;
     }
