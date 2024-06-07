@@ -58,8 +58,7 @@ int main(void)
         else if (ret == ERR || ret == EOF)
             break;
         else
-            fprintf(stderr, "%s:%lu: Math error\n", input->nm,
-                    input->rn - 1);
+            fprintf(stderr, "%s:%lu: Math error\n", input->nm, input->rn);
     }
 
     free_ibuf(input);

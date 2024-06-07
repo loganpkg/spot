@@ -578,8 +578,13 @@ int get_ch(struct ibuf **input, char *ch)
                 }
             }
         } else {
-            if (x == '\n')
+            if ((*input)->incr_rn) {
                 ++(*input)->rn;
+                (*input)->incr_rn = 0;
+            }
+
+            if (x == '\n')
+                (*input)->incr_rn = 1;
 
             *ch = x;
             return 0;

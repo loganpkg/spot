@@ -212,7 +212,13 @@ typedef int (*Fptr)(void *);
 struct ibuf {
     char *nm;                   /* Associated filename or name of stream */
     FILE *fp;                   /* File pointer */
-    size_t rn;                  /* Row number in file, starting from 1 */
+    int incr_rn;                /* Increment row number next character */
+    /*
+     * Row number of character read from file, starting from 1.
+     * \n is treated as at the end of the line, so the row number will not
+     * increment until the character after is read.
+     */
+    size_t rn;
     char *a;                    /* Memory */
     size_t i;                   /* Write index */
     size_t n;                   /* Allocated number of elements */

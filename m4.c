@@ -106,6 +106,11 @@ struct m4_info {
     char *left_quote;
     char *right_quote;
     size_t quote_depth;
+    /*
+     * Delayed copy of the file pointer from inside the input. Used to detect
+     * file pointer changes to generate #line directives.
+     */
+    FILE *sticky_fp;
     int line_direct;            /* Print #line directives for C preprocessor */
     /* Exit upon user related error. Turned off by default. */
     int error_exit;             /* Exit upon the first error */
@@ -383,6 +388,9 @@ int validate_def(const char *def)
     memset(present, 'N', NUM_ARGS);
     present[0] = 'Y';           /* Macro name is always present */
 
+    if (def == NULL)
+        return 0;               /* OK */
+
     p = def;
     while (1) {
         ch = *p;
@@ -407,6 +415,53 @@ int validate_def(const char *def)
     for (i = 0; i < NUM_ARGS; ++i)
         if (i && present[i] == 'Y' && present[i - 1] == 'N')
             return 1;
+
+    return 0;
+}
+
+int add_macro(M4ptr m4, char *macro_name, char *macro_def, int push_hist)
+{
+    /*
+     * Adds a user-defined macro.
+     * Need to check macro name fully as it might have been passed in on the
+     * command line.
+     */
+    char *p, ch;
+
+    p = macro_name;
+    /* Check first character */
+    if (!isalpha(*p) && *p != '_') {
+        fprintf(stderr,
+                "%s:%d:%s: Syntax error: "
+                "Invalid macro name\n", __FILE__, __LINE__, macro_name);
+        return SYNTAX_ERR;
+    }
+    /* Check remaining characters */
+    ++p;
+    while ((ch = *p) != '\0') {
+        if (!isalnum(ch)) {
+            fprintf(stderr,
+                    "%s:%d:%s: Syntax error: "
+                    "Invalid macro name\n", __FILE__, __LINE__,
+                    macro_name);
+            return SYNTAX_ERR;
+        }
+        ++p;
+    }
+
+    if (validate_def(macro_def)) {
+        fprintf(stderr,
+                "%s:%d:%s: Syntax warning: "
+                "Macro definition has gaps in argument references\n",
+                __FILE__, __LINE__, macro_name);
+        if (m4->warn_to_error)
+            return SYNTAX_ERR;
+    }
+
+    if (upsert(m4->ht, macro_name, macro_def, NULL, push_hist)) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return ERR;
+    }
 
     return 0;
 }
@@ -436,31 +491,10 @@ int validate_def(const char *def)
 int NM(void *v)
 {
     M4ptr m4 = (M4ptr) v;
-    char ch;
 
     usage(2, "(`macro_name', `macro_def')");
 
-    ch = *arg(1);
-    if (!isalpha(ch) && ch != '_') {
-        fprintf(stderr,
-                "%s:%d:%s: Syntax error: "
-                "Invalid macro name\n", __FILE__, __LINE__, esf(NM));
-        return SYNTAX_ERR;
-    }
-
-    if (validate_def(arg(2))) {
-        fprintf(stderr,
-                "%s:%d:%s: Syntax warning: "
-                "Macro definition has gaps in argument references\n",
-                __FILE__, __LINE__, esf(NM));
-        if (m4->warn_to_error)
-            return SYNTAX_ERR;
-    }
-
-    if (upsert(m4->ht, arg(1), arg(2), NULL, 0)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    return add_macro(m4, arg(1), arg(2), 0);
 
     return 0;
 }
@@ -470,32 +504,10 @@ int NM(void *v)
 int NM(void *v)
 {
     M4ptr m4 = (M4ptr) v;
-    char ch;
 
     usage(2, "(`macro_name', `macro_def')");
 
-    ch = *arg(1);
-    if (!isalpha(ch) && ch != '_') {
-        fprintf(stderr,
-                "%s:%d:%s: Syntax error: "
-                "Invalid macro name\n", __FILE__, __LINE__, esf(NM));
-        return SYNTAX_ERR;
-    }
-
-    if (validate_def(arg(2))) {
-        fprintf(stderr,
-                "%s:%d:%s: Syntax warning: "
-                "Macro definition has gaps in argument references\n",
-                __FILE__, __LINE__, esf(NM));
-        if (m4->warn_to_error)
-            return SYNTAX_ERR;
-    }
-
-    /* Push history */
-    if (upsert(m4->ht, arg(1), arg(2), NULL, 1)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    return add_macro(m4, arg(1), arg(2), 1);
 
     return 0;
 }
@@ -1313,6 +1325,7 @@ int main(int argc, char **argv)
     int req_exit_val = -1;
     M4ptr m4;
     struct entry *e;            /* Used for macro lookups */
+    char num[NUM_BUF_SIZE];
     int i, r;
     char *p;
     int no_file = 1;            /* No files specified on the command line */
@@ -1375,15 +1388,14 @@ int main(int argc, char **argv)
                 ret = USAGE_ERR;
                 goto error;
             }
-
-            if ((p = strchr(*(argv + i + 1), '=')) == NULL) {
-                if (upsert(m4->ht, *(argv + i + 1), NULL, NULL, 0))
-                    mgoto(error);
-            } else {
+            p = strchr(*(argv + i + 1), '=');
+            if (p != NULL)
                 *p = '\0';
-                if (upsert(m4->ht, *(argv + i + 1), p + 1, NULL, 0))
-                    mgoto(error);
-            }
+
+            if (add_macro
+                (m4, *(argv + i + 1), p == NULL ? NULL : p + 1, 0))
+                mgoto(error);
+
             ++i;
         } else if (!strcmp(*(argv + i), "-U")) {
             if (i + 1 == argc) {
@@ -1434,9 +1446,6 @@ int main(int argc, char **argv)
         /* Need to clear macro return value */
         mrv = 0;
 
-        if (flush_obuf(m4->div[0]))
-            mgoto(error);
-
         m4->div[NUM_ARGS]->i = 0;
 
         r = eat_str_if_match(&m4->input, m4->left_quote);
@@ -1473,6 +1482,36 @@ int main(int argc, char **argv)
             mgoto(error);
         else if (r == EOF)
             break;
+
+        /*
+         * Output #line directive. Do after get_word so that fp and rn
+         * (in the input) are up to date. Do before this word is processed,
+         * so that the #line directive appears in the output beforehand.
+         */
+        if ((!output->i || *(output->a + output->i - 1) == '\n')
+            && m4->line_direct && m4->sticky_fp != m4->input->fp) {
+            r = snprintf(num, NUM_BUF_SIZE, "%lu",
+                         (unsigned long) m4->input->rn);
+            if (r < 0 || r >= NUM_BUF_SIZE)
+                mgoto(error);
+
+            if (put_str(output, "#line "))
+                mgoto(error);
+
+            if (put_str(output, num))
+                mgoto(error);
+
+            if (put_str(output, " \""))
+                mgoto(error);
+
+            if (put_str(output, m4->input->nm))
+                mgoto(error);
+
+            if (put_str(output, "\"\n"))
+                mgoto(error);
+
+            m4->sticky_fp = m4->input->fp;
+        }
 
         if (m4->quote_depth) {
             /* Quoted */
@@ -1518,9 +1557,18 @@ int main(int argc, char **argv)
 
             --m4->stack->bracket_depth;
         } else {
-            e = lookup(m4->ht, m4->token->a);
+            e = NULL;
+            /* Short circuit */
+            if (isalpha(*m4->token->a) || *m4->token->a == '_')
+                e = lookup(m4->ht, m4->token->a);
+
             if (e == NULL) {
-                /* Not a macro, so pass through */
+                /* Not a macro */
+
+                if (!strcmp(m4->token->a, "\n") && flush_obuf(m4->div[0]))
+                    mgoto(error);
+
+                /* Pass through */
                 if (put_str(output, m4->token->a))
                     mgoto(error);
             } else {
