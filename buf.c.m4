@@ -391,7 +391,8 @@ int get_word(struct ibuf **input, struct obuf *token, int interpret_hex)
                 goto end;
         } while (ch == '\0' || ch == '\r');
 
-        if (interpret_hex && second_ch && type == 'd' && (ch == 'x' || ch == 'X'))
+        if (interpret_hex && second_ch && type == 'd'
+            && (ch == 'x' || ch == 'X'))
                 type = 'h';  /* Hexadecimal number */
 
             /* More of the same type. Words can include digits here. */
@@ -570,7 +571,8 @@ int put_stream(struct obuf *b, FILE * fp)
     i_backup = b->i;
 
     while (1) {
-        if (READ_BLOCK_SIZE > b->n - b->i && grow_obuf(b, READ_BLOCK_SIZE))  mgoto(error);
+        if (READ_BLOCK_SIZE > b->n - b->i && grow_obuf(b, READ_BLOCK_SIZE))
+            mgoto(error);
 
         rs = fread(b->a + b->i, 1, READ_BLOCK_SIZE, fp);
         b->i += rs;

@@ -302,8 +302,8 @@ static int erase_screen(int clear)
     if (clear || new_s_s != stdscr->vs_s) {
         if (new_s_s != stdscr->vs_s) {
             /*
-             * Allocates memory the first time, as stdscr->vs_s is initially zero,
-             * and stdscr->vs_c and stdscr->vs_n are initially NULL.
+             * Allocates memory the first time, as stdscr->vs_s is initially
+             * zero, and stdscr->vs_c and stdscr->vs_n are initially NULL.
              */
             if ((t = realloc(stdscr->vs_c, new_s_s)) == NULL)
                 return ERR;

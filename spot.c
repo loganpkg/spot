@@ -58,8 +58,10 @@ int draw(struct gb *b, struct gb *cl, int cl_active, char **sb,
     size_t y;                   /* Current vertical position on screen */
     size_t x;                   /* Current horizontal position on screen */
     size_t si;                  /* Current screen index */
-    size_t c_y;                 /* Final vertical cursor position on screen */
-    size_t c_x;                 /* Final horizontal cursor position on screen */
+    /* Final vertical cursor position on screen */
+    size_t c_y;
+    /* Final horizontal cursor position on screen */
+    size_t c_x;
     char *tmp;
 
 

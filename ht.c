@@ -217,9 +217,9 @@ int upsert(struct ht *ht, const char *name, const char *def, Fptr func_p,
         new_e->func_p = func_p;
     } else if (push_hist) {
         /*
-         * To preserve prev and next links, link in the new node below hist head.
-         * Copy the existing contents of hist head to the new node, then update
-         * the contents of hist head with the new information.
+         * To preserve prev and next links, link in the new node below hist
+         * head. Copy the existing contents of hist head to the new node,
+         * then update the contents of hist head with the new information.
          */
         new_e->hist = e->hist;
         e->hist = new_e;

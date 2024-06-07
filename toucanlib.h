@@ -180,6 +180,11 @@
 /* Expanded stringify. Stringifies the definition of macro_name. */
 #define esf(macro_name) sf(macro_name)
 
+/* Concatenation */
+#define conc(a, b) a ## b
+/* Epanded concatenation */
+#define econc(a, b) conc(a, b)
+
 
 /* attr must be an unsigned char */
 #define IS_DIR(attr) ((attr) & 1)

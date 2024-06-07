@@ -75,7 +75,9 @@ find . -type f ! -path '*.git*' ! -name '*~' \
     -exec grep -H -n -E '.{80}' '{}' \;
 
 
-./func_dec.sh toucanlib.h gen.c num.c expanded_buf.c gb.c eval.c ht.c regex.c fs.c
+./func_dec.sh toucanlib.h gen.c num.c expanded_buf.c gb.c eval.c ht.c \
+    regex.c fs.c
+
 ./func_dec.sh curses.h curses.c
 
 find . -type f ! -path '*.git*' -name '*.h' \
