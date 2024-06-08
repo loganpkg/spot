@@ -76,7 +76,7 @@
 
 
 struct macro_call {
-    Fptr mfp;
+    Fptr mfp;                   /* Macro file pointer (built-ins) */
     size_t m_i;                 /* Index into str_start */
     size_t bracket_depth;       /* Depth of unquoted brackets */
     struct macro_call *next;    /* For nested macro calls */
@@ -103,7 +103,8 @@ struct m4_info {
      */
     struct obuf *store;
     struct sbuf *str_start;     /* Indices to the start of strings in store */
-    struct macro_call *stack;
+    struct macro_call *stack;   /* Head node of the macro call stack */
+    Fptr tmp_mfp;               /* For passing back the defn of a built-in */
     struct obuf *tmp;           /* Used for substituting arguments */
     struct obuf *div[NUM_DIVS];
     size_t active_div;
@@ -177,9 +178,10 @@ int sub_args(M4ptr m4)
     size_t x, i;
     char num[NUM_BUF_SIZE];
     int r;
-
+    int all_args_accessed = 0;
     char accessed[NUM_ARGS];
     memset(accessed, 'N', NUM_ARGS);
+
 
     m4->tmp->i = 0;
     p = m_def;
@@ -223,6 +225,36 @@ int sub_args(M4ptr m4)
                     return ERR;
                 }
                 ++p;            /* Eat an extra char */
+            } else if (next_ch == '*' || next_ch == '@') {
+                /*
+                 * $* is all arguments, comma separated.
+                 * $@ is the same, but the individual arguments are quoted.
+                 */
+                all_args_accessed = 1;
+                for (i = 1; i <= num_args_collected; ++i) {
+                    if (next_ch == '@' && put_str(m4->tmp, m4->left_quote)) {
+                        fprintf(stderr, "%s:%d: Error\n", __FILE__,
+                                __LINE__);
+                        return ERR;
+                    }
+                    if (put_str(m4->tmp, arg(i))) {
+                        fprintf(stderr, "%s:%d: Error\n", __FILE__,
+                                __LINE__);
+                        return ERR;
+                    }
+                    if (next_ch == '@'
+                        && put_str(m4->tmp, m4->right_quote)) {
+                        fprintf(stderr, "%s:%d: Error\n", __FILE__,
+                                __LINE__);
+                        return ERR;
+                    }
+                    if (i != num_args_collected && put_ch(m4->tmp, ',')) {
+                        fprintf(stderr, "%s:%d: Error\n", __FILE__,
+                                __LINE__);
+                        return ERR;
+                    }
+                }
+                ++p;            /* Eat an extra char */
             } else {
                 if (put_ch(m4->tmp, ch)) {
                     fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
@@ -237,14 +269,15 @@ int sub_args(M4ptr m4)
         ++p;
     }
 
-    for (i = 1; i <= num_args_collected; ++i)
-        if ((i < NUM_ARGS && accessed[i] == 'N') || i >= NUM_ARGS) {
-            fprintf(stderr, "%s:%d: %s: Usage warning: "
-                    "Collected argument number %lu not accessed\n",
-                    __FILE__, __LINE__, arg(0), i);
-            if (m4->warn_to_error)
-                return USAGE_ERR;
-        }
+    if (!all_args_accessed)
+        for (i = 1; i <= num_args_collected; ++i)
+            if ((i < NUM_ARGS && accessed[i] == 'N') || i >= NUM_ARGS) {
+                fprintf(stderr, "%s:%d: %s: Usage warning: "
+                        "Collected argument number %lu not accessed\n",
+                        __FILE__, __LINE__, arg(0), i);
+                if (m4->warn_to_error)
+                    return USAGE_ERR;
+            }
 
     if (unget_str(m4->input, m4->tmp->a)) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
@@ -481,50 +514,59 @@ int add_macro(M4ptr m4, char *macro_name, char *macro_def, int push_hist)
         ++p;
     }
 
-    if (validate_def(macro_def)) {
-        fprintf(stderr,
-                "%s:%d:%s: Syntax warning: "
-                "Macro definition has gaps in argument references\n",
-                __FILE__, __LINE__, macro_name);
-        if (m4->warn_to_error)
-            return SYNTAX_ERR;
-    }
+    if (*macro_def == '\0' && m4->tmp_mfp != NULL) {
+        /* Passed back built-in macro function pointer from defn */
+        if (upsert(m4->ht, macro_name, NULL, m4->tmp_mfp, push_hist)) {
+            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+            return ERR;
+        }
+        m4->tmp_mfp = NULL;
+    } else {
+        /* User-defined text macro */
+        if (validate_def(macro_def)) {
+            fprintf(stderr,
+                    "%s:%d:%s: Syntax warning: "
+                    "Macro definition has gaps in argument references\n",
+                    __FILE__, __LINE__, macro_name);
+            if (m4->warn_to_error)
+                return SYNTAX_ERR;
+        }
 
-    if (upsert(m4->ht, macro_name, macro_def, NULL, push_hist)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
+        if (upsert(m4->ht, macro_name, macro_def, NULL, push_hist)) {
+            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+            return ERR;
+        }
     }
 
     return 0;
 }
 
+#define print_help if (m4->help) {          \
+        fprintf(stderr, "%s\n", PAR_DESC);  \
+        return 0;                           \
+}
 
-#define usage(max_used_pars, pass_throu) do {                         \
-    if (m4->help) {                                                   \
-        fprintf(stderr, "%s: %s%s\n", "built-in", esf(NM), PAR_DESC); \
-        return 0;                                                     \
-    } else if (num_args_collected == 0 && pass_throu) {               \
-        m4->pass_through = 1;                                         \
-        return 0;                                                     \
-    } else if (num_args_collected > max_used_pars) {                  \
-        fprintf(stderr, "%s:%lu [%s:%d]: Usage warning: "             \
-            "Unused arguments collected: %s%s\n",                     \
-            m4->input->nm, m4->input->rn, __FILE__, __LINE__,         \
-            esf(NM), PAR_DESC);                                       \
-        if (m4->warn_to_error)                                        \
-            return USAGE_ERR;                                         \
-    }                                                                 \
-} while (0)
+#define allow_pass_through if (!num_args_collected) {   \
+    m4->pass_through = 1;                               \
+    return 0;                                           \
+}
 
-#define min_usage(min_used_pars) do {                           \
-    if (num_args_collected < min_used_pars) {                   \
-        fprintf(stderr, "%s:%lu [%s:%d]: Usage Error: "         \
-            "Required arguments not collected: %s%s\n",         \
-            m4->input->nm, m4->input->rn, __FILE__, __LINE__,   \
-            esf(NM), PAR_DESC);                                 \
-        return USAGE_ERR;                                       \
-    }                                                           \
-} while (0)
+#define max_pars(n) if (num_args_collected > n) {           \
+    fprintf(stderr, "%s:%lu [%s:%d]: Usage warning: "       \
+        "Unused arguments collected: %s%s\n",               \
+        m4->input->nm, m4->input->rn, __FILE__, __LINE__,   \
+        arg(0), PAR_DESC);                                  \
+    if (m4->warn_to_error)                                  \
+        return USAGE_ERR;                                   \
+}                                                           \
+
+#define min_pars(n) if (num_args_collected < n) {                   \
+    fprintf(stderr, "%s:%lu [%s:%d]: Usage Error: "         \
+        "Required arguments not collected: %s%s\n",         \
+        m4->input->nm, m4->input->rn, __FILE__, __LINE__,   \
+        arg(0), PAR_DESC);                                  \
+    return USAGE_ERR;                                       \
+}                                                           \
 
 
 /* ********** Built-in macros ********** */
@@ -537,8 +579,10 @@ int add_macro(M4ptr m4, char *macro_name, char *macro_def, int push_hist)
 int econc(m4_, NM) (void *v) {
     M4ptr m4 = (M4ptr) v;
 
-    usage(2, 1);
-    min_usage(2);
+    print_help;
+    allow_pass_through;
+    max_pars(2);
+    min_pars(2);
 
     return add_macro(m4, arg(1), arg(2), 0);
 
@@ -553,8 +597,10 @@ int econc(m4_, NM) (void *v) {
 int econc(m4_, NM) (void *v) {
     M4ptr m4 = (M4ptr) v;
 
-    usage(2, 1);
-    min_usage(2);
+    print_help;
+    allow_pass_through;
+    max_pars(2);
+    min_pars(2);
 
     return add_macro(m4, arg(1), arg(2), 1);
 
@@ -569,13 +615,15 @@ int econc(m4_, NM) (void *v) {
 int econc(m4_, NM) (void *v) {
     M4ptr m4 = (M4ptr) v;
 
-    usage(1, 1);
-    min_usage(1);
+    print_help;
+    allow_pass_through;
+    max_pars(1);
+    min_pars(1);
 
     if (delete_entry(m4->ht, arg(1), 0)) {
         fprintf(stderr, "%s:%lu [%s:%d]: %s: Usage warning: "
                 "Macro does not exist: %s\n", m4->input->nm, m4->input->rn,
-                __FILE__, __LINE__, esf(NM), arg(1));
+                __FILE__, __LINE__, arg(0), arg(1));
         if (m4->warn_to_error)
             return USAGE_ERR;
     }
@@ -591,14 +639,16 @@ int econc(m4_, NM) (void *v) {
 int econc(m4_, NM) (void *v) {
     M4ptr m4 = (M4ptr) v;
 
-    usage(1, 1);
-    min_usage(1);
+    print_help;
+    allow_pass_through;
+    max_pars(1);
+    min_pars(1);
 
     /* Pop history */
     if (delete_entry(m4->ht, arg(1), 1)) {
         fprintf(stderr, "%s:%lu [%s:%d]: %s: Usage warning: "
                 "Macro does not exist: %s\n", m4->input->nm, m4->input->rn,
-                __FILE__, __LINE__, esf(NM), arg(1));
+                __FILE__, __LINE__, arg(0), arg(1));
         if (m4->warn_to_error)
             return USAGE_ERR;
     }
@@ -615,12 +665,8 @@ int econc(m4_, NM) (void *v) {
     M4ptr m4 = (M4ptr) v;
     char *lq, *rq;
 
-    if (m4->help) {
-        fprintf(stderr, "%s: %s%s\n", "built-in", esf(NM), PAR_DESC);
-        return 0;
-    }
-
-    usage(2, 0);
+    print_help;
+    max_pars(2);
 
     if (num_args_collected >= 2) {
         if (validate_quote(arg(1)) || validate_quote(arg(2))) {
@@ -661,13 +707,56 @@ int econc(m4_, NM) (void *v) {
 
 #undef NM
 #undef PAR_DESC
+#define NM shift
+#define PAR_DESC "(arg1[, ... ])"
+
+int econc(m4_, NM) (void *v) {
+    M4ptr m4 = (M4ptr) v;
+    size_t i;
+
+    print_help;
+
+    if (!num_args_collected) {
+        m4->pass_through = 1;
+        return 0;
+    }
+
+    /*
+     * $@ comma separated quoted args, except for the first.
+     * Needs to be done in reverse as ungetting.
+     */
+    for (i = num_args_collected; i >= 2; --i) {
+        if (unget_str(m4->input, m4->right_quote)) {
+            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+            return ERR;
+        }
+        if (unget_str(m4->input, arg(i))) {
+            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+            return ERR;
+        }
+        if (unget_str(m4->input, m4->left_quote)) {
+            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+            return ERR;
+        }
+        if (i != 2 && unget_ch(m4->input, ',')) {
+            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+            return ERR;
+        }
+    }
+
+    return 0;
+}
+
+#undef NM
+#undef PAR_DESC
 #define NM divert
 #define PAR_DESC "[(div_num)]"
 
 int econc(m4_, NM) (void *v) {
     M4ptr m4 = (M4ptr) v;
 
-    usage(1, 0);
+    print_help;
+    max_pars(1);
 
     if (num_args_collected >= 1) {
         if (!strcmp(arg(1), "-1")) {
@@ -697,10 +786,7 @@ int econc(m4_, NM) (void *v) {
     char ch;
     size_t x, i;
 
-    if (m4->help) {
-        fprintf(stderr, "%s: %s%s\n", "built-in", esf(NM), PAR_DESC);
-        return 0;
-    }
+    print_help;
 
     if (num_args_collected) {
         for (i = 1; i <= num_args_collected; ++i) {
@@ -708,7 +794,7 @@ int econc(m4_, NM) (void *v) {
             if (ch == '\0') {
                 fprintf(stderr, "%s:%d:%s: Usage error: "
                         "Argument is empty string\n", __FILE__, __LINE__,
-                        esf(NM));
+                        arg(0));
                 return USAGE_ERR;
             } else if (isdigit(ch) && strlen(arg(i)) == 1
                        && (x = ch - '0') != m4->active_div) {
@@ -750,8 +836,10 @@ int econc(m4_, NM) (void *v) {
     int append = 0;
     char ch;
 
-    usage(3, 1);
-    min_usage(2);
+    print_help;
+    allow_pass_through;
+    max_pars(3);
+    min_pars(2);
 
     if (num_args_collected >= 3 && !strcmp(arg(3), "1"))
         append = 1;
@@ -781,7 +869,8 @@ int econc(m4_, NM) (void *v) {
     M4ptr m4 = (M4ptr) v;
     char ch;
 
-    usage(0, 0);
+    print_help;
+    max_pars(0);
 
     if (m4->active_div == 10) {
         if (unget_str(m4->input, "-1")) {
@@ -809,8 +898,10 @@ int econc(m4_, NM) (void *v) {
 int econc(m4_, NM) (void *v) {
     M4ptr m4 = (M4ptr) v;
 
-    usage(1, 1);
-    min_usage(1);
+    print_help;
+    allow_pass_through;
+    max_pars(1);
+    min_pars(1);
 
     if (unget_file(&m4->input, arg(1))) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
@@ -828,7 +919,8 @@ int econc(m4_, NM) (void *v) {
 int econc(m4_, NM) (void *v) {
     M4ptr m4 = (M4ptr) v;
 
-    usage(0, 0);
+    print_help;
+    max_pars(0);
 
     return delete_to_nl(&m4->input);
 }
@@ -842,8 +934,10 @@ int econc(m4_, NM) (void *v) {
     M4ptr m4 = (M4ptr) v;
     char *p, *q, ch;
 
-    usage(1, 1);
-    min_usage(1);
+    print_help;
+    allow_pass_through;
+    max_pars(1);
+    min_pars(1);
 
     p = arg(1);
     q = NULL;
@@ -881,8 +975,10 @@ int econc(m4_, NM) (void *v) {
     int nl_sen = 0;             /* Newline sensitive (off) */
     int verbose = 0;            /* Prints information about the regex */
 
-    usage(5, 1);
-    min_usage(3);
+    print_help;
+    allow_pass_through;
+    max_pars(5);
+    min_pars(3);
 
     if (!strcmp(arg(4), "1"))
         nl_sen = 1;             /* Newline sensitive on */
@@ -915,7 +1011,9 @@ int econc(m4_, NM) (void *v) {
     M4ptr m4 = (M4ptr) v;
     char *res;
 
-    usage(1, 0);
+    print_help;
+    allow_pass_through;
+    max_pars(1);
 
     if ((res = ls_dir(num_args_collected ? arg(1) : ".")) == NULL) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
@@ -942,8 +1040,10 @@ int econc(m4_, NM) (void *v) {
     M4ptr m4 = (M4ptr) v;
     struct entry *e;
 
-    usage(3, 1);
-    min_usage(2);
+    print_help;
+    allow_pass_through;
+    max_pars(3);
+    min_pars(2);
 
     e = lookup(m4->ht, arg(1));
     if (e != NULL) {
@@ -970,14 +1070,15 @@ int econc(m4_, NM) (void *v) {
     M4ptr m4 = (M4ptr) v;
     size_t i;
 
-    if (m4->help) {
-        fprintf(stderr, "%s: %s%s\n", "built-in", esf(NM), PAR_DESC);
+    print_help;
+    if (!num_args_collected) {
+        m4->pass_through = 1;
         return 0;
     }
 
     if (num_args_collected < 3) {
         fprintf(stderr, "%s:%lu [%s:%d]: Usage: %s%s\n", m4->input->nm,
-                m4->input->rn, __FILE__, __LINE__, esf(NM), PAR_DESC);
+                m4->input->rn, __FILE__, __LINE__, arg(0), PAR_DESC);
         return USAGE_ERR;
     }
 
@@ -1002,6 +1103,66 @@ int econc(m4_, NM) (void *v) {
 
 #undef NM
 #undef PAR_DESC
+#define NM defn
+#define PAR_DESC "(`macro_name')"
+
+int econc(m4_, NM) (void *v) {
+    M4ptr m4 = (M4ptr) v;
+    struct entry *e = NULL;
+    size_t i;
+
+    print_help;
+    allow_pass_through;
+    min_pars(1);
+
+    for (i = num_args_collected; i >= 1; --i) {
+        /* Reverse order because ungetting */
+        e = lookup(m4->ht, arg(i));
+        if (e != NULL && e->func_p == NULL) {
+            /* User-defined text macro */
+            if (unget_str(m4->input, m4->right_quote)) {
+                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+                return ERR;
+            }
+            if (unget_str(m4->input, e->def)) {
+                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+                return ERR;
+            }
+            if (unget_str(m4->input, m4->left_quote)) {
+                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+                return ERR;
+            }
+        }
+    }
+
+    if (num_args_collected == 1 && e != NULL && e->func_p != NULL) {
+        /*
+         * Built-in macro. The definition is the function pointer.
+         * Look next in the stack to see if defn was called as the second
+         * argument to define or pushdef (or renames of these). If so,
+         * temporarily save the function pointer for after the stack is
+         * popped. Otherwise, do nothing.
+         *
+         * The m_i difference needs to be 4 to line up with the second argument
+         * of the next macro call in the stack.
+         * def macro_name arg1 arg2 def ...
+         * ^                        ^
+         * |                        |
+         * +------ Diff is 4 -------+
+         */
+
+        if (m4->stack->next != NULL
+            && (m4->stack->next->mfp == &m4_define
+                || m4->stack->next->mfp == &m4_pushdef)
+            && m4->stack->m_i - m4->stack->next->m_i == 4)
+            m4->tmp_mfp = e->func_p;
+    }
+
+    return 0;
+}
+
+#undef NM
+#undef PAR_DESC
 #define NM dumpdef
 #define PAR_DESC "[(`macro_name'[, ...])]"
 
@@ -1011,10 +1172,7 @@ int econc(m4_, NM) (void *v) {
     size_t i;
     struct entry *e;
 
-    if (m4->help) {
-        fprintf(stderr, "%s: %s%s\n", "built-in", esf(NM), PAR_DESC);
-        return 0;
-    }
+    print_help;
 
     m4->help = 1;
 
@@ -1023,7 +1181,7 @@ int econc(m4_, NM) (void *v) {
             if (*arg(i) == '\0') {
                 fprintf(stderr, "%s:%d:%s: Usage error: "
                         "Argument is empty string\n", __FILE__, __LINE__,
-                        esf(NM));
+                        arg(0));
                 m4->help = 0;
                 return USAGE_ERR;
             }
@@ -1035,6 +1193,7 @@ int econc(m4_, NM) (void *v) {
                 if (e->func_p == NULL) {
                     fprintf(stderr, "User-def: %s: %s\n", e->name, e->def);
                 } else {
+                    fprintf(stderr, "Built-in: %s", e->name);
                     if ((ret = (*e->func_p) (m4))) {
                         m4->help = 0;
                         return ret;
@@ -1050,6 +1209,7 @@ int econc(m4_, NM) (void *v) {
                 if (e->func_p == NULL) {
                     fprintf(stderr, "User-def: %s: %s\n", e->name, e->def);
                 } else {
+                    fprintf(stderr, "Built-in: %s", e->name);
                     if ((ret = (*e->func_p) (m4))) {
                         m4->help = 0;
                         return ret;
@@ -1074,8 +1234,10 @@ int econc(m4_, NM) (void *v) {
 int econc(m4_, NM) (void *v) {
     M4ptr m4 = (M4ptr) v;
 
-    usage(1, 1);
-    min_usage(1);
+    print_help;
+    allow_pass_through;
+    max_pars(1);
+    min_pars(1);
 
     fprintf(stderr, "%s\n", arg(1));
     return 0;
@@ -1091,8 +1253,10 @@ int econc(m4_, NM) (void *v) {
     char num[NUM_BUF_SIZE];
     int r;
 
-    usage(1, 1);
-    min_usage(1);
+    print_help;
+    allow_pass_through;
+    max_pars(1);
+    min_pars(1);
 
     r = snprintf(num, NUM_BUF_SIZE, "%lu", (unsigned long) strlen(arg(1)));
     if (r < 0 || r >= NUM_BUF_SIZE) {
@@ -1117,25 +1281,27 @@ int econc(m4_, NM) (void *v) {
     M4ptr m4 = (M4ptr) v;
     size_t len, x, y;
 
-    usage(3, 1);
-    min_usage(2);
+    print_help;
+    allow_pass_through;
+    max_pars(3);
+    min_pars(2);
 
     len = strlen(arg(1));
 
     if (str_to_size_t(arg(2), &x)) {
         fprintf(stderr, "%s:%d:%s: Usage error: "
-                "Invalid number\n", __FILE__, __LINE__, esf(NM));
+                "Invalid number\n", __FILE__, __LINE__, arg(0));
         return USAGE_ERR;
     }
     if (num_args_collected >= 3) {
         if (str_to_size_t(arg(3), &y)) {
             fprintf(stderr, "%s:%d:%s: Usage error: "
-                    "Invalid number\n", __FILE__, __LINE__, esf(NM));
+                    "Invalid number\n", __FILE__, __LINE__, arg(0));
             return USAGE_ERR;
         }
         if (aof(x, y, SIZE_MAX)) {
             fprintf(stderr, "%s:%d:%s: User overflow error\n", __FILE__,
-                    __LINE__, esf(NM));
+                    __LINE__, arg(0));
             return USER_OVERFLOW_ERR;
         }
         /* Truncate string */
@@ -1144,7 +1310,7 @@ int econc(m4_, NM) (void *v) {
         } else if (x + y > len) {
             fprintf(stderr, "%s:%lu [%s:%d]: %s: Usage warning: "
                     "Substring is out of bounds\n", m4->input->nm,
-                    m4->input->rn, __FILE__, __LINE__, esf(NM));
+                    m4->input->rn, __FILE__, __LINE__, arg(0));
             if (m4->warn_to_error)
                 return USAGE_ERR;
         }
@@ -1157,7 +1323,7 @@ int econc(m4_, NM) (void *v) {
     } else {
         fprintf(stderr, "%s:%lu [%s:%d]: %s: Usage warning: "
                 "Index is out of bounds\n", m4->input->nm, m4->input->rn,
-                __FILE__, __LINE__, esf(NM));
+                __FILE__, __LINE__, arg(0));
         if (m4->warn_to_error)
             return USAGE_ERR;
     }
@@ -1175,8 +1341,10 @@ int econc(m4_, NM) (void *v) {
     char num[NUM_BUF_SIZE];
     int r;
 
-    usage(2, 1);
-    min_usage(2);
+    print_help;
+    allow_pass_through;
+    max_pars(2);
+    min_pars(2);
 
     p = quick_search(arg(1), strlen(arg(1)), arg(2), strlen(arg(2)));
 
@@ -1215,8 +1383,10 @@ int econc(m4_, NM) (void *v) {
     char num[NUM_BUF_SIZE];
     int r;
 
-    usage(1, 1);
-    min_usage(1);
+    print_help;
+    allow_pass_through;
+    max_pars(1);
+    min_pars(1);
 
     p = arg(1);
     if (*p == '-') {
@@ -1226,7 +1396,7 @@ int econc(m4_, NM) (void *v) {
 
     if (str_to_size_t(p, &x)) {
         fprintf(stderr, "%s:%d:%s: Usage error: "
-                "Invalid number\n", __FILE__, __LINE__, esf(NM));
+                "Invalid number\n", __FILE__, __LINE__, arg(0));
         return USAGE_ERR;
     }
 
@@ -1235,7 +1405,7 @@ int econc(m4_, NM) (void *v) {
     } else {
         if (x == SIZE_MAX) {
             fprintf(stderr, "%s:%d:%s: User overflow error\n", __FILE__,
-                    __LINE__, esf(NM));
+                    __LINE__, arg(0));
             return USER_OVERFLOW_ERR;
         }
         ++x;
@@ -1276,8 +1446,10 @@ int econc(m4_, NM) (void *v) {
     char num[NUM_BUF_SIZE];
     int r;
 
-    usage(1, 1);
-    min_usage(1);
+    print_help;
+    allow_pass_through;
+    max_pars(1);
+    min_pars(1);
 
     p = arg(1);
     if (*p == '-') {
@@ -1287,7 +1459,7 @@ int econc(m4_, NM) (void *v) {
 
     if (str_to_size_t(p, &x)) {
         fprintf(stderr, "%s:%d:%s: Usage error: "
-                "Invalid number\n", __FILE__, __LINE__, esf(NM));
+                "Invalid number\n", __FILE__, __LINE__, arg(0));
         return USAGE_ERR;
     }
 
@@ -1296,7 +1468,7 @@ int econc(m4_, NM) (void *v) {
     } else {
         if (x == SIZE_MAX) {
             fprintf(stderr, "%s:%d:%s: User overflow error\n", __FILE__,
-                    __LINE__, esf(NM));
+                    __LINE__, arg(0));
             return USER_OVERFLOW_ERR;
         }
         if (!x)
@@ -1337,8 +1509,10 @@ int econc(m4_, NM) (void *v) {
     char *num_str = NULL;
     int verbose = 0;
 
-    usage(4, 1);
-    min_usage(1);
+    print_help;
+    allow_pass_through;
+    max_pars(4);
+    min_pars(1);
 
     if (num_args_collected >= 2 && str_to_uint(arg(2), &base)) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
@@ -1379,7 +1553,8 @@ int econc(m4_, NM) (void *v) {
 int econc(m4_, NM) (void *v) {
     M4ptr m4 = (M4ptr) v;
 
-    usage(0, 0);
+    print_help;
+    max_pars(0);
 
     if (unget_str(m4->input, m_def)) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
@@ -1401,8 +1576,10 @@ int econc(m4_, NM) (void *v) {
     int x, st, r;
     char num[NUM_BUF_SIZE];
 
-    usage(1, 1);
-    min_usage(1);
+    print_help;
+    allow_pass_through;
+    max_pars(1);
+    min_pars(1);
 
     if ((fp = popen(arg(1), "r")) == NULL) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
@@ -1476,7 +1653,8 @@ int econc(m4_, NM) (void *v) {
     M4ptr m4 = (M4ptr) v;
     size_t x = 0;
 
-    usage(1, 0);
+    print_help;
+    max_pars(1);
 
     if (num_args_collected) {
         if (str_to_size_t(arg(1), &x)) {
@@ -1503,7 +1681,8 @@ int econc(m4_, NM) (void *v) {
 int econc(m4_, NM) (void *v) {
     M4ptr m4 = (M4ptr) v;
 
-    usage(0, 0);
+    print_help;
+    max_pars(0);
 
     m4->error_exit = 0;
 
@@ -1518,7 +1697,8 @@ int econc(m4_, NM) (void *v) {
 int econc(m4_, NM) (void *v) {
     M4ptr m4 = (M4ptr) v;
 
-    usage(0, 0);
+    print_help;
+    max_pars(0);
 
     m4->error_exit = 1;
 
@@ -1533,7 +1713,8 @@ int econc(m4_, NM) (void *v) {
 int econc(m4_, NM) (void *v) {
     M4ptr m4 = (M4ptr) v;
 
-    usage(0, 0);
+    print_help;
+    max_pars(0);
 
     m4->warn_to_error = 1;
 
@@ -1548,7 +1729,8 @@ int econc(m4_, NM) (void *v) {
 int econc(m4_, NM) (void *v) {
     M4ptr m4 = (M4ptr) v;
 
-    usage(0, 0);
+    print_help;
+    max_pars(0);
 
     m4->warn_to_error = 0;
 
@@ -1563,7 +1745,8 @@ int econc(m4_, NM) (void *v) {
 int econc(m4_, NM) (void *v) {
     M4ptr m4 = (M4ptr) v;
 
-    usage(0, 0);
+    print_help;
+    max_pars(0);
 
     m4->trace = 1;
 
@@ -1578,7 +1761,8 @@ int econc(m4_, NM) (void *v) {
 int econc(m4_, NM) (void *v) {
     M4ptr m4 = (M4ptr) v;
 
-    usage(0, 0);
+    print_help;
+    max_pars(0);
 
     m4->trace = 0;
 
@@ -1593,12 +1777,14 @@ int econc(m4_, NM) (void *v) {
 int econc(m4_, NM) (void *v) {
     M4ptr m4 = (M4ptr) v;
 
-    usage(1, 1);
-    min_usage(1);
+    print_help;
+    allow_pass_through;
+    max_pars(1);
+    min_pars(1);
 
     if (*arg(1) == '\0') {
         fprintf(stderr, "%s:%d:%s: Usage error: "
-                "Argument is empty string\n", __FILE__, __LINE__, esf(NM));
+                "Argument is empty string\n", __FILE__, __LINE__, arg(0));
         return USAGE_ERR;
     }
 
@@ -1652,6 +1838,7 @@ int main(int argc, char **argv)
     load_bi(undefine);
     load_bi(popdef);
     load_bi(changequote);
+    load_bi(shift);
     load_bi(divert);
     load_bi(undivert);
     load_bi(writediv);
@@ -1663,6 +1850,7 @@ int main(int argc, char **argv)
     load_bi(lsdir);
     load_bi(ifdef);
     load_bi(ifelse);
+    load_bi(defn);
     load_bi(dumpdef);
     load_bi(errprint);
     load_bi(len);
