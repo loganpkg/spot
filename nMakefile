@@ -29,16 +29,16 @@ curses.obj: curses.h
 
 gen.obj: toucanlib.h
 num.obj: toucanlib.h
-expanded_buf.obj: toucanlib.h
+buf.obj: toucanlib.h
 gb.obj: toucanlib.h
 eval.obj: toucanlib.h
 ht.obj: toucanlib.h
 regex.obj: toucanlib.h
 fs.obj: toucanlib.h
 
-toucanlib.lib: gen.obj num.obj expanded_buf.obj gb.obj eval.obj ht.obj \
+toucanlib.lib: gen.obj num.obj buf.obj gb.obj eval.obj ht.obj \
 	regex.obj fs.obj
-	lib gen.obj num.obj expanded_buf.obj gb.obj eval.obj ht.obj regex.obj \
+	lib gen.obj num.obj buf.obj gb.obj eval.obj ht.obj regex.obj \
 		fs.obj /OUT:toucanlib.lib
 
 spot.exe: spot.c curses.obj toucanlib.lib

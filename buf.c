@@ -1,4 +1,4 @@
-changequote(<[, ]>)<[/*
+/*
  * Copyright (c) 2023 Logan Ryan McLintock
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
@@ -27,34 +27,33 @@ changequote(<[, ]>)<[/*
 #define READ_BLOCK_SIZE BUFSIZ
 #define INIT_BUF_SIZE 512
 
-]>define(common_funcs,
-<[struct $1buf *init_$1buf(size_t n)
+
+struct ibuf *init_ibuf(size_t n)
 {
-    struct $1buf *b = NULL;
+    struct ibuf *b = NULL;
 
-    if ((b = calloc(1, sizeof(struct $1buf))) == NULL)
+    if ((b = calloc(1, sizeof(struct ibuf))) == NULL)
         mgoto(error);
 
-    if (mof(n, sizeof($2), SIZE_MAX))
+    if (mof(n, sizeof(char), SIZE_MAX))
         mgoto(error);
 
-    if ((b->a = malloc(n * sizeof($2))) == NULL)
+    if ((b->a = malloc(n * sizeof(char))) == NULL)
         mgoto(error);
 
     b->i = 0;
     b->n = n;
     return b;
 
-error:
-    free_$1buf(b);
+  error:
+    free_ibuf(b);
     return NULL;
 }
 
-ifelse($1, i,
-int free_$1buf(struct $1buf *b)
+int free_ibuf(struct ibuf *b)
 {
     int ret = 0;
-    struct $1buf *t;
+    struct ibuf *t;
     while (b != NULL) {
         t = b->next;
 
@@ -63,7 +62,7 @@ int free_$1buf(struct $1buf *b)
 
         if (b->fp != NULL && b->fp != stdin)
             if (fclose(b->fp))
-                  ret = ERR; /* Continue */
+                ret = ERR;      /* Continue */
 
         free(b->a);
         free(b);
@@ -71,18 +70,11 @@ int free_$1buf(struct $1buf *b)
     }
 
     return ret;
-},
-void free_$1buf(struct $1buf *b)
-{
-    if (b != NULL) {
-        free(b->a);
-        free(b);
-    }
-})
+}
 
-static int grow_$1buf(struct $1buf *b, size_t will_use)
+static int grow_ibuf(struct ibuf *b, size_t will_use)
 {
-    $2 *t;
+    char *t;
     size_t new_n;
 
     if (aof(b->n, will_use, SIZE_MAX)) {
@@ -99,12 +91,12 @@ static int grow_$1buf(struct $1buf *b, size_t will_use)
 
     new_n *= 2;
 
-    if (mof(new_n, sizeof($2), SIZE_MAX)) {
+    if (mof(new_n, sizeof(char), SIZE_MAX)) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
         return ERR;
     }
 
-    if ((t = realloc(b->a, new_n * sizeof($2))) == NULL) {
+    if ((t = realloc(b->a, new_n * sizeof(char))) == NULL) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
         return ERR;
     }
@@ -114,9 +106,9 @@ static int grow_$1buf(struct $1buf *b, size_t will_use)
     return 0;
 }
 
-int add_$1(struct $1buf *b, $2 x)
+int add_i(struct ibuf *b, char x)
 {
-    if (b->i == b->n && grow_$1buf(b, 1)) {
+    if (b->i == b->n && grow_ibuf(b, 1)) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
         return ERR;
     }
@@ -125,14 +117,312 @@ int add_$1(struct $1buf *b, $2 x)
     ++b->i;
     return 0;
 }
-]>)
-common_funcs(i, char)dnl
-common_funcs(o, char)dnl
-common_funcs(l, long)dnl
-common_funcs(s, size_t)dnl
-common_funcs(p, void *)dnl
 
-<[int unget_ch(struct ibuf *b, char ch)
+struct obuf *init_obuf(size_t n)
+{
+    struct obuf *b = NULL;
+
+    if ((b = calloc(1, sizeof(struct obuf))) == NULL)
+        mgoto(error);
+
+    if (mof(n, sizeof(char), SIZE_MAX))
+        mgoto(error);
+
+    if ((b->a = malloc(n * sizeof(char))) == NULL)
+        mgoto(error);
+
+    b->i = 0;
+    b->n = n;
+    return b;
+
+  error:
+    free_obuf(b);
+    return NULL;
+}
+
+void free_obuf(struct obuf *b)
+{
+    if (b != NULL) {
+        free(b->a);
+        free(b);
+    }
+}
+
+static int grow_obuf(struct obuf *b, size_t will_use)
+{
+    char *t;
+    size_t new_n;
+
+    if (aof(b->n, will_use, SIZE_MAX)) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return ERR;
+    }
+
+    new_n = b->n + will_use;
+
+    if (mof(new_n, 2, SIZE_MAX)) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return ERR;
+    }
+
+    new_n *= 2;
+
+    if (mof(new_n, sizeof(char), SIZE_MAX)) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return ERR;
+    }
+
+    if ((t = realloc(b->a, new_n * sizeof(char))) == NULL) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return ERR;
+    }
+
+    b->a = t;
+    b->n = new_n;
+    return 0;
+}
+
+int add_o(struct obuf *b, char x)
+{
+    if (b->i == b->n && grow_obuf(b, 1)) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return ERR;
+    }
+
+    *(b->a + b->i) = x;
+    ++b->i;
+    return 0;
+}
+
+struct lbuf *init_lbuf(size_t n)
+{
+    struct lbuf *b = NULL;
+
+    if ((b = calloc(1, sizeof(struct lbuf))) == NULL)
+        mgoto(error);
+
+    if (mof(n, sizeof(long), SIZE_MAX))
+        mgoto(error);
+
+    if ((b->a = malloc(n * sizeof(long))) == NULL)
+        mgoto(error);
+
+    b->i = 0;
+    b->n = n;
+    return b;
+
+  error:
+    free_lbuf(b);
+    return NULL;
+}
+
+void free_lbuf(struct lbuf *b)
+{
+    if (b != NULL) {
+        free(b->a);
+        free(b);
+    }
+}
+
+static int grow_lbuf(struct lbuf *b, size_t will_use)
+{
+    long *t;
+    size_t new_n;
+
+    if (aof(b->n, will_use, SIZE_MAX)) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return ERR;
+    }
+
+    new_n = b->n + will_use;
+
+    if (mof(new_n, 2, SIZE_MAX)) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return ERR;
+    }
+
+    new_n *= 2;
+
+    if (mof(new_n, sizeof(long), SIZE_MAX)) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return ERR;
+    }
+
+    if ((t = realloc(b->a, new_n * sizeof(long))) == NULL) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return ERR;
+    }
+
+    b->a = t;
+    b->n = new_n;
+    return 0;
+}
+
+int add_l(struct lbuf *b, long x)
+{
+    if (b->i == b->n && grow_lbuf(b, 1)) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return ERR;
+    }
+
+    *(b->a + b->i) = x;
+    ++b->i;
+    return 0;
+}
+
+struct sbuf *init_sbuf(size_t n)
+{
+    struct sbuf *b = NULL;
+
+    if ((b = calloc(1, sizeof(struct sbuf))) == NULL)
+        mgoto(error);
+
+    if (mof(n, sizeof(size_t), SIZE_MAX))
+        mgoto(error);
+
+    if ((b->a = malloc(n * sizeof(size_t))) == NULL)
+        mgoto(error);
+
+    b->i = 0;
+    b->n = n;
+    return b;
+
+  error:
+    free_sbuf(b);
+    return NULL;
+}
+
+void free_sbuf(struct sbuf *b)
+{
+    if (b != NULL) {
+        free(b->a);
+        free(b);
+    }
+}
+
+static int grow_sbuf(struct sbuf *b, size_t will_use)
+{
+    size_t *t;
+    size_t new_n;
+
+    if (aof(b->n, will_use, SIZE_MAX)) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return ERR;
+    }
+
+    new_n = b->n + will_use;
+
+    if (mof(new_n, 2, SIZE_MAX)) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return ERR;
+    }
+
+    new_n *= 2;
+
+    if (mof(new_n, sizeof(size_t), SIZE_MAX)) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return ERR;
+    }
+
+    if ((t = realloc(b->a, new_n * sizeof(size_t))) == NULL) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return ERR;
+    }
+
+    b->a = t;
+    b->n = new_n;
+    return 0;
+}
+
+int add_s(struct sbuf *b, size_t x)
+{
+    if (b->i == b->n && grow_sbuf(b, 1)) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return ERR;
+    }
+
+    *(b->a + b->i) = x;
+    ++b->i;
+    return 0;
+}
+
+struct pbuf *init_pbuf(size_t n)
+{
+    struct pbuf *b = NULL;
+
+    if ((b = calloc(1, sizeof(struct pbuf))) == NULL)
+        mgoto(error);
+
+    if (mof(n, sizeof(void *), SIZE_MAX))
+        mgoto(error);
+
+    if ((b->a = malloc(n * sizeof(void *))) == NULL)
+        mgoto(error);
+
+    b->i = 0;
+    b->n = n;
+    return b;
+
+  error:
+    free_pbuf(b);
+    return NULL;
+}
+
+void free_pbuf(struct pbuf *b)
+{
+    if (b != NULL) {
+        free(b->a);
+        free(b);
+    }
+}
+
+static int grow_pbuf(struct pbuf *b, size_t will_use)
+{
+    void **t;
+    size_t new_n;
+
+    if (aof(b->n, will_use, SIZE_MAX)) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return ERR;
+    }
+
+    new_n = b->n + will_use;
+
+    if (mof(new_n, 2, SIZE_MAX)) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return ERR;
+    }
+
+    new_n *= 2;
+
+    if (mof(new_n, sizeof(void *), SIZE_MAX)) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return ERR;
+    }
+
+    if ((t = realloc(b->a, new_n * sizeof(void *))) == NULL) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return ERR;
+    }
+
+    b->a = t;
+    b->n = new_n;
+    return 0;
+}
+
+int add_p(struct pbuf *b, void *x)
+{
+    if (b->i == b->n && grow_pbuf(b, 1)) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return ERR;
+    }
+
+    *(b->a + b->i) = x;
+    ++b->i;
+    return 0;
+}
+
+int unget_ch(struct ibuf *b, char ch)
 {
     return add_i(b, ch);
 }
@@ -169,16 +459,16 @@ int unget_str(struct ibuf *b, const char *str)
     return 0;
 }
 
-int unget_stream(struct ibuf **b, FILE* fp, const char *nm)
+int unget_stream(struct ibuf **b, FILE * fp, const char *nm)
 {
     /* Creates a new struct head. *b can be NULL. */
     struct ibuf *t = NULL;
 
     if ((t = init_ibuf(INIT_BUF_SIZE)) == NULL)
-            mgoto(error);
+        mgoto(error);
 
     if ((t->nm = strdup(nm)) == NULL)
-            mgoto(error);
+        mgoto(error);
 
     t->fp = fp;
 
@@ -196,7 +486,8 @@ int unget_stream(struct ibuf **b, FILE* fp, const char *nm)
     return ERR;
 }
 
-int unget_file(struct ibuf **b, const char *fn) {
+int unget_file(struct ibuf **b, const char *fn)
+{
     FILE *fp = NULL;
     if ((fp = fopen(fn, "rb")) == NULL) {
         fprintf(stderr, "[%s:%d]: Error\n", __FILE__, __LINE__);
@@ -206,17 +497,17 @@ int unget_file(struct ibuf **b, const char *fn) {
     return unget_stream(b, fp, fn);
 }
 
-int append_stream(struct ibuf **b, FILE* fp, const char *nm)
+int append_stream(struct ibuf **b, FILE * fp, const char *nm)
 {
     /* Links a new stream in at the tail of the list. *b can be NULL. */
     struct ibuf *t = NULL;
     struct ibuf *w = NULL;
 
     if ((t = init_ibuf(INIT_BUF_SIZE)) == NULL)
-            mgoto(error);
+        mgoto(error);
 
     if ((t->nm = strdup(nm)) == NULL)
-            mgoto(error);
+        mgoto(error);
 
     t->fp = fp;
 
@@ -224,14 +515,14 @@ int append_stream(struct ibuf **b, FILE* fp, const char *nm)
 
     /* Link at end */
     if (*b != NULL) {
-    w = *b;
-    while (w->next != NULL)
-          w = w->next;
+        w = *b;
+        while (w->next != NULL)
+            w = w->next;
 
-     w->next = t;
-   } else {
-       *b = t;
-   }
+        w->next = t;
+    } else {
+        *b = t;
+    }
 
     return 0;
 
@@ -241,7 +532,8 @@ int append_stream(struct ibuf **b, FILE* fp, const char *nm)
     return ERR;
 }
 
-int append_file(struct ibuf **b, const char *fn) {
+int append_file(struct ibuf **b, const char *fn)
+{
     FILE *fp = NULL;
     if ((fp = fopen(fn, "rb")) == NULL) {
         fprintf(stderr, "[%s:%d]: Error\n", __FILE__, __LINE__);
@@ -256,14 +548,14 @@ int get_ch(struct ibuf **input, char *ch)
     struct ibuf *t = NULL;
     int x;
 
-top:
+  top:
     if ((*input)->i) {
         --(*input)->i;
         *ch = *((*input)->a + (*input)->i);
         return 0;
     }
 
-    if ((*input)->fp != NULL ) {
+    if ((*input)->fp != NULL) {
         if ((x = getc((*input)->fp)) == EOF) {
             if (ferror((*input)->fp)) {
                 fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
@@ -274,20 +566,21 @@ top:
                     /* Isolate old head */
                     (*input)->next = NULL;
                     if (free_ibuf(*input)) {
-                        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+                        fprintf(stderr, "%s:%d: Error\n", __FILE__,
+                                __LINE__);
                         return ERR;
                     }
                     /* Update head */
                     *input = t;
                     goto top;
                 } else {
-                      return EOF;
+                    return EOF;
                 }
             }
         } else {
             if ((*input)->incr_rn) {
-                 ++(*input)->rn;
-               (*input)->incr_rn = 0;
+                ++(*input)->rn;
+                (*input)->incr_rn = 0;
             }
 
             if (x == '\n')
@@ -313,6 +606,9 @@ int eat_str_if_match(struct ibuf **input, const char *str)
     int r;
     char x, ch;
     size_t i;
+
+    if (str == NULL)
+        return NO_MATCH;
 
     i = 0;
     while (1) {
@@ -393,9 +689,9 @@ int get_word(struct ibuf **input, struct obuf *token, int interpret_hex)
 
         if (interpret_hex && second_ch && type == 'd'
             && (ch == 'x' || ch == 'X'))
-                type = 'h';  /* Hexadecimal number */
+            type = 'h';         /* Hexadecimal number */
 
-            /* More of the same type. Words can include digits here. */
+        /* More of the same type. Words can include digits here. */
         if ((type == 'd' && isdigit(ch))
             || (type == 'w' && (isalnum(ch) || ch == '_'))
             || (type == 'h' && (second_ch || isxdigit(ch)))) {
@@ -412,7 +708,7 @@ int get_word(struct ibuf **input, struct obuf *token, int interpret_hex)
             goto end;
         }
 
-      second_ch = 0;
+        second_ch = 0;
     }
 
   end:
@@ -529,22 +825,22 @@ int put_file(struct obuf *b, const char *fn)
 
     if (get_file_size(fn, &fs)) {
         ret = ERR;
- mgoto(clean_up);
+        mgoto(clean_up);
     }
 
     if (!fs) {
         ret = ERR;
- mgoto(done);
+        mgoto(done);
     }
 
     if (fs > b->n - b->i && grow_obuf(b, fs)) {
         ret = ERR;
- mgoto(clean_up);
+        mgoto(clean_up);
     }
 
     if (fread(b->a + b->i, 1, fs, fp) != fs) {
         ret = ERR;
- mgoto(clean_up);
+        mgoto(clean_up);
     }
 
     b->i += fs;
@@ -580,7 +876,8 @@ int put_stream(struct obuf *b, FILE * fp)
         if (rs != READ_BLOCK_SIZE) {
             if (feof(fp) && !ferror(fp))
                 break;
-            else mgoto(error);
+            else
+                mgoto(error);
         }
     }
     return 0;
@@ -651,4 +948,4 @@ char *obuf_to_str(struct obuf **b)
     free(*b);
     *b = NULL;
     return str;
-}]>
+}

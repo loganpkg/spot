@@ -43,6 +43,8 @@
 
 #define INIT_BUF_SIZE 512
 
+#define DEFAULT_LEFT_COMMENT "#"
+#define DEFAULT_RIGHT_COMMENT "\n"
 #define DEFAULT_LEFT_QUOTE "`"
 #define DEFAULT_RIGHT_QUOTE "'"
 
@@ -52,7 +54,7 @@
  * Diversion -1 is index 10 which is continuously discarded.
  */
 #define NUM_DIVS 11
-
+#define DIVERSION_NEGATIVE_1 10
 
 /*
  * When there is no stack, the output will be the active diversion.
@@ -108,6 +110,9 @@ struct m4_info {
     struct obuf *tmp;           /* Used for substituting arguments */
     struct obuf *div[NUM_DIVS];
     size_t active_div;
+    char *left_comment;
+    char *right_comment;
+    size_t comment_on;
     char *left_quote;
     char *right_quote;
     size_t quote_depth;
@@ -334,6 +339,8 @@ void free_m4(M4ptr m4)
         for (i = 0; i < NUM_DIVS; ++i)
             free_obuf(m4->div[i]);
 
+        free(m4->left_comment);
+        free(m4->right_comment);
         free(m4->left_quote);
         free(m4->right_quote);
 
@@ -374,6 +381,12 @@ M4ptr init_m4(void)
     for (i = 0; i < NUM_DIVS; ++i)
         if ((m4->div[i] = init_obuf(INIT_BUF_SIZE)) == NULL)
             mgoto(error);
+
+    if ((m4->left_comment = strdup(DEFAULT_LEFT_COMMENT)) == NULL)
+        mgoto(error);
+
+    if ((m4->right_comment = strdup(DEFAULT_RIGHT_COMMENT)) == NULL)
+        mgoto(error);
 
     if ((m4->left_quote = strdup(DEFAULT_LEFT_QUOTE)) == NULL)
         mgoto(error);
@@ -417,13 +430,13 @@ void dump_stack(M4ptr m4)
     }
 }
 
-int validate_quote(const char *quote)
+int validate_quote_or_comment(const char *quote_or_comment)
 {
     size_t i;
     char ch;
     i = 0;
     while (1) {
-        ch = *(quote + i);
+        ch = *(quote_or_comment + i);
         if (ch == '\0')
             break;
 
@@ -435,7 +448,7 @@ int validate_quote(const char *quote)
 
         ++i;
     }
-    /* Empty quote */
+    /* Empty quote or comment */
     if (!i) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
         return ERR;
@@ -540,6 +553,60 @@ int add_macro(M4ptr m4, char *macro_name, char *macro_def, int push_hist)
 
     return 0;
 }
+
+int output_line_directive(M4ptr m4)
+{
+    /*
+     * #line directives are tricky. They need to be printed whenever the
+     * underlying file pointer in the input changes. However, they can only be
+     * printed when the output is at the start of the line. So this then
+     * becomes related to the flushing of diversion 0. The easy solution is to
+     * only flush upon newline, so that an empty buffer indicates the
+     * start of the line.
+     * The #line directives also state what is to come. So they need to give
+     * information about the next read, not the current state. Furthermore,
+     * the default right comment token is \n. So \n might be intercepted by
+     * the comment checking, and thus, it is not a good idea to use the input
+     * as a flush trigger.
+     * Hence, #line directives need to be processed (this function called)
+     * after the input is read, but before the output is written.
+     */
+    char num[NUM_BUF_SIZE];
+    int r;
+
+    /* Output at start of line and the file pointer has changed */
+    if (m4->line_direct
+        && (!output->i || *(output->a + output->i - 1) == '\n')
+        && m4->sticky_fp != m4->input->fp) {
+        r = snprintf(num, NUM_BUF_SIZE, "%lu",
+                     (unsigned long) m4->input->rn);
+        if (r < 0 || r >= NUM_BUF_SIZE)
+            mgoto(error);
+
+        if (put_str(output, "#line "))
+            mgoto(error);
+
+        if (put_str(output, num))
+            mgoto(error);
+
+        if (put_str(output, " \""))
+            mgoto(error);
+
+        if (put_str(output, m4->input->nm))
+            mgoto(error);
+
+        if (put_str(output, "\"\n"))
+            mgoto(error);
+
+        m4->sticky_fp = m4->input->fp;
+    }
+
+    return 0;
+
+  error:
+    return ERR;
+}
+
 
 #define print_help if (m4->help) {          \
         fprintf(stderr, "%s\n", PAR_DESC);  \
@@ -658,6 +725,67 @@ int econc(m4_, NM) (void *v) {
 
 #undef NM
 #undef PAR_DESC
+#define NM changecom
+#define PAR_DESC "[(left_comment[, right_comment])]"
+
+int econc(m4_, NM) (void *v) {
+    M4ptr m4 = (M4ptr) v;
+    char *lc, *rc;
+
+    print_help;
+    max_pars(2);
+
+    if (!num_args_collected) {
+        free(m4->left_comment);
+        m4->left_comment = NULL;
+        free(m4->right_comment);
+        m4->right_comment = NULL;
+        return 0;
+    }
+
+    if (num_args_collected >= 1) {
+        if (validate_quote_or_comment(arg(1))) {
+            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+            return ERR;
+        }
+        lc = arg(1);
+    }
+    if (num_args_collected >= 2) {
+        if (validate_quote_or_comment(arg(2))) {
+            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+            return ERR;
+        }
+        rc = arg(2);
+    } else {
+        rc = DEFAULT_RIGHT_COMMENT;
+    }
+
+    /* Quotes cannot be the same */
+    if (!strcmp(lc, rc)) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return ERR;
+    }
+
+    free(m4->left_comment);
+    m4->left_comment = NULL;
+    free(m4->right_comment);
+    m4->right_comment = NULL;
+
+    if ((m4->left_comment = strdup(lc)) == NULL) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return ERR;
+    }
+
+    if ((m4->right_comment = strdup(rc)) == NULL) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return ERR;
+    }
+
+    return 0;
+}
+
+#undef NM
+#undef PAR_DESC
 #define NM changequote
 #define PAR_DESC "[(left_quote, right_quote)]"
 
@@ -669,7 +797,8 @@ int econc(m4_, NM) (void *v) {
     max_pars(2);
 
     if (num_args_collected >= 2) {
-        if (validate_quote(arg(1)) || validate_quote(arg(2))) {
+        if (validate_quote_or_comment(arg(1))
+            || validate_quote_or_comment(arg(2))) {
             fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
             return ERR;
         }
@@ -1815,7 +1944,6 @@ int main(int argc, char **argv)
     int req_exit_val = -1;
     M4ptr m4 = NULL;
     struct entry *e;            /* Used for macro lookups */
-    char num[NUM_BUF_SIZE];
     int i, r;
     char *p;
     int no_file = 1;            /* No files specified on the command line */
@@ -1837,6 +1965,7 @@ int main(int argc, char **argv)
     load_bi(pushdef);
     load_bi(undefine);
     load_bi(popdef);
+    load_bi(changecom);
     load_bi(changequote);
     load_bi(shift);
     load_bi(divert);
@@ -1943,10 +2072,60 @@ int main(int argc, char **argv)
         /* Need to clear macro return value */
         mrv = 0;
 
-        m4->div[NUM_ARGS]->i = 0;
+        /*
+         * Only flush upon newline, so that an empty buffer represents
+         * start of line.
+         */
+        if (m4->div[0]->i && *(m4->div[0]->a + m4->div[0]->i - 1) == '\n'
+            && flush_obuf(m4->div[0]))
+            mgoto(error);
+
+        /* Clear diversion -1 */
+        m4->div[DIVERSION_NEGATIVE_1]->i = 0;
+
+        if (m4->left_comment != NULL && m4->right_comment != NULL) {
+            if (!m4->comment_on) {
+                r = eat_str_if_match(&m4->input, m4->left_comment);
+                if (r == ERR)
+                    mgoto(error);
+
+                if (output_line_directive(m4))
+                    mgoto(error);
+
+                if (r == MATCH) {
+                    if (put_str(output, m4->left_comment))
+                        mgoto(error);
+
+                    m4->comment_on = 1;
+
+                    /* As might have a right comment immediately afterwards */
+                    goto top;
+                }
+            } else {
+                r = eat_str_if_match(&m4->input, m4->right_comment);
+                if (r == ERR)
+                    mgoto(error);
+
+                if (output_line_directive(m4))
+                    mgoto(error);
+
+                if (r == MATCH) {
+                    if (put_str(output, m4->right_comment))
+                        mgoto(error);
+
+                    m4->comment_on = 0;
+
+                    /* As might have a left comment immediately afterwards */
+                    goto top;
+                }
+            }
+        }
 
         r = eat_str_if_match(&m4->input, m4->left_quote);
         if (r == ERR)
+            mgoto(error);
+
+        if (output_line_directive(m4))
             mgoto(error);
 
         if (r == MATCH) {
@@ -1960,6 +2139,9 @@ int main(int argc, char **argv)
 
         r = eat_str_if_match(&m4->input, m4->right_quote);
         if (r == ERR)
+            mgoto(error);
+
+        if (output_line_directive(m4))
             mgoto(error);
 
         if (r == MATCH) {
@@ -1980,38 +2162,11 @@ int main(int argc, char **argv)
         else if (r == EOF)
             break;
 
-        /*
-         * Output #line directive. Do after get_word so that fp and rn
-         * (in the input) are up to date. Do before this word is processed,
-         * so that the #line directive appears in the output beforehand.
-         */
-        if ((!output->i || *(output->a + output->i - 1) == '\n')
-            && m4->line_direct && m4->sticky_fp != m4->input->fp) {
-            r = snprintf(num, NUM_BUF_SIZE, "%lu",
-                         (unsigned long) m4->input->rn);
-            if (r < 0 || r >= NUM_BUF_SIZE)
-                mgoto(error);
+        if (output_line_directive(m4))
+            mgoto(error);
 
-            if (put_str(output, "#line "))
-                mgoto(error);
-
-            if (put_str(output, num))
-                mgoto(error);
-
-            if (put_str(output, " \""))
-                mgoto(error);
-
-            if (put_str(output, m4->input->nm))
-                mgoto(error);
-
-            if (put_str(output, "\"\n"))
-                mgoto(error);
-
-            m4->sticky_fp = m4->input->fp;
-        }
-
-        if (m4->quote_depth) {
-            /* Quoted */
+        if (m4->comment_on || m4->quote_depth) {
+            /* In a comment, or quoted, so pass through */
             if (put_str(output, m4->token->a))
                 mgoto(error);
         } else if (m4->stack != NULL && m4->stack->bracket_depth == 1
@@ -2063,9 +2218,6 @@ int main(int argc, char **argv)
                 /* Not a macro */
                 /* Pass through */
                 if (put_str(output, m4->token->a))
-                    mgoto(error);
-
-                if (!strcmp(m4->token->a, "\n") && flush_obuf(m4->div[0]))
                     mgoto(error);
             } else {
                 /*  Macro */
