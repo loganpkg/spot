@@ -21,7 +21,7 @@
 #
 
 CFLAGS = /Od /Zi /MT /Qspectre /Wall /I .
-apps = spot.exe m4.exe bc.exe freq.exe lsed.exe
+apps = spot.exe m4.exe bc.exe freq.exe
 
 all: $(apps)
 
@@ -52,9 +52,6 @@ bc.exe: bc.c toucanlib.lib
 
 freq.exe: freq.c toucanlib.lib
 	cl $(CFLAGS) freq.c toucanlib.lib
-
-lsed.exe: lsed.c toucanlib.lib
-	cl $(CFLAGS) lsed.c toucanlib.lib
 
 install:
 	if not exist $(PREFIX)\bin mkdir $(PREFIX)\bin

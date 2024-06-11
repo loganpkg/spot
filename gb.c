@@ -518,7 +518,7 @@ int regex_forward_search(struct gb *b, struct gb *cl)
 
     if (regex_search
         ((char *) b->a + b->c + 1, b->e - (b->c + 1),
-         (char *) cl->a + cl->c, *(b->a + b->c) == '\n' ? 1 : 0, 1,
+         (char *) cl->a + cl->c, *(b->a + b->c) == '\n' ? 1 : 0, 0,
          &match_offset, &match_len))
         return ERR;
 
@@ -560,7 +560,7 @@ int regex_replace_region(struct gb *b, struct gb *cl)
             mgoto(clean_up);
 
     if (regex_replace((char *) b->a + b->c, b->m - b->c, find, replace,
-                      (char *) cl->a + cl->e - replace, 1, &res, &res_len,
+                      (char *) cl->a + cl->e - replace, 0, &res, &res_len,
                       0))
         mgoto(clean_up);
 

@@ -21,7 +21,7 @@
 #
 
 CFLAGS = -ansi -g -Og -Wall -Wextra -pedantic -I .
-apps = spot m4 bc freq lsed
+apps = spot m4 bc freq
 
 .PHONY: all
 
@@ -46,7 +46,6 @@ spot: spot.c curses.o toucanlib.o
 m4: m4.c toucanlib.o
 bc: bc.c toucanlib.o
 freq: freq.c toucanlib.o
-lsed: lsed.c toucanlib.o
 
 .PHONY: install
 install:

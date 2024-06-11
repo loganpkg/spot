@@ -111,12 +111,11 @@ fi
 
 cc $flags -o bc bc.o toucanlib.o
 cc $flags -o freq freq.o toucanlib.o
-cc $flags -o lsed lsed.o toucanlib.o
 
 
 mkdir -p "$install_dir"
 
-cp -p m4 spot bc freq lsed tornado_dodge "$install_dir"/
+cp -p m4 spot bc freq tornado_dodge "$install_dir"/
 
 m4 test.m4 > .k
 /usr/bin/m4 test.m4 > .k2

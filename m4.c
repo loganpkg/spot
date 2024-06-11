@@ -1338,7 +1338,7 @@ int econc(m4_, NM) (void *v) {
     int ret = ERR;
     char *res;
     size_t res_len;
-    int nl_sen = 1;             /* Newline sensitive (on) */
+    int nl_insen = 0;           /* Newline insensitive off */
     int verbose = 0;            /* Prints information about the regex */
 
     print_help;
@@ -1347,13 +1347,13 @@ int econc(m4_, NM) (void *v) {
     min_pars(3);
 
     if (!strcmp(arg(4), "1"))
-        nl_sen = 0;             /* Newline sensitive off. Insensitive. */
+        nl_insen = 1;           /* Newline insensitive on */
 
     if (!strcmp(arg(5), "1"))
         verbose = 1;
 
     if ((ret = regex_replace(arg(1), strlen(arg(1)), arg(2),
-                             arg(3), strlen(arg(3)), nl_sen, &res,
+                             arg(3), strlen(arg(3)), nl_insen, &res,
                              &res_len, verbose)))
         return ret;
 
