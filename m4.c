@@ -107,7 +107,9 @@ struct m4_info {
     struct sbuf *str_start;     /* Indices to the start of strings in store */
     struct macro_call *stack;   /* Head node of the macro call stack */
     Fptr tmp_mfp;               /* For passing back the defn of a built-in */
-    struct obuf *tmp;           /* Used for substituting arguments */
+    /* Used for substituting arguments and for esyscmd and translit */
+    struct obuf *tmp;
+    struct obuf *wrap;          /* Used for m4wrap */
     struct obuf *div[NUM_DIVS];
     size_t active_div;
     char *left_comment;
@@ -116,7 +118,11 @@ struct m4_info {
     char *left_quote;
     char *right_quote;
     size_t quote_depth;
-    /* Put the name of a built-in macro to output when called without args */
+    /*
+     * Pass through the name of a built-in macro to output when called without
+     * arguments. Otherwise an infinite loop would occur if the name was placed
+     * back in the input.
+     */
     int pass_through;
     /*
      * Delayed copy of the file pointer from inside the input. Used to detect
@@ -124,6 +130,7 @@ struct m4_info {
      */
     FILE *sticky_fp;
     int line_direct;            /* Print #line directives for C preprocessor */
+    int sys_val;                /* Return value of last syscmd or esyscmd */
     /* Exit upon user related error. Turned off by default. */
     int error_exit;             /* Exit upon the first error */
     int warn_to_error;          /* Treat warnings as errors */
@@ -131,6 +138,63 @@ struct m4_info {
     int help;                   /* Print help information for a macro */
 };
 
+/* Used for translit */
+struct range {
+    unsigned char on;
+    unsigned char i;
+    unsigned char stop;         /* Inclusive */
+    unsigned char decr;
+};
+
+void set_range(char **str, struct range *r)
+{
+    char *p;
+
+    p = *str;
+    if (*p != '\0' && *(p + 1) == '-' && *(p + 2) != '\0') {
+        /* Range */
+        r->on = 1;
+        r->i = *p;
+        r->stop = *(p + 2);
+        if (r->stop < r->i)
+            r->decr = 1;
+        else
+            r->decr = 0;
+
+        /* Eat */
+        p += 3;
+        *str = p;
+    }
+}
+
+char read_range_ch(char **str, struct range *r)
+{
+    char *p;
+    char ch;
+
+    if (!r->on)
+        set_range(str, r);
+
+    p = *str;
+    if (r->on) {
+        ch = r->i;
+        if (r->i == r->stop) {
+            r->on = 0;
+        } else {
+            if (r->decr)
+                --r->i;
+            else
+                ++r->i;
+        }
+    } else {
+        ch = *p;
+        if (ch != '\0')
+            ++p;
+    }
+
+    *str = p;
+    return ch;
+}
 
 struct macro_call *init_mc(void)
 {
@@ -208,7 +272,7 @@ int sub_args(M4ptr m4)
                 if (x > num_args_collected) {
                     fprintf(stderr, "%s:%d: %s: Usage warning: "
                             "Uncollected argument number %lu accessed\n",
-                            __FILE__, __LINE__, arg(0), x);
+                            __FILE__, __LINE__, arg(0), (unsigned long) x);
                     if (m4->warn_to_error)
                         return USAGE_ERR;
                 }
@@ -279,7 +343,7 @@ int sub_args(M4ptr m4)
             if ((i < NUM_ARGS && accessed[i] == 'N') || i >= NUM_ARGS) {
                 fprintf(stderr, "%s:%d: %s: Usage warning: "
                         "Collected argument number %lu not accessed\n",
-                        __FILE__, __LINE__, arg(0), i);
+                        __FILE__, __LINE__, arg(0), (unsigned long) i);
                 if (m4->warn_to_error)
                     return USAGE_ERR;
             }
@@ -299,7 +363,7 @@ int end_macro(M4ptr m4)
     if (m4->stack->mfp != NULL) {
         if ((ret = (*m4->stack->mfp) (m4)))
             fprintf(stderr, "%s:%lu: %s: Failed\n", m4->input->nm,
-                    m4->input->rn, arg(0));
+                    (unsigned long) m4->input->rn, arg(0));
     } else {
         ret = sub_args(m4);
     }
@@ -336,6 +400,7 @@ void free_m4(M4ptr m4)
         free_sbuf(m4->str_start);
         free_mc_stack(&m4->stack);
         free_obuf(m4->tmp);
+        free_obuf(m4->wrap);
         for (i = 0; i < NUM_DIVS; ++i)
             free_obuf(m4->div[i]);
 
@@ -378,6 +443,9 @@ M4ptr init_m4(void)
     if ((m4->tmp = init_obuf(INIT_BUF_SIZE)) == NULL)
         mgoto(error);
 
+    if ((m4->wrap = init_obuf(INIT_BUF_SIZE)) == NULL)
+        mgoto(error);
+
     for (i = 0; i < NUM_DIVS; ++i)
         if ((m4->div[i] = init_obuf(INIT_BUF_SIZE)) == NULL)
             mgoto(error);
@@ -416,13 +484,14 @@ void dump_stack(M4ptr m4)
         num_arg = i - (t->m_i + 2);
         fprintf(stderr, "%s macro:\n",
                 t->mfp == NULL ? "User-defined" : "Built-in");
-        fprintf(stderr, "Bracket depth: %lu\n", t->bracket_depth);
+        fprintf(stderr, "Bracket depth: %lu\n",
+                (unsigned long) t->bracket_depth);
         fprintf(stderr, "Def: %s\n",
                 m4->store->a + *(m4->str_start->a + t->m_i));
         fprintf(stderr, "Macro: %s\n",
                 m4->store->a + *(m4->str_start->a + t->m_i + 1));
         for (j = 1; j <= num_arg; ++j)
-            fprintf(stderr, "Arg %lu: %s\n", j,
+            fprintf(stderr, "Arg %lu: %s\n", (unsigned long) j,
                     m4->store->a + *(m4->str_start->a + t->m_i + 1 + j));
 
         i = t->m_i;
@@ -430,28 +499,31 @@ void dump_stack(M4ptr m4)
     }
 }
 
-int validate_quote_or_comment(const char *quote_or_comment)
+int validate_quote_or_comment(M4ptr m4, const char *quote_or_comment)
 {
     size_t i;
     char ch;
+
     i = 0;
     while (1) {
         ch = *(quote_or_comment + i);
         if (ch == '\0')
             break;
 
-        /* All chars must be graph non-comma and non-parentheses */
+        /* All chars should be graph non-comma and non-parentheses */
         if (!isgraph(ch) || ch == ',' || ch == '(' || ch == ')') {
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            return ERR;
+            fprintf(stderr, "%s:%lu [%s:%d]: %s: Usage warning: "
+                    "All characters in a quote or comment string "
+                    "should be graph non-comma and non-parentheses: %s\n",
+                    m4->input->nm, (unsigned long) m4->input->rn, __FILE__,
+                    __LINE__, arg(0), arg(1));
+            if (m4->warn_to_error)
+                return USAGE_ERR;
+
+            break;
         }
 
         ++i;
-    }
-    /* Empty quote or comment */
-    if (!i) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
     }
 
     return 0;
@@ -618,22 +690,22 @@ int output_line_directive(M4ptr m4)
     return 0;                                           \
 }
 
-#define max_pars(n) if (num_args_collected > n) {           \
-    fprintf(stderr, "%s:%lu [%s:%d]: Usage warning: "       \
-        "Unused arguments collected: %s%s\n",               \
-        m4->input->nm, m4->input->rn, __FILE__, __LINE__,   \
-        arg(0), PAR_DESC);                                  \
-    if (m4->warn_to_error)                                  \
-        return USAGE_ERR;                                   \
-}                                                           \
+#define max_pars(n) if (num_args_collected > n) {       \
+    fprintf(stderr, "%s:%lu [%s:%d]: Usage warning: "   \
+        "Unused arguments collected: %s%s\n",           \
+        m4->input->nm, (unsigned long) m4->input->rn,   \
+        __FILE__, __LINE__, arg(0), PAR_DESC);          \
+    if (m4->warn_to_error)                              \
+        return USAGE_ERR;                               \
+}                                                       \
 
-#define min_pars(n) if (num_args_collected < n) {                   \
-    fprintf(stderr, "%s:%lu [%s:%d]: Usage Error: "         \
-        "Required arguments not collected: %s%s\n",         \
-        m4->input->nm, m4->input->rn, __FILE__, __LINE__,   \
-        arg(0), PAR_DESC);                                  \
-    return USAGE_ERR;                                       \
-}                                                           \
+#define min_pars(n) if (num_args_collected < n) {       \
+    fprintf(stderr, "%s:%lu [%s:%d]: Usage Error: "     \
+        "Required arguments not collected: %s%s\n",     \
+        m4->input->nm, (unsigned long) m4->input->rn,   \
+        __FILE__, __LINE__, arg(0), PAR_DESC);          \
+    return USAGE_ERR;                                   \
+}                                                       \
 
 
 /* ********** Built-in macros ********** */
@@ -689,8 +761,9 @@ int econc(m4_, NM) (void *v) {
 
     if (delete_entry(m4->ht, arg(1), 0)) {
         fprintf(stderr, "%s:%lu [%s:%d]: %s: Usage warning: "
-                "Macro does not exist: %s\n", m4->input->nm, m4->input->rn,
-                __FILE__, __LINE__, arg(0), arg(1));
+                "Macro does not exist: %s\n", m4->input->nm,
+                (unsigned long) m4->input->rn, __FILE__, __LINE__, arg(0),
+                arg(1));
         if (m4->warn_to_error)
             return USAGE_ERR;
     }
@@ -714,8 +787,9 @@ int econc(m4_, NM) (void *v) {
     /* Pop history */
     if (delete_entry(m4->ht, arg(1), 1)) {
         fprintf(stderr, "%s:%lu [%s:%d]: %s: Usage warning: "
-                "Macro does not exist: %s\n", m4->input->nm, m4->input->rn,
-                __FILE__, __LINE__, arg(0), arg(1));
+                "Macro does not exist: %s\n", m4->input->nm,
+                (unsigned long) m4->input->rn, __FILE__, __LINE__, arg(0),
+                arg(1));
         if (m4->warn_to_error)
             return USAGE_ERR;
     }
@@ -731,11 +805,13 @@ int econc(m4_, NM) (void *v) {
 int econc(m4_, NM) (void *v) {
     M4ptr m4 = (M4ptr) v;
     char *lc, *rc;
+    char *tmp_lc = NULL, *tmp_rc = NULL;
 
     print_help;
     max_pars(2);
 
     if (!num_args_collected) {
+        /* Disable comments */
         free(m4->left_comment);
         m4->left_comment = NULL;
         free(m4->right_comment);
@@ -744,42 +820,70 @@ int econc(m4_, NM) (void *v) {
     }
 
     if (num_args_collected >= 1) {
-        if (validate_quote_or_comment(arg(1))) {
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            return ERR;
+        if (*arg(1) == '\0') {
+            fprintf(stderr, "%s:%lu [%s:%d]: %s: Usage error: "
+                    "Empty left comment\n", m4->input->nm,
+                    (unsigned long) m4->input->rn, __FILE__, __LINE__,
+                    arg(0));
+            return USAGE_ERR;
         }
+        if (validate_quote_or_comment(m4, arg(1))) {
+            fprintf(stderr, "%s:%lu [%s:%d]: %s: Usage warning: "
+                    "Poor choice of left comment: %s\n", m4->input->nm,
+                    (unsigned long) m4->input->rn, __FILE__, __LINE__,
+                    arg(0), arg(1));
+            if (m4->warn_to_error)
+                return USAGE_ERR;
+        }
+
         lc = arg(1);
     }
     if (num_args_collected >= 2) {
-        if (validate_quote_or_comment(arg(2))) {
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            return ERR;
+        if (*arg(2) == '\0') {
+            fprintf(stderr, "%s:%lu [%s:%d]: %s: Usage error: "
+                    "Empty right comment\n", m4->input->nm,
+                    (unsigned long) m4->input->rn, __FILE__, __LINE__,
+                    arg(0));
+            return USAGE_ERR;
+        }
+        if (validate_quote_or_comment(m4, arg(2))) {
+            fprintf(stderr, "%s:%lu [%s:%d]: %s: Usage warning: "
+                    "Poor choice of right comment: %s\n", m4->input->nm,
+                    (unsigned long) m4->input->rn, __FILE__, __LINE__,
+                    arg(0), arg(2));
+            if (m4->warn_to_error)
+                return USAGE_ERR;
         }
         rc = arg(2);
     } else {
         rc = DEFAULT_RIGHT_COMMENT;
     }
 
-    /* Quotes cannot be the same */
+    /* Comments should not be the same */
     if (!strcmp(lc, rc)) {
+        fprintf(stderr, "%s:%lu [%s:%d]: %s: Usage warning: "
+                "Left and right comments should not be the same\n",
+                m4->input->nm, (unsigned long) m4->input->rn, __FILE__,
+                __LINE__, arg(0));
+        if (m4->warn_to_error)
+            return USAGE_ERR;
+    }
+
+    if ((tmp_lc = strdup(lc)) == NULL) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return ERR;
+    }
+
+    if ((tmp_rc = strdup(rc)) == NULL) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        free(tmp_lc);
         return ERR;
     }
 
     free(m4->left_comment);
-    m4->left_comment = NULL;
+    m4->left_comment = tmp_lc;
     free(m4->right_comment);
-    m4->right_comment = NULL;
-
-    if ((m4->left_comment = strdup(lc)) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
-
-    if ((m4->right_comment = strdup(rc)) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    m4->right_comment = tmp_rc;
 
     return 0;
 }
@@ -792,21 +896,51 @@ int econc(m4_, NM) (void *v) {
 int econc(m4_, NM) (void *v) {
     M4ptr m4 = (M4ptr) v;
     char *lq, *rq;
+    char *tmp_lq = NULL, *tmp_rq = NULL;
 
     print_help;
     max_pars(2);
 
     if (num_args_collected >= 2) {
-        if (validate_quote_or_comment(arg(1))
-            || validate_quote_or_comment(arg(2))) {
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            return ERR;
+        if (*arg(1) == '\0') {
+            fprintf(stderr, "%s:%lu [%s:%d]: %s: Usage error: "
+                    "Empty left quote\n", m4->input->nm,
+                    (unsigned long) m4->input->rn, __FILE__, __LINE__,
+                    arg(0));
+            return USAGE_ERR;
+        }
+        if (validate_quote_or_comment(m4, arg(1))) {
+            fprintf(stderr, "%s:%lu [%s:%d]: %s: Usage warning: "
+                    "Poor choice of left quote: %s\n", m4->input->nm,
+                    (unsigned long) m4->input->rn, __FILE__, __LINE__,
+                    arg(0), arg(1));
+            if (m4->warn_to_error)
+                return USAGE_ERR;
+        }
+        if (*arg(2) == '\0') {
+            fprintf(stderr, "%s:%lu [%s:%d]: %s: Usage error: "
+                    "Empty right quote\n", m4->input->nm,
+                    (unsigned long) m4->input->rn, __FILE__, __LINE__,
+                    arg(0));
+            return USAGE_ERR;
+        }
+        if (validate_quote_or_comment(m4, arg(2))) {
+            fprintf(stderr, "%s:%lu [%s:%d]: %s: Usage warning: "
+                    "Poor choice of right quote: %s\n", m4->input->nm,
+                    (unsigned long) m4->input->rn, __FILE__, __LINE__,
+                    arg(0), arg(2));
+            if (m4->warn_to_error)
+                return USAGE_ERR;
         }
 
-        /* Quotes cannot be the same */
+        /* Quotes should not be the same */
         if (!strcmp(arg(1), arg(2))) {
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            return ERR;
+            fprintf(stderr, "%s:%lu [%s:%d]: %s: Usage warning: "
+                    "Left and right quotes should not be the same\n",
+                    m4->input->nm, (unsigned long) m4->input->rn, __FILE__,
+                    __LINE__, arg(0));
+            if (m4->warn_to_error)
+                return USAGE_ERR;
         }
 
         lq = arg(1);
@@ -816,20 +950,21 @@ int econc(m4_, NM) (void *v) {
         rq = DEFAULT_RIGHT_QUOTE;
     }
 
+    if ((tmp_lq = strdup(lq)) == NULL) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return ERR;
+    }
+
+    if ((tmp_rq = strdup(rq)) == NULL) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        free(tmp_lq);
+        return ERR;
+    }
+
     free(m4->left_quote);
-    m4->left_quote = NULL;
+    m4->left_quote = tmp_lq;
     free(m4->right_quote);
-    m4->right_quote = NULL;
-
-    if ((m4->left_quote = strdup(lq)) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
-
-    if ((m4->right_quote = strdup(rq)) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    m4->right_quote = tmp_rq;
 
     return 0;
 }
@@ -1021,6 +1156,68 @@ int econc(m4_, NM) (void *v) {
 
 #undef NM
 #undef PAR_DESC
+#define NM maketemp
+#define PAR_DESC "(templateXXXXXX)"
+
+int econc(m4_, NM) (void *v) {
+    M4ptr m4 = (M4ptr) v;
+    char *temp_fn = NULL;
+    int r;
+
+    print_help;
+    allow_pass_through;
+    max_pars(1);
+    min_pars(1);
+
+    r = make_temp(arg(1), &temp_fn);
+
+    if (r)
+        return r;
+
+    if (unget_str(m4->input, temp_fn)) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        free(temp_fn);
+        return ERR;
+    }
+
+    free(temp_fn);
+
+    return 0;
+}
+
+#undef NM
+#undef PAR_DESC
+#define NM mkstemp
+#define PAR_DESC "(templateXXXXXX)"
+
+int econc(m4_, NM) (void *v) {
+    M4ptr m4 = (M4ptr) v;
+    char *temp_fn = NULL;
+    int r;
+
+    print_help;
+    allow_pass_through;
+    max_pars(1);
+    min_pars(1);
+
+    r = make_stemp(arg(1), &temp_fn);
+
+    if (r)
+        return ERR_CONTINUE;
+
+    if (unget_str(m4->input, temp_fn)) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        free(temp_fn);
+        return ERR;
+    }
+
+    free(temp_fn);
+
+    return 0;
+}
+
+#undef NM
+#undef PAR_DESC
 #define NM include
 #define PAR_DESC "(filename)"
 
@@ -1034,6 +1231,34 @@ int econc(m4_, NM) (void *v) {
 
     if (unget_file(&m4->input, arg(1))) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return ERR;
+    }
+
+    return 0;
+}
+
+#undef NM
+#undef PAR_DESC
+#define NM sinclude
+#define PAR_DESC "(filename)"
+
+int econc(m4_, NM) (void *v) {
+    M4ptr m4 = (M4ptr) v;
+    FILE *fp;
+
+    /* Silent include */
+
+    print_help;
+    allow_pass_through;
+    max_pars(1);
+    min_pars(1);
+
+    if ((fp = fopen(arg(1), "rb")) == NULL)
+        return 0;               /* No error, no warning */
+
+    if (unget_stream(&m4->input, fp, arg(1))) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        fclose(fp);
         return ERR;
     }
 
@@ -1207,7 +1432,8 @@ int econc(m4_, NM) (void *v) {
 
     if (num_args_collected < 3) {
         fprintf(stderr, "%s:%lu [%s:%d]: Usage: %s%s\n", m4->input->nm,
-                m4->input->rn, __FILE__, __LINE__, arg(0), PAR_DESC);
+                (unsigned long) m4->input->rn, __FILE__, __LINE__, arg(0),
+                PAR_DESC);
         return USAGE_ERR;
     }
 
@@ -1354,6 +1580,26 @@ int econc(m4_, NM) (void *v) {
     return 0;
 }
 
+#undef NM
+#undef PAR_DESC
+#define NM m4wrap
+#define PAR_DESC "(code_to_include_at_end)"
+
+int econc(m4_, NM) (void *v) {
+    M4ptr m4 = (M4ptr) v;
+
+    print_help;
+    allow_pass_through;
+    max_pars(1);
+    min_pars(1);
+
+    if (put_str(m4->wrap, arg(1))) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return ERR;
+    }
+
+    return 0;
+}
 
 #undef NM
 #undef PAR_DESC
@@ -1439,7 +1685,8 @@ int econc(m4_, NM) (void *v) {
         } else if (x + y > len) {
             fprintf(stderr, "%s:%lu [%s:%d]: %s: Usage warning: "
                     "Substring is out of bounds\n", m4->input->nm,
-                    m4->input->rn, __FILE__, __LINE__, arg(0));
+                    (unsigned long) m4->input->rn, __FILE__, __LINE__,
+                    arg(0));
             if (m4->warn_to_error)
                 return USAGE_ERR;
         }
@@ -1451,8 +1698,8 @@ int econc(m4_, NM) (void *v) {
         }
     } else {
         fprintf(stderr, "%s:%lu [%s:%d]: %s: Usage warning: "
-                "Index is out of bounds\n", m4->input->nm, m4->input->rn,
-                __FILE__, __LINE__, arg(0));
+                "Index is out of bounds\n", m4->input->nm,
+                (unsigned long) m4->input->rn, __FILE__, __LINE__, arg(0));
         if (m4->warn_to_error)
             return USAGE_ERR;
     }
@@ -1494,6 +1741,84 @@ int econc(m4_, NM) (void *v) {
             fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
             return ERR;
         }
+    }
+
+    return 0;
+}
+
+#undef NM
+#undef PAR_DESC
+#define NM translit
+#define PAR_DESC "(str, from_chars, to_chars)"
+
+int econc(m4_, NM) (void *v) {
+    M4ptr m4 = (M4ptr) v;
+    int map[UCHAR_MAX + 1] = { '\0' };
+    char *f_str, *t_str;
+    struct range f_r, t_r;
+    unsigned char f_ch, t_ch;
+    char *p;
+    unsigned char uch;
+    int x;
+
+    print_help;
+    allow_pass_through;
+    max_pars(3);
+    min_pars(3);
+
+    memset(&f_r, '\0', sizeof(struct range));
+    memset(&t_r, '\0', sizeof(struct range));
+
+    f_str = arg(2);             /* From */
+    t_str = arg(3);             /* To */
+
+    /* Create mapping */
+    while (1) {
+        f_ch = read_range_ch(&f_str, &f_r);
+        t_ch = read_range_ch(&t_str, &t_r);
+
+        if (!f_ch) {
+            if (t_ch) {
+                fprintf(stderr, "%s:%lu [%s:%d]: %s: Syntax warning: "
+                        "TO component of mapping exceeds FROM component\n",
+                        m4->input->nm, (unsigned long) m4->input->rn,
+                        __FILE__, __LINE__, arg(0));
+                if (m4->warn_to_error)
+                    return SYNTAX_ERR;
+            }
+            break;
+        }
+
+        /* First match stays */
+        if (!map[f_ch]) {
+            if (t_ch == '\0')
+                map[f_ch] = -1; /* Delete */
+            else
+                map[f_ch] = t_ch;
+        }
+    }
+
+    /* Apply mapping */
+    m4->tmp->i = 0;
+    p = arg(1);
+    while ((uch = *p++)) {
+        x = map[uch];
+        if (!x)
+            x = uch;
+
+        if (x != -1 && put_ch(m4->tmp, x)) {
+            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+            return ERR;
+        }
+    }
+    if (put_ch(m4->tmp, '\0')) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return ERR;
+    }
+
+    if (unget_str(m4->input, m4->tmp->a)) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return ERR;
     }
 
     return 0;
@@ -1681,14 +2006,53 @@ int econc(m4_, NM) (void *v) {
 
 int econc(m4_, NM) (void *v) {
     M4ptr m4 = (M4ptr) v;
+    char num[NUM_BUF_SIZE];
+    int r;
 
     print_help;
     max_pars(0);
 
-    if (unget_str(m4->input, m_def)) {
+    r = snprintf(num, NUM_BUF_SIZE, "%d", m4->sys_val);
+    if (r < 0 || r >= NUM_BUF_SIZE) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
         return ERR;
     }
+
+    if (unget_str(m4->input, num)) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return ERR;
+    }
+
+    return 0;
+}
+
+#undef NM
+#undef PAR_DESC
+#define NM syscmd
+#define PAR_DESC "(shell_command)"
+
+int econc(m4_, NM) (void *v) {
+    M4ptr m4 = (M4ptr) v;
+    int st;
+
+    print_help;
+    allow_pass_through;
+    max_pars(1);
+    min_pars(1);
+
+    st = system(arg(1));
+
+#ifndef _WIN32
+    if (!WIFEXITED(st)) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return ERR;
+    }
+#endif
+
+#ifndef _WIN32
+    st = WEXITSTATUS(st);
+#endif
+    m4->sys_val = st;
 
     return 0;
 }
@@ -1700,10 +2064,8 @@ int econc(m4_, NM) (void *v) {
 
 int econc(m4_, NM) (void *v) {
     M4ptr m4 = (M4ptr) v;
-    struct entry *e;
     FILE *fp;
-    int x, st, r;
-    char num[NUM_BUF_SIZE];
+    int x, st;
 
     print_help;
     allow_pass_through;
@@ -1748,27 +2110,10 @@ int econc(m4_, NM) (void *v) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
         return ERR;
     }
-
-    e = lookup(m4->ht, "sysval");
-
-    if (e != NULL && e->func_p != NULL) {
-        /* Still a built-in macro */
-
 #ifndef _WIN32
-        st = WEXITSTATUS(st);
+    st = WEXITSTATUS(st);
 #endif
-
-        r = snprintf(num, NUM_BUF_SIZE, "%lu", (unsigned long) st);
-        if (r < 0 || r >= NUM_BUF_SIZE) {
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            return ERR;
-        }
-
-        if (upsert(m4->ht, "sysval", num, &m4_sysval, 0)) {
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            return ERR;
-        }
-    }
+    m4->sys_val = st;
 
     return 0;
 }
@@ -1932,8 +2277,8 @@ int main(int argc, char **argv)
     /*
      * ret is the automatic return value. 1 for error, 0 for success.
      * The user can request a specific exit value in the first argument of the
-     * m4exit built-in macro. However, the return value will still be 1 if an
-     * error occurs.
+     * m4exit built-in macro. However, a requested value of zero be overwritten
+     * if another error occurs.
      */
     int ret = 0;                /* Success so far */
     int mrv = 0;                /* Macro return value */
@@ -1972,7 +2317,10 @@ int main(int argc, char **argv)
     load_bi(undivert);
     load_bi(writediv);
     load_bi(divnum);
+    load_bi(maketemp);
+    load_bi(mkstemp);
     load_bi(include);
+    load_bi(sinclude);
     load_bi(dnl);
     load_bi(tnl);
     load_bi(regexrep);
@@ -1981,13 +2329,16 @@ int main(int argc, char **argv)
     load_bi(ifelse);
     load_bi(defn);
     load_bi(dumpdef);
+    load_bi(m4wrap);
     load_bi(errprint);
     load_bi(len);
     load_bi(substr);
     load_bi(index);
+    load_bi(translit);
     load_bi(incr);
     load_bi(decr);
     load_bi(eval);
+    load_bi(syscmd);
     load_bi(esyscmd);
     load_bi(sysval);
     load_bi(m4exit);
@@ -2159,8 +2510,20 @@ int main(int argc, char **argv)
         r = get_word(&m4->input, m4->token, 0);
         if (r == ERR)
             mgoto(error);
-        else if (r == EOF)
+        else if (r == EOF) {
+            if (m4->wrap->i) {
+                if (put_ch(m4->wrap, '\0'))
+                    mgoto(error);
+
+                if (unget_str(m4->input, m4->wrap->a))
+                    mgoto(error);
+
+                m4->wrap->i = 0;
+
+                goto top;
+            }
             break;
+        }
 
         if (output_line_directive(m4))
             mgoto(error);
@@ -2190,8 +2553,8 @@ int main(int argc, char **argv)
                 ret = mrv;      /* Save for exit time */
                 if ((mrv == ERR || m4->error_exit)) {
                     fprintf(stderr, "%s:%lu [%s:%d]: Error\n",
-                            m4->input->nm, m4->input->rn, __FILE__,
-                            __LINE__);
+                            m4->input->nm, (unsigned long) m4->input->rn,
+                            __FILE__, __LINE__);
                     goto error;
                 }
             }
@@ -2250,7 +2613,7 @@ int main(int argc, char **argv)
 
                 if (m4->trace)
                     fprintf(stderr, "Trace: %s:%lu: %s\n", m4->input->nm,
-                            m4->input->rn, e->name);
+                            (unsigned long) m4->input->rn, e->name);
 
                 /* See if called with or without brackets */
                 if ((r = eat_str_if_match(&m4->input, "(")) == ERR)
@@ -2290,6 +2653,7 @@ int main(int argc, char **argv)
     for (i = 0; i < NUM_DIVS - 1; ++i)
         flush_obuf(m4->div[i]);
 
+
   clean_up:
     if (ret) {
         fprintf(stderr, "Error mode: %s\n",
@@ -2301,7 +2665,11 @@ int main(int argc, char **argv)
 
     free_m4(m4);
 
-    if (req_exit_val != -1 && !ret)
+    /*
+     * A requested exit value of zero will be overwritten if there has been
+     * an error.
+     */
+    if (req_exit_val != -1 && req_exit_val != 0)
         return req_exit_val;
 
     return ret;

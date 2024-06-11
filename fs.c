@@ -530,3 +530,202 @@ int un_mmap(void *p, size_t s)
 #endif
     return 0;
 }
+
+int make_temp(const char *template, char **temp_fn)
+{
+#ifdef _WIN32
+    int pid;
+#else
+    pid_t pid;
+#endif
+    const char *p, *suffix_start = NULL;
+    char ch, *fn = NULL;
+    char num[NUM_BUF_SIZE];
+    size_t prefix_len, pid_len, s;
+    int r;
+
+    p = template;
+
+    while ((ch = *p)) {
+        if (ch == 'X') {
+            if (suffix_start == NULL)
+                suffix_start = p;
+        } else {
+            suffix_start = NULL;
+        }
+        ++p;
+    }
+
+    if (suffix_start == NULL) {
+        fprintf(stderr, "%s:%d: Syntax error: "
+                "make_temp: Invalid template, no X suffix\n", __FILE__,
+                __LINE__);
+        return SYNTAX_ERR;
+    }
+
+    prefix_len = suffix_start - template;
+
+    pid = getpid();
+
+    r = snprintf(num, NUM_BUF_SIZE, "%d", (int) pid);
+    if (r < 0 || r >= NUM_BUF_SIZE) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return ERR;
+    }
+
+    pid_len = strlen(num);
+
+    if (aof(prefix_len, pid_len, SIZE_MAX)) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return ERR;
+    }
+
+    s = prefix_len + pid_len;
+
+    if (aof(s, 1, SIZE_MAX)) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return ERR;
+    }
+    ++s;
+
+    if ((fn = calloc(s, 1)) == NULL) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return ERR;
+    }
+
+    memcpy(fn, template, prefix_len);
+    memcpy(fn + prefix_len, num, pid_len);
+    *(fn + prefix_len + pid_len) = '\0';
+
+    *temp_fn = fn;
+    return 0;
+}
+
+#ifdef _WIN32
+static int rand_alnum(char *ch)
+{
+    unsigned int x;
+    char *y, c;
+    size_t i;
+    int try = 100;
+
+    while (1) {
+        if (!try) {
+            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+            break;
+        }
+
+        if (rand_s(&x))
+            return ERR;
+
+        y = (char *) &x;
+
+        for (i = 0; i < sizeof(unsigned int); ++i) {
+            c = y[i] & 0x7F;    /* Clear upper bit, as not used in ASCII */
+            if (isalnum(c)) {
+                *ch = c;
+                return 0;
+            }
+        }
+        --try;
+    }
+
+    return ERR;
+}
+
+#endif
+
+int make_stemp(const char *template, char **temp_fn)
+{
+    char *template_copy = NULL;
+#ifdef _WIN32
+    char *p, *suffix_start = NULL, ch, *q;
+    HANDLE h;
+    size_t try = 10;
+#else
+    int fd;
+#endif
+
+    if ((template_copy = strdup(template)) == NULL) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return ERR;
+    }
+
+#ifdef _WIN32
+    p = template_copy;
+
+    while ((ch = *p)) {
+        if (ch == 'X') {
+            if (suffix_start == NULL)
+                suffix_start = p;
+        } else {
+            suffix_start = NULL;
+        }
+        ++p;
+    }
+
+    if (suffix_start == NULL) {
+        fprintf(stderr, "%s:%d: Syntax error: "
+                "make_temp: Invalid template, no X suffix\n", __FILE__,
+                __LINE__);
+        free(template_copy);
+        return SYNTAX_ERR;
+    }
+
+    while (1) {
+        if (!try) {
+            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+            free(template_copy);
+            return ERR;
+        }
+
+        /* Overwrite suffix X chars with random chars */
+        q = suffix_start;
+        while (*q) {
+            if (rand_alnum(&ch)) {
+                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+                free(template_copy);
+                return ERR;
+            }
+            *q = ch;
+            ++q;
+        }
+
+        h = CreateFile(template_copy, GENERIC_WRITE, 0, NULL, CREATE_NEW,
+                       FILE_ATTRIBUTE_NORMAL, NULL);
+
+        if (h == INVALID_HANDLE_VALUE) {
+            if (GetLastError() != ERROR_FILE_EXISTS) {
+                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+                free(template_copy);
+                return ERR;
+            }
+        } else {
+            if (!CloseHandle(h)) {
+                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+                free(template_copy);
+                return ERR;
+            }
+            break;
+        }
+
+        --try;
+    }
+
+#else
+    if ((fd = mkstemp(template_copy)) == -1) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        free(template_copy);
+        return ERR;
+    }
+
+    if (close(fd)) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        free(template_copy);
+        return ERR;
+    }
+#endif
+
+    *temp_fn = template_copy;
+    return 0;
+}

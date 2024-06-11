@@ -461,17 +461,25 @@ int unget_str(struct ibuf *b, const char *str)
 
 int unget_stream(struct ibuf **b, FILE * fp, const char *nm)
 {
-    /* Creates a new struct head. *b can be NULL. */
+    /*
+     * Creates a new struct head. *b can be NULL.
+     * Upon error, fp is closed by caller.
+     */
     struct ibuf *t = NULL;
 
-    if ((t = init_ibuf(INIT_BUF_SIZE)) == NULL)
-        mgoto(error);
+    if ((t = init_ibuf(INIT_BUF_SIZE)) == NULL) {
+        fprintf(stderr, "[%s:%d]: Error\n", __FILE__, __LINE__);
+        return ERR;
+    }
 
-    if ((t->nm = strdup(nm)) == NULL)
-        mgoto(error);
+    if ((t->nm = strdup(nm)) == NULL) {
+        fprintf(stderr, "[%s:%d]: Error\n", __FILE__, __LINE__);
+        free_ibuf(t);
+        return ERR;
+    }
 
+    /* Success */
     t->fp = fp;
-
     t->rn = 1;
 
     /* Link in front */
@@ -479,11 +487,6 @@ int unget_stream(struct ibuf **b, FILE * fp, const char *nm)
     *b = t;
 
     return 0;
-
-  error:
-    free_ibuf(t);
-
-    return ERR;
 }
 
 int unget_file(struct ibuf **b, const char *fn)
@@ -494,7 +497,13 @@ int unget_file(struct ibuf **b, const char *fn)
         return ERR;
     }
 
-    return unget_stream(b, fp, fn);
+    if (unget_stream(b, fp, fn)) {
+        fprintf(stderr, "[%s:%d]: Error\n", __FILE__, __LINE__);
+        fclose(fp);
+        return ERR;
+    }
+
+    return 0;
 }
 
 int append_stream(struct ibuf **b, FILE * fp, const char *nm)
@@ -503,14 +512,19 @@ int append_stream(struct ibuf **b, FILE * fp, const char *nm)
     struct ibuf *t = NULL;
     struct ibuf *w = NULL;
 
-    if ((t = init_ibuf(INIT_BUF_SIZE)) == NULL)
-        mgoto(error);
+    if ((t = init_ibuf(INIT_BUF_SIZE)) == NULL) {
+        fprintf(stderr, "[%s:%d]: Error\n", __FILE__, __LINE__);
+        return ERR;
+    }
 
-    if ((t->nm = strdup(nm)) == NULL)
-        mgoto(error);
+    if ((t->nm = strdup(nm)) == NULL) {
+        fprintf(stderr, "[%s:%d]: Error\n", __FILE__, __LINE__);
+        free_ibuf(t);
+        return ERR;
+    }
 
+    /* Success */
     t->fp = fp;
-
     t->rn = 1;
 
     /* Link at end */
@@ -525,11 +539,6 @@ int append_stream(struct ibuf **b, FILE * fp, const char *nm)
     }
 
     return 0;
-
-  error:
-    free_ibuf(t);
-
-    return ERR;
 }
 
 int append_file(struct ibuf **b, const char *fn)
@@ -540,7 +549,13 @@ int append_file(struct ibuf **b, const char *fn)
         return ERR;
     }
 
-    return append_stream(b, fp, fn);
+    if (append_stream(b, fp, fn)) {
+        fprintf(stderr, "[%s:%d]: Error\n", __FILE__, __LINE__);
+        fclose(fp);
+        return ERR;
+    }
+
+    return 0;
 }
 
 int get_ch(struct ibuf **input, char *ch)

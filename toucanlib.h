@@ -25,21 +25,32 @@
 
 
 #ifdef __linux__
+
 /* For: strdup and snprintf */
 #ifndef _XOPEN_SOURCE
 #define _XOPEN_SOURCE 500
 #endif
+
 /* For: DT_DIR and DT_UNKNOWN */
 #ifndef _DEFAULT_SOURCE
 #define _DEFAULT_SOURCE
 #endif
+
 #endif
 
+
 #ifdef _WIN32
+
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
+
+#ifndef _CRT_RAND_S
+#define _CRT_RAND_S
 #endif
+
+#endif
+
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -49,6 +60,7 @@
 #include <direct.h>
 #include <io.h>
 #include <fcntl.h>
+#include <process.h>
 #else
 #include <sys/mman.h>
 #include <sys/wait.h>
@@ -126,16 +138,24 @@
 /* Success is 0 or: */
 #define OK 0
 
-/* All system related errors return this: */
+/* System related error. Terminates execution (after clean up). */
 #define ERR 1
 
-/* User related errors are distinguished as follows: */
+/*
+ * User related errors.
+ * Execution continutes, but exit status will be non-zero.
+ */
 #define NO_MATCH 2
 #define SYNTAX_ERR 3
 #define DIV_BY_ZERO_ERR 4
 #define USER_OVERFLOW_ERR 5
 #define USAGE_ERR 6
 
+/*
+ * System or user related error whereby execution continutes.
+ * Exit status will be non-zero.
+ */
+#define ERR_CONTINUE 7
 
 /* For printing a number as a string */
 #define NUM_BUF_SIZE 32
@@ -402,5 +422,7 @@ int rec_rm(const char *path);
 char *ls_dir(const char *dir);
 int mmap_file_ro(const char *fn, void **mem, size_t *fs);
 int un_mmap(void *p, size_t s);
+int make_temp(const char *template, char **temp_fn);
+int make_stemp(const char *template, char **temp_fn);
 
 #endif

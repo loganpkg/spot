@@ -55,4 +55,4 @@ install:
 
 .PHONY: clean
 clean:
-	rm -f *.o ${apps}
+	rm -f *.o *.obj *.lib *.ilk *.pdb *.exe ${apps}
