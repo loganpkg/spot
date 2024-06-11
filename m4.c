@@ -224,7 +224,7 @@ int stack_mc(struct macro_call **head, size_t *stack_depth)
     return 0;
 }
 
-void pop_mc(struct macro_call **head, size_t * stack_depth)
+void pop_mc(struct macro_call **head, size_t *stack_depth)
 {
     struct macro_call *mc;
 
@@ -1074,10 +1074,10 @@ int econc(m4_, NM) (void *v) {
                 p = arg(i);
                 while (isdigit(*p++));
                 if (*p == '\0') {
-                fprintf(stderr, "%s:%d:%s: Usage error: "
-                        "Invalid diversion number\n", __FILE__, __LINE__,
-                        arg(0));
-                return USAGE_ERR;
+                    fprintf(stderr, "%s:%d:%s: Usage error: "
+                            "Invalid diversion number\n", __FILE__,
+                            __LINE__, arg(0));
+                    return USAGE_ERR;
                 }
                 /*
                  * Assume a filename. Outputs directly to the active diversion,
@@ -2623,8 +2623,10 @@ int main(int argc, char **argv)
                     mgoto(error);
 
                 if (m4->trace)
-                    fprintf(stderr, "Trace: %s:%lu: %s: Stack depth: %lu\n", m4->input->nm,
-                            (unsigned long) m4->input->rn, e->name, (unsigned long) m4->stack_depth);
+                    fprintf(stderr,
+                            "Trace: %s:%lu: %s: Stack depth: %lu\n",
+                            m4->input->nm, (unsigned long) m4->input->rn,
+                            e->name, (unsigned long) m4->stack_depth);
 
                 /* See if called with or without brackets */
                 if ((r = eat_str_if_match(&m4->input, "(")) == ERR)

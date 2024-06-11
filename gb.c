@@ -318,9 +318,9 @@ int up_line(struct gb *b)
     size_t r_orig = b->r, target_col;
 
     if (b->sc_set)
-          target_col = b->sc;
+        target_col = b->sc;
     else
-          target_col = b->col;
+        target_col = b->col;
 
     /* Row number starts from 1, not 0 */
     if (b->r == 1)
@@ -344,9 +344,9 @@ int down_line(struct gb *b)
     size_t r_orig = b->r, target_col;
 
     if (b->sc_set)
-           target_col = b->sc;
+        target_col = b->sc;
     else
-          target_col = b->col;
+        target_col = b->col;
 
     while (b->r == r_orig) {
         if (right_ch(b)) {
