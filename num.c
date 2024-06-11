@@ -367,7 +367,7 @@ char *ltostr(long a, unsigned int base, unsigned int pad)
     if (neg && put_ch(b, '-'))
         mgoto(clean_up);
 
-    if ((res_str = malloc(b->i)) == NULL)
+    if ((res_str = calloc(b->i, 1)) == NULL)
         mgoto(clean_up);
 
     /* Reverse buffer */

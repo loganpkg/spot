@@ -29,29 +29,21 @@ struct gb *init_gb(size_t s)
 {
     struct gb *b;
 
-    if ((b = malloc(sizeof(struct gb))) == NULL)
+    if ((b = calloc(1, sizeof(struct gb))) == NULL)
         return NULL;
 
     b->fn = NULL;
-    if ((b->a = malloc(s)) == NULL) {
+    if ((b->a = calloc(s, 1)) == NULL) {
         free(b);
         return NULL;
     }
-    b->g = 0;
     b->c = s - 1;
     b->e = s - 1;
 
     /* Last char cannot be deleted. Enables use as a string. Do not change. */
     *(b->a + s - 1) = '\0';
 
-    b->m_set = 0;
-    b->m = 0;
     b->r = 1;
-    b->col = 0;
-    b->d = 0;
-    b->mod = 0;
-    b->prev = NULL;
-    b->next = NULL;
     return b;
 }
 
@@ -89,6 +81,8 @@ void delete_gb(struct gb *b)
     b->m = 0;
     b->r = 1;
     b->col = 0;
+    b->sc_set = 0;
+    b->sc = 0;
     b->d = 0;
     b->mod = 1;
 }
@@ -131,6 +125,7 @@ static int grow_gap(struct gb *b, size_t will_use)
 
 int insert_ch(struct gb *b, char ch)
 {
+    b->sc_set = 0;
     if (b->g == b->c && grow_gap(b, 1))
         return ERR;
 
@@ -145,7 +140,6 @@ int insert_ch(struct gb *b, char ch)
         ++b->col;
     }
     b->m_set = 0;
-    b->m = 0;
     b->mod = 1;
     return 0;
 }
@@ -179,6 +173,8 @@ int insert_file(struct gb *b, const char *fn)
     FILE *fp = NULL;
     size_t fs;
 
+    b->sc_set = 0;
+
     errno = 0;
     if ((fp = fopen(fn, "rb")) == NULL) {
         if (errno == ENOENT)    /* File does not exist */
@@ -202,7 +198,6 @@ int insert_file(struct gb *b, const char *fn)
 
     b->c -= fs;
     b->m_set = 0;
-    b->m = 0;
     b->mod = 1;
 
   done:
@@ -217,12 +212,13 @@ int insert_file(struct gb *b, const char *fn)
 
 int delete_ch(struct gb *b)
 {
+    b->sc_set = 0;
+
     if (b->c == b->e)
         return ERR;
 
     ++b->c;
     b->m_set = 0;
-    b->m = 0;
     b->mod = 1;
     return 0;
 }
@@ -231,6 +227,8 @@ int left_ch(struct gb *b)
 {
     size_t i, count;
     unsigned char u, ch;
+
+    b->sc_set = 0;
 
     if (!b->g)
         return ERR;
@@ -270,6 +268,9 @@ int left_ch(struct gb *b)
 int right_ch(struct gb *b)
 {
     unsigned char u;
+
+    b->sc_set = 0;
+
     if (b->c == b->e)
         return ERR;
 
@@ -314,7 +315,12 @@ void end_of_line(struct gb *b)
 
 int up_line(struct gb *b)
 {
-    size_t r_orig = b->r, col_orig = b->col;
+    size_t r_orig = b->r, target_col;
+
+    if (b->sc_set)
+          target_col = b->sc;
+    else
+          target_col = b->col;
 
     /* Row number starts from 1, not 0 */
     if (b->r == 1)
@@ -323,29 +329,42 @@ int up_line(struct gb *b)
     while (b->r == r_orig)
         left_ch(b);
 
-    while (b->col > col_orig)
+    while (b->col > target_col)
         left_ch(b);
+
+    /* left_ch will clear this, so need to do it again */
+    b->sc_set = 1;
+    b->sc = target_col;
 
     return 0;
 }
 
 int down_line(struct gb *b)
 {
-    size_t r_orig = b->r, col_orig = b->col;
+    size_t r_orig = b->r, target_col;
+
+    if (b->sc_set)
+           target_col = b->sc;
+    else
+          target_col = b->col;
 
     while (b->r == r_orig) {
         if (right_ch(b)) {
             /* Go back */
-            while (b->col != col_orig)
+            while (b->col != target_col)
                 left_ch(b);
 
             return ERR;
         }
     }
 
-    while (b->col != col_orig && *(b->a + b->c) != '\n')
+    while (b->col != target_col && *(b->a + b->c) != '\n')
         if (right_ch(b))
             break;
+
+    /* right_ch will clear this, so need to do it again */
+    b->sc_set = 1;
+    b->sc = target_col;
 
     return 0;
 }
@@ -383,12 +402,10 @@ void right_word(struct gb *b, char transform)
         if (isupper(u) && transform == 'L') {
             *(b->a + b->c) = 'a' + u - 'A';
             b->m_set = 0;
-            b->m = 0;
             b->mod = 1;
         } else if (islower(u) && transform == 'U') {
             *(b->a + b->c) = 'A' + u - 'a';
             b->m_set = 0;
-            b->m = 0;
             b->mod = 1;
         }
 
@@ -520,6 +537,8 @@ int regex_replace_region(struct gb *b, struct gb *cl)
     char delim, *find, *sep, *replace, *res = NULL;
     size_t res_len;
 
+    b->sc_set = 0;
+
     if (!b->m_set)
         mgoto(clean_up);
 
@@ -548,7 +567,6 @@ int regex_replace_region(struct gb *b, struct gb *cl)
     /* Delete region */
     b->c = b->m;
     b->m_set = 0;
-    b->m = 0;
     b->mod = 1;
 
     if (insert_mem(b, res, res_len))
@@ -691,6 +709,8 @@ int copy_region(struct gb *b, struct gb *p, int cut)
      */
     size_t i, num;
 
+    b->sc_set = 0;
+
     if (!b->m_set)
         return ERR;
 
@@ -722,10 +742,8 @@ int copy_region(struct gb *b, struct gb *p, int cut)
     }
 
     /* Clear mark even when just copying */
-    if (!cut) {
+    if (!cut)
         b->m_set = 0;
-        b->m = 0;
-    }
 
     return 0;
 }
@@ -911,6 +929,8 @@ int save(struct gb *b)
 {
     FILE *fp;
 
+    b->sc_set = 0;
+
     if (b->fn == NULL || *b->fn == '\0')
         return ERR;
 
@@ -936,6 +956,8 @@ int save(struct gb *b)
 int rename_gb(struct gb *b, const char *fn)
 {
     char *new_fn;
+
+    b->sc_set = 0;
 
     if (fn == NULL)
         return ERR;

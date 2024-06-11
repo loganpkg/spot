@@ -106,6 +106,7 @@ struct m4_info {
     struct obuf *store;
     struct sbuf *str_start;     /* Indices to the start of strings in store */
     struct macro_call *stack;   /* Head node of the macro call stack */
+    size_t stack_depth;         /* For trace */
     Fptr tmp_mfp;               /* For passing back the defn of a built-in */
     /* Used for substituting arguments and for esyscmd and translit */
     struct obuf *tmp;
@@ -208,7 +209,7 @@ struct macro_call *init_mc(void)
     return mc;
 }
 
-int stack_mc(struct macro_call **head)
+int stack_mc(struct macro_call **head, size_t *stack_depth)
 {
     struct macro_call *mc;
 
@@ -219,10 +220,11 @@ int stack_mc(struct macro_call **head)
 
     mc->next = *head;
     *head = mc;
+    ++*stack_depth;
     return 0;
 }
 
-void pop_mc(struct macro_call **head)
+void pop_mc(struct macro_call **head, size_t * stack_depth)
 {
     struct macro_call *mc;
 
@@ -230,14 +232,16 @@ void pop_mc(struct macro_call **head)
         mc = (*head)->next;
         free(*head);
         *head = mc;
+        --*stack_depth;
     }
 }
 
 void free_mc_stack(struct macro_call **head)
 {
+    size_t sd;
     if (head != NULL)
         while (*head != NULL)
-            pop_mc(head);
+            pop_mc(head, &sd);
 }
 
 int sub_args(M4ptr m4)
@@ -376,7 +380,7 @@ int end_macro(M4ptr m4)
     nm = arg(0);
 
     /* Pop redirectes output to the next node (if any) */
-    pop_mc(&m4->stack);
+    pop_mc(&m4->stack, &m4->stack_depth);
 
     if (m4->pass_through) {
         if (put_str(output, nm))
@@ -713,7 +717,7 @@ int output_line_directive(M4ptr m4)
 /* See README.md for the syntax of the built-in macros */
 
 #define NM define
-#define PAR_DESC "(`macro_name', `macro_def')"
+#define PAR_DESC "(macro_name, macro_def)"
 
 int econc(m4_, NM) (void *v) {
     M4ptr m4 = (M4ptr) v;
@@ -731,7 +735,7 @@ int econc(m4_, NM) (void *v) {
 #undef NM
 #undef PAR_DESC
 #define NM pushdef
-#define PAR_DESC "(`macro_name', `macro_def')"
+#define PAR_DESC "(macro_name, macro_def)"
 
 int econc(m4_, NM) (void *v) {
     M4ptr m4 = (M4ptr) v;
@@ -749,7 +753,7 @@ int econc(m4_, NM) (void *v) {
 #undef NM
 #undef PAR_DESC
 #define NM undefine
-#define PAR_DESC "(`macro_name')"
+#define PAR_DESC "(macro_name)"
 
 int econc(m4_, NM) (void *v) {
     M4ptr m4 = (M4ptr) v;
@@ -774,7 +778,7 @@ int econc(m4_, NM) (void *v) {
 #undef NM
 #undef PAR_DESC
 #define NM popdef
-#define PAR_DESC "(`macro_name')"
+#define PAR_DESC "(macro_name)"
 
 int econc(m4_, NM) (void *v) {
     M4ptr m4 = (M4ptr) v;
@@ -1047,7 +1051,7 @@ int econc(m4_, NM) (void *v) {
 
 int econc(m4_, NM) (void *v) {
     M4ptr m4 = (M4ptr) v;
-    char ch;
+    char ch, *p;
     size_t x, i;
 
     print_help;
@@ -1067,6 +1071,14 @@ int econc(m4_, NM) (void *v) {
                     return ERR;
                 }
             } else {
+                p = arg(i);
+                while (isdigit(*p++));
+                if (*p == '\0') {
+                fprintf(stderr, "%s:%d:%s: Usage error: "
+                        "Invalid diversion number\n", __FILE__, __LINE__,
+                        arg(0));
+                return USAGE_ERR;
+                }
                 /*
                  * Assume a filename. Outputs directly to the active diversion,
                  * even during argument collection.
@@ -1319,14 +1331,14 @@ int econc(m4_, NM) (void *v) {
 #undef NM
 #undef PAR_DESC
 #define NM regexrep
-#define PAR_DESC "(text, regex_find, replace[, newline_sensitive, verbose])"
+#define PAR_DESC "(text, regex_find, replace[, newline_insensitive, verbose])"
 
 int econc(m4_, NM) (void *v) {
     M4ptr m4 = (M4ptr) v;
     int ret = ERR;
     char *res;
     size_t res_len;
-    int nl_sen = 0;             /* Newline sensitive (off) */
+    int nl_sen = 1;             /* Newline sensitive (on) */
     int verbose = 0;            /* Prints information about the regex */
 
     print_help;
@@ -1335,7 +1347,7 @@ int econc(m4_, NM) (void *v) {
     min_pars(3);
 
     if (!strcmp(arg(4), "1"))
-        nl_sen = 1;             /* Newline sensitive on */
+        nl_sen = 0;             /* Newline sensitive off. Insensitive. */
 
     if (!strcmp(arg(5), "1"))
         verbose = 1;
@@ -1388,7 +1400,7 @@ int econc(m4_, NM) (void *v) {
 #undef NM
 #undef PAR_DESC
 #define NM ifdef
-#define PAR_DESC "(`macro_name', `when_defined'[, `when_undefined'])"
+#define PAR_DESC "(macro_name, when_defined[, when_undefined])"
 
 int econc(m4_, NM) (void *v) {
     M4ptr m4 = (M4ptr) v;
@@ -1417,8 +1429,7 @@ int econc(m4_, NM) (void *v) {
 #undef NM
 #undef PAR_DESC
 #define NM ifelse
-#define PAR_DESC "(switch, case_a, `when_a'[, case_b, `when_b',] "  \
-    "... [, `default'])"
+#define PAR_DESC "(switch, case_a, when_a[, case_b, when_b, ... ][, default])"
 
 int econc(m4_, NM) (void *v) {
     M4ptr m4 = (M4ptr) v;
@@ -1459,7 +1470,7 @@ int econc(m4_, NM) (void *v) {
 #undef NM
 #undef PAR_DESC
 #define NM defn
-#define PAR_DESC "(`macro_name')"
+#define PAR_DESC "(macro_name)"
 
 int econc(m4_, NM) (void *v) {
     M4ptr m4 = (M4ptr) v;
@@ -1519,7 +1530,7 @@ int econc(m4_, NM) (void *v) {
 #undef NM
 #undef PAR_DESC
 #define NM dumpdef
-#define PAR_DESC "[(`macro_name'[, ...])]"
+#define PAR_DESC "[(macro_name[, ... ])]"
 
 int econc(m4_, NM) (void *v) {
     M4ptr m4 = (M4ptr) v;
@@ -2585,7 +2596,7 @@ int main(int argc, char **argv)
             } else {
                 /*  Macro */
 
-                if (stack_mc(&m4->stack))
+                if (stack_mc(&m4->stack, &m4->stack_depth))
                     mgoto(error);
 
                 m4->stack->bracket_depth = 1;
@@ -2612,8 +2623,8 @@ int main(int argc, char **argv)
                     mgoto(error);
 
                 if (m4->trace)
-                    fprintf(stderr, "Trace: %s:%lu: %s\n", m4->input->nm,
-                            (unsigned long) m4->input->rn, e->name);
+                    fprintf(stderr, "Trace: %s:%lu: %s: Stack depth: %lu\n", m4->input->nm,
+                            (unsigned long) m4->input->rn, e->name, (unsigned long) m4->stack_depth);
 
                 /* See if called with or without brackets */
                 if ((r = eat_str_if_match(&m4->input, "(")) == ERR)

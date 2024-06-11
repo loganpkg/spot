@@ -35,10 +35,7 @@ struct ibuf *init_ibuf(size_t n)
     if ((b = calloc(1, sizeof(struct ibuf))) == NULL)
         mgoto(error);
 
-    if (mof(n, sizeof(char), SIZE_MAX))
-        mgoto(error);
-
-    if ((b->a = malloc(n * sizeof(char))) == NULL)
+    if ((b->a = calloc(n, 1)) == NULL)
         mgoto(error);
 
     b->i = 0;
@@ -91,12 +88,7 @@ static int grow_ibuf(struct ibuf *b, size_t will_use)
 
     new_n *= 2;
 
-    if (mof(new_n, sizeof(char), SIZE_MAX)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
-
-    if ((t = realloc(b->a, new_n * sizeof(char))) == NULL) {
+    if ((t = realloc(b->a, new_n)) == NULL) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
         return ERR;
     }
@@ -125,10 +117,7 @@ struct obuf *init_obuf(size_t n)
     if ((b = calloc(1, sizeof(struct obuf))) == NULL)
         mgoto(error);
 
-    if (mof(n, sizeof(char), SIZE_MAX))
-        mgoto(error);
-
-    if ((b->a = malloc(n * sizeof(char))) == NULL)
+    if ((b->a = calloc(n, 1)) == NULL)
         mgoto(error);
 
     b->i = 0;
@@ -167,12 +156,7 @@ static int grow_obuf(struct obuf *b, size_t will_use)
 
     new_n *= 2;
 
-    if (mof(new_n, sizeof(char), SIZE_MAX)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
-
-    if ((t = realloc(b->a, new_n * sizeof(char))) == NULL) {
+    if ((t = realloc(b->a, new_n)) == NULL) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
         return ERR;
     }
@@ -204,7 +188,7 @@ struct lbuf *init_lbuf(size_t n)
     if (mof(n, sizeof(long), SIZE_MAX))
         mgoto(error);
 
-    if ((b->a = malloc(n * sizeof(long))) == NULL)
+    if ((b->a = calloc(n, sizeof(long))) == NULL)
         mgoto(error);
 
     b->i = 0;
@@ -280,7 +264,7 @@ struct sbuf *init_sbuf(size_t n)
     if (mof(n, sizeof(size_t), SIZE_MAX))
         mgoto(error);
 
-    if ((b->a = malloc(n * sizeof(size_t))) == NULL)
+    if ((b->a = calloc(n, sizeof(size_t))) == NULL)
         mgoto(error);
 
     b->i = 0;
@@ -356,7 +340,7 @@ struct pbuf *init_pbuf(size_t n)
     if (mof(n, sizeof(void *), SIZE_MAX))
         mgoto(error);
 
-    if ((b->a = malloc(n * sizeof(void *))) == NULL)
+    if ((b->a = calloc(n, sizeof(void *))) == NULL)
         mgoto(error);
 
     b->i = 0;
