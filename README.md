@@ -296,7 +296,9 @@ by many programming languages.
 Built-in macros
 ---------------
 
-I will now introduce the built-in macros.
+I will now introduce the built-in macros. All built-in macros that *require*
+arguments exhibit pass-through, whereby the macro name is simply printed to
+the output when it is called without arguments.
 
 ```m4
 changequote[(left_quote, right_quote)]
@@ -330,8 +332,6 @@ that may exist (but not-preserving the current history).
 If the current history is a built-in macro, then it will still be updated, but
 the ability to bring back the built-in nature will be lost (unless you have
 another copy).
-
-The macro name is passed through to the output when called without arguments.
 
 You can make a renamed copy of a built-in macro, which then acts exactly the
 same as an orginal built-in macro. To do this you need to used `defn`,
@@ -374,8 +374,6 @@ immediately below the new definition in the history stack.
 `pushdef` can be used to make a renamed copy of a built-in macro by using
 `defn` (this also works with user-defined macros).
 
-The macro name is passed through to the output when called without arguments.
-
 ```m4
 pushdef(x, defn(`divnum'))
 
@@ -392,8 +390,6 @@ For user-defined macros it pushes the quoted definition into the input.
 For built-in macros, it passes back the C function pointer (its *definition*)
 to the parent macro, but only when it aligns to the second argument
 of `define` or `pushdef` (or renamed copies of these).
-
-The macro name is passed through to the output when called without arguments.
 
 ```m4
 divert[(div_num)]
@@ -450,7 +446,7 @@ teated as errors. This is the default mode, and the expected behaviour under the
 POSIX standard.
 
 ```m4
-traceon
+traceon[(macro_name[, ... ])]
 ```
 Prints to `stderr` the location in the input file, the name of macro, and the
 macro stack depth after they are invoked. This is at the beginning of argument
@@ -458,17 +454,29 @@ collection, not at the end when the macro is executed. The benefit in tracing
 the macros this way, is that they appear in the same order as they do in the
 source code, making debugging easier.
 
+When called without arguments, then all of the existing macros are added to
+the trace list (which is implemented as a separate hash table). When called
+with arguments, then those specified macro names are added to the trace
+list. Please note that to add a name to the trace list, the name must
+be a valid macro name, but the macro need not exist. The list operates purely
+on the text of the macro name, and hence, renaming macros does not inherit
+the tracing status.
+
+New macro names created after `traceon` called without arguments are not
+automatically added, but `traceon` can be called again to add them.
+
 ```m4
-traceoff
+traceoff[(macro_name[, ... ])]
 ```
-Turns off trace.
+When called without arguments, `traceoff`, clears the trace list and turns off
+the tracing mechanism. When called with arguments, if tracing is on, then the
+specified names are removed from the trace list (if tracing is off, then there
+is no need to remove them as the list is cleared anyway).
 
 ```m4
 errprint(error_message)
 ```
 `errprint` prints a message to `stderr`.
-
-The macro name is passed through to the output when called without arguments.
 
 ```m4
 syscmd(shell_command)
@@ -476,15 +484,11 @@ syscmd(shell_command)
 `syscmd` runs an operating system specific shell command. Nothing is returned
 (pushed back into the input). No redirection of standard streams is performed.
 
-The macro name is passed through to the output when called without arguments.
-
 ```m4
 esyscmd(shell_command)
 ```
 `esyscmd` runs an operating system specific shell command and reads the
 `stdout` of that command into the input.
-
-The macro name is passed through to the output when called without arguments.
 
 ```m4
 eval(arithmetic_expression[, base, pad, verbose])
@@ -495,9 +499,6 @@ to display the result can be specified.
 `pad` adds leading zeros to display the result with a minimum width.
 If verbose is 1, then the postfix form of the expression is
 printed to `stderr`.
-
-The macro name is passed through to the output when called without arguments.
-
 
 | Operator | Description | Precedence | Number of operands | Associativity |
 | :------- | :---------- | ---------: | -----------------: | :-----------: |
@@ -543,8 +544,6 @@ of `great`. However, surprisingly, `y` is defined as `10` during argument
 collection (as quotes were not used), even through this was not the logical
 branch taken at the final execution of the macro.
 
-The macro name is passed through to the output when called without arguments.
-
 ```m4
 define(x, cool)
 
@@ -568,15 +567,11 @@ Remember that arguments will be expanded and processed during argument
 collection, which occurs _before_ the branch in logic. So, it is a good idea
 to quote arguments; 3, 5, 7, ... and the last argument.
 
-The macro name is passed through to the output when called without arguments.
-
 ```m4
 shift(arg1[, ... ])
 ```
 `shift` returns (pushes into the input) a comma-separated list of individually
 quoted arguments, excluding the first argument.
-
-The macro name is passed through to the output when called without arguments.
 
 ```m4
 include(filename)
@@ -584,36 +579,26 @@ include(filename)
 `include` pushes the contents of a file into the input. Macros will be
 processed.
 
-The macro name is passed through to the output when called without arguments.
-
 ```m4
 sinclude(filename)
 ```
 `sinclude` is a *silent* version of `include`, that does not generate an error
 or warning if the file cannot be opened.
 
-The macro name is passed through to the output when called without arguments.
-
 ```m4
 incr(number)
 ```
 `incr` increments a number. The result is pushed into the input.
-
-The macro name is passed through to the output when called without arguments.
 
 ```m4
 decr(number)
 ```
 `decr` decrements a number. The result is pushed into the input.
 
-The macro name is passed through to the output when called without arguments.
-
 ```m4
 len(str)
 ```
 `len` pushes the string length of its first argument into the input.
-
-The macro name is passed through to the output when called without arguments.
 
 ```m4
 index(big_str, small_str)
@@ -622,16 +607,12 @@ index(big_str, small_str)
 `big_str`. Offsets commence from zero. If there is no match, then -1
 is returned (pushed into the input).
 
-The macro name is passed through to the output when called without arguments.
-
 ```m4
 substr(str, start_index[, size])
 ```
 `substr` returns (pushes to the input) a portion of `str` commencing from
 `start_index` and continuing for `size` characters, or until the end of `str`,
 if `size` is not specified. Indices commence from zero.
-
-The macro name is passed through to the output when called without arguments.
 
 ```m4
 translit(str, from_chars, to_chars)
@@ -655,8 +636,6 @@ character can have a higher ASCII value than the ending character.
 The start and end characters are included in the range.
 Ranges are permitted, but unspecified by the POSIX standard.
 
-The macro name is passed through to the output when called without arguments.
-
 ```m4
 m4wrap(code_to_include_at_end)
 ```
@@ -664,8 +643,6 @@ m4wrap(code_to_include_at_end)
 This code will then be evaluated as normal. Code will be evaluated in
 chronological order if `m4wrap` was called multiple times. This is
 useful for performing clean up.
-
-The macro name is passed through to the output when called without arguments.
 
 ```m4
 lsdir[(dir_name)]
@@ -693,8 +670,6 @@ This is an extension to the POSIX standard. `recrm` recursively removes a path
 if it exists. Any sub-file or sub-directories will be deleted along with the
 specified path itself.
 
-The macro name is passed through to the output when called without arguments.
-
 ```m4
 regexrep(text, regex_find, replace[, newline_insensitive, verbose])
 ```
@@ -705,9 +680,6 @@ If verbose is 1, then the posfix form of the expression and the
 nondeterministic finite automaton (NFA) structure are printed to `stderr`.
 
 See the [regex syntax](#regex-syntax) for more details.
-
-The macro name is passed through to the output when called without arguments.
-
 
 ```m4
 sysval
@@ -726,8 +698,6 @@ substitution.
 
 For example, in the code below, `tnl` eats the trailing newline from the shell
 command, preventing the sentence from being broken.
-
-The macro name is passed through to the output when called without arguments.
 
 ```m4
 My name is esyscmd(whoami), hello!
@@ -750,8 +720,6 @@ In the example below, `define` and `x` (via its inheritance) do not need to
 be quoted when "called" without arguments, as they exhibit pass-through
 behaviour (only certain built-in macro do this). The example clones
 `define` to `x`, deletes `define`, then restores it from `x`.
-
-The macro name is passed through to the output when called without arguments.
 
 ```m4
 define(x, defn(define))
@@ -777,8 +745,6 @@ macro what the prior history was. If there was no prior history, then `popdef`
 has the same effect as `undefine`. You will normally want to quote the macro
 name.
 
-The macro name is passed through to the output when called without arguments.
-
 ```m4
 undivert[(div_num_or_filename)]
 ```
@@ -801,8 +767,6 @@ This macro is very useful for writing dynamic code. The code can be crafted
 into a diversion, then that diversion can be written to file using `writediv`,
 and then the file can be executed using `esyscmd`.
 
-The macro name is passed through to the output when called without arguments.
-
 ```m4
 maketemp(templateXXXXXX)
 ```
@@ -811,8 +775,6 @@ of the current process, and pushes the result back into the input.
 It does not check if a file with that name already exists, and it
 does not create a file. It is depreciated and should not be used.
 
-The macro name is passed through to the output when called without arguments.
-
 ```m4
 mkstemp(templateXXXXXX)
 ```
@@ -820,8 +782,6 @@ mkstemp(templateXXXXXX)
 characters and creates and closes a file by that name, pushing the
 resultant filename into the input. Where available, this is done by
 calling the C function `mkstemp` from `<stdlib.h>`.
-
-The macro name is passed through to the output when called without arguments.
 
 
 bc

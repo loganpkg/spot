@@ -67,13 +67,6 @@
 
 #define m_def (m4->store->a + *(m4->str_start->a + m4->stack->m_i))
 
-/*
-#define m_name (m4->store->a + *(m4->str_start->a + m4->stack->m_i + 1))
-
-#define arg(n) ((n) <= num_args_collected ? \
-    m4->store->a + *(m4->str_start->a + m4->stack->m_i + 1 + (n)) : "")
-*/
-
 #define arg(n) (m4->store->a + *(m4->str_start->a + m4->stack->m_i + 1 + (n)))
 
 
@@ -89,7 +82,8 @@ typedef struct m4_info *M4ptr;
 
 struct m4_info {
     int req_exit_val;           /* User requested exit value */
-    struct ht *ht;
+    struct ht *ht;              /* Hash table for macros */
+    struct ht *trace_ht;        /* Trace list hash table */
     /* There is only one input. Characters are stored in reverse order. */
     struct ibuf *input;
     struct obuf *token;
@@ -135,7 +129,7 @@ struct m4_info {
     /* Exit upon user related error. Turned off by default. */
     int error_exit;             /* Exit upon the first error */
     int warn_to_error;          /* Treat warnings as errors */
-    int trace;
+    int trace_on;
     int help;                   /* Print help information for a macro */
 };
 
@@ -398,6 +392,7 @@ void free_m4(M4ptr m4)
 
     if (m4 != NULL) {
         free_ht(m4->ht);
+        free_ht(m4->trace_ht);
         free_ibuf(m4->input);
         free_obuf(m4->token);
         free_obuf(m4->store);
@@ -433,6 +428,9 @@ M4ptr init_m4(void)
         m4->div[i] = NULL;
 
     if ((m4->ht = init_ht(NUM_BUCKETS)) == NULL)
+        mgoto(error);
+
+    if ((m4->trace_ht = init_ht(NUM_BUCKETS)) == NULL)
         mgoto(error);
 
     if ((m4->token = init_obuf(INIT_BUF_SIZE)) == NULL)
@@ -573,21 +571,18 @@ int validate_def(const char *def)
     return 0;
 }
 
-int add_macro(M4ptr m4, char *macro_name, char *macro_def, int push_hist)
+int validate_macro_name(const char *macro_name)
 {
-    /*
-     * Adds a user-defined macro.
-     * Need to check macro name fully as it might have been passed in on the
-     * command line.
-     */
-    char *p, ch;
+    const char *p;
+    char ch;
 
     p = macro_name;
     /* Check first character */
     if (!isalpha(*p) && *p != '_') {
         fprintf(stderr,
-                "%s:%d:%s: Syntax error: "
-                "Invalid macro name\n", __FILE__, __LINE__, macro_name);
+                "%s:%d: Syntax error: "
+                "Invalid macro name: %s\n", __FILE__, __LINE__,
+                macro_name);
         return SYNTAX_ERR;
     }
     /* Check remaining characters */
@@ -595,12 +590,28 @@ int add_macro(M4ptr m4, char *macro_name, char *macro_def, int push_hist)
     while ((ch = *p) != '\0') {
         if (!isalnum(ch)) {
             fprintf(stderr,
-                    "%s:%d:%s: Syntax error: "
-                    "Invalid macro name\n", __FILE__, __LINE__,
+                    "%s:%d: Syntax error: "
+                    "Invalid macro name: %s\n", __FILE__, __LINE__,
                     macro_name);
             return SYNTAX_ERR;
         }
         ++p;
+    }
+    return 0;
+}
+
+int add_macro(M4ptr m4, char *macro_name, char *macro_def, int push_hist)
+{
+    /*
+     * Adds a user-defined macro.
+     * Need to check macro name fully as it might have been passed in on the
+     * command line.
+     */
+    int r;
+
+    if ((r = validate_macro_name(macro_name))) {
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+        return r;
     }
 
     if (*macro_def == '\0' && m4->tmp_mfp != NULL) {
@@ -2225,32 +2236,81 @@ int econc(m4_, NM) (void *v) {
 #undef NM
 #undef PAR_DESC
 #define NM traceon
-#define PAR_DESC ""
+#define PAR_DESC "[(macro_name[, ... ])]"
 
 int econc(m4_, NM) (void *v) {
     M4ptr m4 = (M4ptr) v;
+    struct entry *e;
+    int r;
+    size_t i;
 
     print_help;
-    max_pars(0);
 
-    m4->trace = 1;
+    if (!num_args_collected) {
+        /* Add all current macros to the trace hash table */
+        for (i = 0; i < NUM_BUCKETS; ++i) {
+            e = m4->ht->b[i];
+            while (e != NULL) {
+                if (upsert(m4->trace_ht, e->name, NULL, NULL, 0)) {
+                    fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+                    return ERR;
+                }
+                e = e->next;
+            }
+        }
+        m4->trace_on = 1;
+        return 0;
+    }
 
+    for (i = 1; i <= num_args_collected; ++i)
+        if ((r = validate_macro_name(arg(i))))
+            return r;
+
+    for (i = 1; i <= num_args_collected; ++i)
+        if (upsert(m4->trace_ht, arg(i), NULL, NULL, 0)) {
+            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+            return ERR;
+        }
+
+    m4->trace_on = 1;
     return 0;
 }
 
 #undef NM
 #undef PAR_DESC
 #define NM traceoff
-#define PAR_DESC ""
+#define PAR_DESC "[(macro_name[, ... ])]"
 
 int econc(m4_, NM) (void *v) {
     M4ptr m4 = (M4ptr) v;
+    size_t i;
 
     print_help;
-    max_pars(0);
 
-    m4->trace = 0;
+    if (!m4->trace_on)
+        return 0;               /* Nothing to do */
 
+    if (!num_args_collected) {
+        /* Clear trace hash table and turn off trace */
+        free_ht(m4->trace_ht);
+
+        if ((m4->trace_ht = init_ht(NUM_BUCKETS)) == NULL) {
+            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
+            return ERR;
+        }
+        m4->trace_on = 0;
+        return 0;
+    }
+
+    for (i = 1; i <= num_args_collected; ++i)
+        if (delete_entry(m4->trace_ht, arg(i), 0)) {
+            fprintf(stderr, "%s:%lu [%s:%d]: %s: Usage warning: "
+                    "Trace entry does not exist: %s\n", m4->input->nm,
+                    (unsigned long) m4->input->rn, __FILE__, __LINE__,
+                    arg(0), arg(i));
+            if (m4->warn_to_error)
+                return USAGE_ERR;
+        }
     return 0;
 }
 
@@ -2299,7 +2359,8 @@ int main(int argc, char **argv)
      */
     int req_exit_val = -1;
     M4ptr m4 = NULL;
-    struct entry *e;            /* Used for macro lookups */
+    struct entry *e;            /* Entry for macro lookups */
+    struct entry *te;           /* Trace entry for trace macro name lookups */
     int i, r;
     char *p;
     int no_file = 1;            /* No files specified on the command line */
@@ -2622,7 +2683,8 @@ int main(int argc, char **argv)
                 if (put_ch(m4->store, '\0'))
                     mgoto(error);
 
-                if (m4->trace)
+                if (m4->trace_on
+                    && (te = lookup(m4->trace_ht, e->name)) != NULL)
                     fprintf(stderr,
                             "Trace: %s:%lu: %s: Stack depth: %lu\n",
                             m4->input->nm, (unsigned long) m4->input->rn,
