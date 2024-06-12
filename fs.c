@@ -242,10 +242,9 @@ int walk_dir(const char *dir, int rec, void *info,
 
 static int rm_path(const char *path, unsigned char attr, void *info)
 {
-    if (info != NULL) {         /* Not used in this function */
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    /* Not used in this function */
+    if (info != NULL)
+        mreturn(ERR);
 
     if (!IS_DOTDIR(attr)) {
         if (IS_DIR(attr)) {
@@ -636,8 +635,8 @@ int make_stemp(const char *template, char **temp_fn)
 
     while (1) {
         if (!try) {
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
             free(template_copy);
+            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
             return ERR;
         }
 
@@ -645,8 +644,8 @@ int make_stemp(const char *template, char **temp_fn)
         q = suffix_start;
         while (*q) {
             if (rand_alnum(&ch)) {
-                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
                 free(template_copy);
+                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
                 return ERR;
             }
             *q = ch;
@@ -658,14 +657,14 @@ int make_stemp(const char *template, char **temp_fn)
 
         if (h == INVALID_HANDLE_VALUE) {
             if (GetLastError() != ERROR_FILE_EXISTS) {
-                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
                 free(template_copy);
+                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
                 return ERR;
             }
         } else {
             if (!CloseHandle(h)) {
-                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
                 free(template_copy);
+                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
                 return ERR;
             }
             break;
@@ -676,14 +675,14 @@ int make_stemp(const char *template, char **temp_fn)
 
 #else
     if ((fd = mkstemp(template_copy)) == -1) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
         free(template_copy);
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
         return ERR;
     }
 
     if (close(fd)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
         free(template_copy);
+        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
         return ERR;
     }
 #endif
