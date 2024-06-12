@@ -510,6 +510,12 @@ int get_ch(struct ibuf **input, char *ch)
                     *input = t;
                     goto top;
                 } else {
+                    /*
+                     * Need to close the stream, as some systems block
+                     * waiting for input after the first EOF is read,
+                     * instead of automatically repeating the EOF status
+                     * on each subsequent read after the first EOF char.
+                     */
                     if (fclose((*input)->fp))
                         mreturn(ERR);
 
