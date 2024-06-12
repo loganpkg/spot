@@ -157,7 +157,7 @@ int eval_ibuf(struct ibuf **input, long *res, int verbose)
             while (y->i) {
                 h = *(y->a + y->i - 1);
                 if (h == LEFT_PARENTHESIS)
-                    se_mgoto(clean_up);
+                    mgoto(syntax_error);
 
                 if ((ret = process_operator(x, h, verbose)))
                     mgoto(clean_up);
@@ -332,6 +332,10 @@ int eval_ibuf(struct ibuf **input, long *res, int verbose)
     free_obuf(y);
 
     return ret;
+
+  syntax_error:
+    ret = SYNTAX_ERR;
+    goto clean_up;
 }
 
 int eval_str(const char *math_str, long *res, int verbose)

@@ -55,10 +55,16 @@
 #define NUM_DIVS 11
 #define DIVERSION_NEGATIVE_1 10
 
-
+/* Message */
 #define ms(desc) fprintf(stderr, "%s:%lu [%s:%d]: %s: %s",  \
     m4->input->nm, (unsigned long) m4->input->rn,           \
     __FILE__, __LINE__, arg(0), desc)
+
+/* Messagem, no arg zero */
+#define ms_na0(desc) fprintf(stderr, "%s:%lu [%s:%d]: %s",  \
+    m4->input->nm, (unsigned long) m4->input->rn,           \
+    __FILE__, __LINE__, desc)
+
 
 /* Usage warning */
 #define uw(...) do {                                        \
@@ -2371,7 +2377,7 @@ int main(int argc, char **argv)
             if ((mrv = end_macro(m4))) {
                 ret = mrv;      /* Save for exit time */
                 if ((mrv == ERR || m4->error_exit)) {
-                    ms("Error\n");
+                    ms_na0("Error\n");
                     goto error;
                 }
             }

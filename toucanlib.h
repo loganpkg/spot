@@ -110,11 +110,9 @@
 #endif
 
 
-#define emsg fprintf(stderr, "[%s:%d]: Error\n", __FILE__, __LINE__)
-
-#define mreturn(rv) do {    \
-    emsg;                   \
-    return (rv);            \
+#define mreturn(rv) do {                                                \
+    fprintf(stderr, "[%s:%d]: Error: " #rv "\n", __FILE__, __LINE__);   \
+    return (rv);                                                        \
 } while (0)
 
 #define d_mreturn(msg, rv) do {                                         \
@@ -122,16 +120,11 @@
     return (rv);                                                        \
 } while (0)
 
-#define mgoto(lb) do {      \
-    emsg;                   \
-    goto lb;                \
+#define mgoto(lb) do {                                                  \
+    fprintf(stderr, "[%s:%d]: Error: " #lb "\n", __FILE__, __LINE__);   \
+    goto lb;                                                            \
 } while (0)
 
-#define se_mgoto(lb) do {                                           \
-    ret = SYNTAX_ERR;                                               \
-    fprintf(stderr, "%s:%d: Syntax error\n", __FILE__, __LINE__);   \
-    goto lb;                                                        \
-} while (0)
 
 /* Success return codes */
 #define SUCCESS 0
