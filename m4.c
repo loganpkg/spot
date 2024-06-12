@@ -287,27 +287,15 @@ int sub_args(M4ptr m4)
                  */
                 all_args_accessed = 1;
                 for (i = 1; i <= num_args_collected; ++i) {
-                    if (next_ch == '@' && put_str(m4->tmp, m4->left_quote)) {
-                        fprintf(stderr, "%s:%d: Error\n", __FILE__,
-                                __LINE__);
-                        return ERR;
-                    }
-                    if (put_str(m4->tmp, arg(i))) {
-                        fprintf(stderr, "%s:%d: Error\n", __FILE__,
-                                __LINE__);
-                        return ERR;
-                    }
+                    if (next_ch == '@' && put_str(m4->tmp, m4->left_quote))
+                        mreturn(ERR);
+                    if (put_str(m4->tmp, arg(i)))
+                        mreturn(ERR);
                     if (next_ch == '@'
-                        && put_str(m4->tmp, m4->right_quote)) {
-                        fprintf(stderr, "%s:%d: Error\n", __FILE__,
-                                __LINE__);
-                        return ERR;
-                    }
-                    if (i != num_args_collected && put_ch(m4->tmp, ',')) {
-                        fprintf(stderr, "%s:%d: Error\n", __FILE__,
-                                __LINE__);
-                        return ERR;
-                    }
+                        && put_str(m4->tmp, m4->right_quote))
+                        mreturn(ERR);
+                    if (i != num_args_collected && put_ch(m4->tmp, ','))
+                        mreturn(ERR);
                 }
                 ++p;            /* Eat an extra char */
             } else {

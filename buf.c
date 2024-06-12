@@ -515,11 +515,8 @@ int get_ch(struct ibuf **input, char *ch)
                     t = (*input)->next;
                     /* Isolate old head */
                     (*input)->next = NULL;
-                    if (free_ibuf(*input)) {
-                        fprintf(stderr, "%s:%d: Error\n", __FILE__,
-                                __LINE__);
-                        return ERR;
-                    }
+                    if (free_ibuf(*input))
+                        mreturn(ERR);
                     /* Update head */
                     *input = t;
                     goto top;
