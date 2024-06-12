@@ -117,6 +117,11 @@
     return (rv);            \
 } while (0)
 
+#define d_mreturn(msg, rv) do {                                         \
+    fprintf(stderr, "[%s:%d]: " msg " error\n", __FILE__, __LINE__);    \
+    return (rv);                                                        \
+} while (0)
+
 #define mgoto(lb) do {      \
     emsg;                   \
     goto lb;                \

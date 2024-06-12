@@ -86,18 +86,12 @@ static int process_operator(struct lbuf *x, unsigned char h, int verbose)
 
     if (oper[h].num_operands == 1) {
         /* Unary */
-        if ((ret = lop(x->a + x->i - 1, 0, h))) {
-            fprintf(stderr, "%s:%d: Operation error\n", __FILE__,
-                    __LINE__);
-            return ret;
-        }
+        if ((ret = lop(x->a + x->i - 1, 0, h)))
+            d_mreturn("Operation", ret);
     } else {
         /* Binary */
-        if ((ret = lop(x->a + x->i - 2, *(x->a + x->i - 1), h))) {
-            fprintf(stderr, "%s:%d: Operation error\n", __FILE__,
-                    __LINE__);
-            return ret;
-        }
+        if ((ret = lop(x->a + x->i - 2, *(x->a + x->i - 1), h)))
+            d_mreturn("Operation", ret);
         --x->i;
     }
 

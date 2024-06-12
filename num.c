@@ -139,11 +139,8 @@ int lop(long *a, long b, unsigned char op)
     case POSITIVE:             /* Nothing to do */
         break;
     case NEGATIVE:
-        if (*a == LONG_MIN) {
-            fprintf(stderr, "%s:%d: User overflow error\n", __FILE__,
-                    __LINE__);
-            return USER_OVERFLOW_ERR;
-        }
+        if (*a == LONG_MIN)
+            d_mreturn("User overflow", USER_OVERFLOW_ERR);
         *a *= -1;
         break;
     case BITWISE_COMPLEMENT:
@@ -163,30 +160,18 @@ int lop(long *a, long b, unsigned char op)
             return 0;
         }
         /* Same sign, result will be positive */
-        if (*a > 0 && b > 0 && *a > LONG_MAX / b) {
-            fprintf(stderr, "%s:%d: User overflow error\n", __FILE__,
-                    __LINE__);
-            return USER_OVERFLOW_ERR;
-        }
+        if (*a > 0 && b > 0 && *a > LONG_MAX / b)
+            d_mreturn("User overflow", USER_OVERFLOW_ERR);
 
-        if (*a < 0 && b < 0 && *a < LONG_MAX / b) {
-            fprintf(stderr, "%s:%d: User overflow error\n", __FILE__,
-                    __LINE__);
-            return USER_OVERFLOW_ERR;
-        }
+        if (*a < 0 && b < 0 && *a < LONG_MAX / b)
+            d_mreturn("User overflow", USER_OVERFLOW_ERR);
 
         /* Opposite sign, result will be negative */
-        if (*a > 0 && b < 0 && b < LONG_MIN / *a) {
-            fprintf(stderr, "%s:%d: User overflow error\n", __FILE__,
-                    __LINE__);
-            return USER_OVERFLOW_ERR;
-        }
+        if (*a > 0 && b < 0 && b < LONG_MIN / *a)
+            d_mreturn("User overflow", USER_OVERFLOW_ERR);
 
-        if (*a < 0 && b > 0 && *a < LONG_MIN / b) {
-            fprintf(stderr, "%s:%d: User overflow error\n", __FILE__,
-                    __LINE__);
-            return USER_OVERFLOW_ERR;
-        }
+        if (*a < 0 && b > 0 && *a < LONG_MIN / b)
+            d_mreturn("User overflow", USER_OVERFLOW_ERR);
         *a *= b;
         break;
     case DIVISION:
@@ -196,11 +181,8 @@ int lop(long *a, long b, unsigned char op)
             return DIV_BY_ZERO_ERR;
         }
 
-        if (*a == LONG_MIN && b == -1) {
-            fprintf(stderr, "%s:%d: User overflow error\n", __FILE__,
-                    __LINE__);
-            return USER_OVERFLOW_ERR;
-        }
+        if (*a == LONG_MIN && b == -1)
+            d_mreturn("User overflow", USER_OVERFLOW_ERR);
         if (op == DIVISION)
             *a /= b;
         else
@@ -210,20 +192,14 @@ int lop(long *a, long b, unsigned char op)
     case ADDITION:
         /* Need to be the same sign to overflow */
         if ((*a > 0 && b > 0 && *a > LONG_MAX - b)
-            || (*a < 0 && b < 0 && *a < LONG_MIN - b)) {
-            fprintf(stderr, "%s:%d: User overflow error\n", __FILE__,
-                    __LINE__);
-            return USER_OVERFLOW_ERR;
-        }
+            || (*a < 0 && b < 0 && *a < LONG_MIN - b))
+            d_mreturn("User overflow", USER_OVERFLOW_ERR);
         *a += b;
         break;
     case SUBTRACTION:
         if ((b < 0 && *a > LONG_MAX + b)
-            || (b > 0 && *a < LONG_MIN + b)) {
-            fprintf(stderr, "%s:%d: User overflow error\n", __FILE__,
-                    __LINE__);
-            return USER_OVERFLOW_ERR;
-        }
+            || (b > 0 && *a < LONG_MIN + b))
+            d_mreturn("User overflow", USER_OVERFLOW_ERR);
         *a -= b;
         break;
     case BITWISE_LEFT_SHIFT:
