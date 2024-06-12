@@ -407,9 +407,8 @@ int unget_stream(struct ibuf **b, FILE * fp, const char *nm)
         mreturn(ERR);
 
     if ((t->nm = strdup(nm)) == NULL) {
-        fprintf(stderr, "[%s:%d]: Error\n", __FILE__, __LINE__);
         free_ibuf(t);
-        return ERR;
+        mreturn(ERR);
     }
 
     /* Success */
@@ -430,9 +429,8 @@ int unget_file(struct ibuf **b, const char *fn)
         mreturn(ERR);
 
     if (unget_stream(b, fp, fn)) {
-        fprintf(stderr, "[%s:%d]: Error\n", __FILE__, __LINE__);
         fclose(fp);
-        return ERR;
+        mreturn(ERR);
     }
 
     return 0;
@@ -448,9 +446,8 @@ int append_stream(struct ibuf **b, FILE * fp, const char *nm)
         mreturn(ERR);
 
     if ((t->nm = strdup(nm)) == NULL) {
-        fprintf(stderr, "[%s:%d]: Error\n", __FILE__, __LINE__);
         free_ibuf(t);
-        return ERR;
+        mreturn(ERR);
     }
 
     /* Success */
@@ -478,9 +475,8 @@ int append_file(struct ibuf **b, const char *fn)
         mreturn(ERR);
 
     if (append_stream(b, fp, fn)) {
-        fprintf(stderr, "[%s:%d]: Error\n", __FILE__, __LINE__);
         fclose(fp);
-        return ERR;
+        mreturn(ERR);
     }
 
     return 0;
