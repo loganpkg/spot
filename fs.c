@@ -282,14 +282,12 @@ static int add_fn(const char *fn, unsigned char attr, void *info)
     if (IS_DIR(attr)) {
         if (add_p(lsi->d, fn_copy)) {
             free(fn_copy);
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            return ERR;
+            mreturn(ERR);
         }
     } else {
         if (add_p(lsi->f, fn_copy)) {
             free(fn_copy);
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            return ERR;
+            mreturn(ERR);
         }
     }
 
@@ -395,8 +393,7 @@ char *ls_dir(const char *dir)
 
     if (err) {
         free(t);
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return NULL;
+        mreturn(NULL);
     } else {
         return t;
     }
@@ -459,8 +456,7 @@ int mmap_file_ro(const char *fn, void **mem, size_t *fs)
     if (ret) {
         if (p != NULL)
             UnmapViewOfFile(p);
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
+        mreturn(ERR);
     }
 
 #else
@@ -470,14 +466,12 @@ int mmap_file_ro(const char *fn, void **mem, size_t *fs)
 
     if ((p = mmap(NULL, s, PROT_READ, MAP_PRIVATE, fd, 0)) == MAP_FAILED) {
         close(fd);
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
+        mreturn(ERR);
     }
 
     if (close(fd)) {
         munmap(p, s);
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
+        mreturn(ERR);
     }
 
 #endif
@@ -636,8 +630,7 @@ int make_stemp(const char *template, char **temp_fn)
     while (1) {
         if (!try) {
             free(template_copy);
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            return ERR;
+            mreturn(ERR);
         }
 
         /* Overwrite suffix X chars with random chars */
@@ -645,8 +638,7 @@ int make_stemp(const char *template, char **temp_fn)
         while (*q) {
             if (rand_alnum(&ch)) {
                 free(template_copy);
-                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                return ERR;
+                mreturn(ERR);
             }
             *q = ch;
             ++q;
@@ -658,14 +650,12 @@ int make_stemp(const char *template, char **temp_fn)
         if (h == INVALID_HANDLE_VALUE) {
             if (GetLastError() != ERROR_FILE_EXISTS) {
                 free(template_copy);
-                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                return ERR;
+                mreturn(ERR);
             }
         } else {
             if (!CloseHandle(h)) {
                 free(template_copy);
-                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                return ERR;
+                mreturn(ERR);
             }
             break;
         }
@@ -676,14 +666,12 @@ int make_stemp(const char *template, char **temp_fn)
 #else
     if ((fd = mkstemp(template_copy)) == -1) {
         free(template_copy);
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
+        mreturn(ERR);
     }
 
     if (close(fd)) {
         free(template_copy);
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
+        mreturn(ERR);
     }
 #endif
 

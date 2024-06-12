@@ -438,8 +438,7 @@ M4ptr init_m4(void)
 
   error:
     free_m4(m4);
-    fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-    return NULL;
+    mreturn(NULL);
 }
 
 void dump_stack(M4ptr m4)
@@ -1005,8 +1004,7 @@ int econc(m4_, NM) (void *v) {
         return 0;
     }
 
-    fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-    return ERR;
+    mreturn(ERR);
 }
 
 #undef NM
@@ -1306,8 +1304,7 @@ int econc(m4_, NM) (void *v) {
 
     if (unget_str(m4->input, res)) {
         free(res);
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
+        mreturn(ERR);
     }
 
     free(res);
@@ -1333,8 +1330,7 @@ int econc(m4_, NM) (void *v) {
 
     if (unget_str(m4->input, res)) {
         free(res);
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
+        mreturn(ERR);
     }
 
     free(res);
@@ -1975,14 +1971,12 @@ int econc(m4_, NM) (void *v) {
     while ((x = getc(fp)) != EOF) {
         if (x != '\0' && x != '\r' && put_ch(m4->tmp, x)) {
             pclose(fp);
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            return ERR;
+            mreturn(ERR);
         }
     }
     if (ferror(fp) || !feof(fp)) {
         pclose(fp);
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
+        mreturn(ERR);
     }
     if ((st = pclose(fp)) == -1)
         mreturn(ERR);

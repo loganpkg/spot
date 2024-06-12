@@ -63,8 +63,7 @@ char *concat(const char *str, ...)
     while (1) {
         if (put_str(b, p)) {
             free_obuf(b);
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            return NULL;
+            mreturn(NULL);
         }
         if ((p = va_arg(v, const char *)) == NULL)
             break;
@@ -74,8 +73,7 @@ char *concat(const char *str, ...)
 
     if (put_ch(b, '\0')) {
         free_obuf(b);
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return NULL;
+        mreturn(NULL);
     }
 
     res = b->a;
@@ -153,8 +151,7 @@ FILE *fopen_w(const char *fn, int append)
             errno = 0;
             if (mkdir(p) && errno != EEXIST) {
                 free(p);
-                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                return NULL;
+                mreturn(NULL);
             }
             *q = ch;
         }

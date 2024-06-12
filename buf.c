@@ -640,8 +640,7 @@ int get_word(struct ibuf **input, struct obuf *token, int interpret_hex)
 
   end:
     if (put_ch(token, '\0')) {  /* Terminate string */
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
+        mreturn(ERR);
     }
 
     return 0;
@@ -696,8 +695,7 @@ int put_str(struct obuf *b, const char *str)
     while ((ch = *str++) != '\0') {
         if (b->i == b->n && grow_obuf(b, 1)) {
             b->i = i_backup;    /* Restore */
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            return ERR;
+            mreturn(ERR);
         }
 
         *(b->a + b->i++) = ch;
@@ -815,8 +813,7 @@ int write_obuf(struct obuf *b, const char *fn, int append)
 
     if (fwrite(b->a, 1, b->i, fp) != b->i) {
         fclose(fp);
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
+        mreturn(ERR);
     }
     if (fclose(fp))
         mreturn(ERR);

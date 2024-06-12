@@ -176,8 +176,7 @@ int upsert(struct ht *ht, const char *name, const char *def, Fptr func_p,
 
     if (def != NULL && (def_copy = strdup(def)) == NULL) {
         free(name_copy);
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
+        mreturn(ERR);
     }
 
     e = lookup(ht, name);
@@ -187,8 +186,7 @@ int upsert(struct ht *ht, const char *name, const char *def, Fptr func_p,
         if ((new_e = init_entry()) == NULL) {
             free(name_copy);
             free(def_copy);
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            return ERR;
+            mreturn(ERR);
         }
     }
 
