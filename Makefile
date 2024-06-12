@@ -20,7 +20,7 @@
 # DEALINGS IN THE SOFTWARE.
 #
 
-CFLAGS = -ansi -g -Og -Wall -Wextra -pedantic -I .
+CFLAGS = -ansi -g -Og -Wno-variadic-macros -Wall -Wextra -pedantic -I .
 apps = spot m4 bc freq
 
 .PHONY: all

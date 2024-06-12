@@ -30,7 +30,7 @@ set -x
 # Configuration #
 #################
 install_dir="$HOME"/bin
-flags='-ansi -g -Og -Wall -Wextra -pedantic'
+flags='-ansi -g -Og -Wno-variadic-macros -Wall -Wextra -pedantic'
 # Change to 'N' to use ncurses
 use_built_in_curses='Y'
 #################

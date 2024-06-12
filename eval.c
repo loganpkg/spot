@@ -339,20 +339,17 @@ int eval_str(const char *math_str, long *res, int verbose)
     int ret = ERR;
     struct ibuf *input = NULL;
 
-    if ((input = init_ibuf(INIT_BUF_SIZE)) == NULL) {
-        ret = ERR;
+    if ((input = init_ibuf(INIT_BUF_SIZE)) == NULL)
         mgoto(clean_up);
-    }
 
-    if (unget_str(input, math_str)) {
-        ret = ERR;
+    if (unget_str(input, math_str))
         mgoto(clean_up);
-    }
 
     if ((ret = eval_ibuf(&input, res, verbose)))
         mgoto(clean_up);
 
     ret = 0;
+
   clean_up:
     free_ibuf(input);
 
