@@ -403,10 +403,8 @@ int unget_stream(struct ibuf **b, FILE * fp, const char *nm)
      */
     struct ibuf *t = NULL;
 
-    if ((t = init_ibuf(INIT_BUF_SIZE)) == NULL) {
-        fprintf(stderr, "[%s:%d]: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if ((t = init_ibuf(INIT_BUF_SIZE)) == NULL)
+        mreturn(ERR);
 
     if ((t->nm = strdup(nm)) == NULL) {
         fprintf(stderr, "[%s:%d]: Error\n", __FILE__, __LINE__);
@@ -428,10 +426,8 @@ int unget_stream(struct ibuf **b, FILE * fp, const char *nm)
 int unget_file(struct ibuf **b, const char *fn)
 {
     FILE *fp = NULL;
-    if ((fp = fopen(fn, "rb")) == NULL) {
-        fprintf(stderr, "[%s:%d]: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if ((fp = fopen(fn, "rb")) == NULL)
+        mreturn(ERR);
 
     if (unget_stream(b, fp, fn)) {
         fprintf(stderr, "[%s:%d]: Error\n", __FILE__, __LINE__);
@@ -448,10 +444,8 @@ int append_stream(struct ibuf **b, FILE * fp, const char *nm)
     struct ibuf *t = NULL;
     struct ibuf *w = NULL;
 
-    if ((t = init_ibuf(INIT_BUF_SIZE)) == NULL) {
-        fprintf(stderr, "[%s:%d]: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if ((t = init_ibuf(INIT_BUF_SIZE)) == NULL)
+        mreturn(ERR);
 
     if ((t->nm = strdup(nm)) == NULL) {
         fprintf(stderr, "[%s:%d]: Error\n", __FILE__, __LINE__);
@@ -480,10 +474,8 @@ int append_stream(struct ibuf **b, FILE * fp, const char *nm)
 int append_file(struct ibuf **b, const char *fn)
 {
     FILE *fp = NULL;
-    if ((fp = fopen(fn, "rb")) == NULL) {
-        fprintf(stderr, "[%s:%d]: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if ((fp = fopen(fn, "rb")) == NULL)
+        mreturn(ERR);
 
     if (append_stream(b, fp, fn)) {
         fprintf(stderr, "[%s:%d]: Error\n", __FILE__, __LINE__);
