@@ -162,12 +162,8 @@ int eval_ibuf(struct ibuf **input, long *res, int verbose)
         if (r == EOF || ((*input)->fp == stdin && *token->a == '\n')) {
             while (y->i) {
                 h = *(y->a + y->i - 1);
-                if (h == LEFT_PARENTHESIS) {
-                    ret = SYNTAX_ERR;
-                    fprintf(stderr, "%s:%d: Syntax error\n", __FILE__,
-                            __LINE__);
-                    goto clean_up;
-                }
+                if (h == LEFT_PARENTHESIS)
+                    se_mgoto(clean_up);
 
                 if ((ret = process_operator(x, h, verbose)))
                     mgoto(clean_up);

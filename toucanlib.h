@@ -122,6 +122,12 @@
     goto lb;                \
 } while (0)
 
+#define se_mgoto(lb) do {                                           \
+    ret = SYNTAX_ERR;                                               \
+    fprintf(stderr, "%s:%d: Syntax error\n", __FILE__, __LINE__);   \
+    goto lb;                                                        \
+} while (0)
+
 /* Success return codes */
 #define SUCCESS 0
 #define MATCH SUCCESS
