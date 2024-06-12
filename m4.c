@@ -179,6 +179,7 @@ struct m4_info {
      */
     FILE *sticky_fp;
     int line_direct;            /* Print #line directives for C preprocessor */
+    int tty_output;             /* Indicates if stdout is a terminal */
     int sys_val;                /* Return value of last syscmd or esyscmd */
     /* Exit upon user related error. Turned off by default. */
     int error_exit;             /* Exit upon the first error */
@@ -1884,7 +1885,7 @@ int econc(m4_, NM) (void *v) {
 
     m4->tmp->i = 0;
     while ((x = getc(fp)) != EOF) {
-        if (x != '\0' && x != '\r' && put_ch(m4->tmp, x)) {
+        if (x != '\0' && put_ch(m4->tmp, x)) {
             pclose(fp);
             mreturn(ERR);
         }
@@ -2118,13 +2119,16 @@ int main(int argc, char **argv)
     char *p;
     int no_file = 1;            /* No files specified on the command line */
 
-    if (sane_io())
+    if (binary_io())
         mgoto(error);
 
     if (setlocale(LC_ALL, "") == NULL)
         mgoto(error);
 
     if ((m4 = init_m4()) == NULL)
+        mgoto(error);
+
+    if (tty_check(stdout, &m4->tty_output))
         mgoto(error);
 
 /* Load built-in macros */
@@ -2253,7 +2257,7 @@ int main(int argc, char **argv)
          * start of line.
          */
         if (m4->div[0]->i && *(m4->div[0]->a + m4->div[0]->i - 1) == '\n'
-            && flush_obuf(m4->div[0]))
+            && flush_obuf(m4->div[0], m4->tty_output))
             mgoto(error);
 
         /* Clear diversion -1 */
@@ -2333,9 +2337,9 @@ int main(int argc, char **argv)
 
         /* Not a quote, so read a token */
         r = get_word(&m4->input, m4->token, 0);
-        if (r == ERR)
+        if (r == ERR) {
             mgoto(error);
-        else if (r == EOF) {
+        } else if (r == EOF) {
             if (m4->wrap->i) {
                 if (put_ch(m4->wrap, '\0'))
                     mgoto(error);
@@ -2465,6 +2469,7 @@ int main(int argc, char **argv)
     }
 
     if (req_exit_val == -1) {
+        /* m4exit not called */
         /* Check */
         if (m4->stack != NULL) {
             fprintf(stderr, "m4: Stack not completed\n");
@@ -2474,11 +2479,11 @@ int main(int argc, char **argv)
             fprintf(stderr, "m4: Quotes not balanced\n");
             ret = ERR;
         }
+
+        /* Automatically undivert all diversions */
+        for (i = 0; i < NUM_DIVS - 1; ++i)
+            flush_obuf(m4->div[i], m4->tty_output);
     }
-
-    for (i = 0; i < NUM_DIVS - 1; ++i)
-        flush_obuf(m4->div[i]);
-
 
   clean_up:
     if (ret) {

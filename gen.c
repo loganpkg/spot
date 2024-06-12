@@ -28,7 +28,7 @@
 #define INIT_CONCAT_BUF 512
 
 
-int sane_io(void)
+int binary_io(void)
 {
 #ifdef _WIN32
     if (_setmode(_fileno(stdin), _O_BINARY) == -1)
@@ -161,4 +161,24 @@ FILE *fopen_w(const char *fn, int append)
     free(p);
 
     return fopen(fn, mode);
+}
+
+int tty_check(FILE * stream, int *is_tty)
+{
+    int fd;
+    int r, e;
+
+    if ((fd = fileno(stream)) == -1)
+        return ERR;
+
+    errno = 0;
+    r = isatty(fd);
+    e = errno;
+
+    if (!r && e == EBADF)
+        return ERR;
+
+    *is_tty = r;
+
+    return 0;
 }

@@ -238,8 +238,6 @@
 #define C(l) ((l) - 'a' + 1)
 
 
-
-
 typedef int (*Fptr)(void *);
 
 
@@ -331,11 +329,12 @@ struct ht {
 
 
 /* Function declarations */
-int sane_io(void);
+int binary_io(void);
 char *concat(const char *str, ...);
 void *quick_search(const void *mem, size_t mem_len, const void *find,
                    size_t find_len);
 FILE *fopen_w(const char *fn, int append);
+int tty_check(FILE * stream, int *is_tty);
 int str_to_num(const char *str, unsigned long max_val, unsigned long *res);
 int str_to_size_t(const char *str, size_t *res);
 int str_to_uint(const char *str, unsigned int *res);
@@ -376,7 +375,7 @@ int put_obuf(struct obuf *b, struct obuf *t);
 int put_file(struct obuf *b, const char *fn);
 int put_stream(struct obuf *b, FILE * fp);
 int write_obuf(struct obuf *b, const char *fn, int append);
-int flush_obuf(struct obuf *b);
+int flush_obuf(struct obuf *b, int tty_output);
 char *obuf_to_str(struct obuf **b);
 struct gb *init_gb(size_t s);
 void free_gb(struct gb *b);

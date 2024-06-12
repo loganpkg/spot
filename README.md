@@ -639,7 +639,8 @@ Ranges are permitted, but unspecified by the POSIX standard.
 ```m4
 m4wrap(code_to_include_at_end)
 ```
-`m4wrap` stores code to be pushed into the input when `EOF` is reached.
+`m4wrap` stores code to be pushed into the input when `EOF` is reached
+(before the diversions are automatically undiverted).
 This code will then be evaluated as normal. Code will be evaluated in
 chronological order if `m4wrap` was called multiple times. This is
 useful for performing clean up.
@@ -662,6 +663,9 @@ default value. Please note that a requested return value of zero will be
 overwritten if any errors occurred at any time during the operation of m4.
 However, if the macro is called successfully, then a non-zero requested return
 value will be used as the final return value of m4, regardless of other errors.
+
+`m4exit` causes immediate termination, `m4wrap` is not performed and the
+diversions are not undiverted.
 
 ```m4
 recrm(file_path)

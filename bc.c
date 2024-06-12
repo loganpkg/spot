@@ -40,7 +40,7 @@ int main(void)
     struct ibuf *input = NULL;
     long x;
 
-    if (sane_io())
+    if (binary_io())
         mreturn(ERR);
 
     if (unget_stream(&input, stdin, "stdin"))

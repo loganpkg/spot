@@ -169,9 +169,7 @@ int eval_ibuf(struct ibuf **input, long *res, int verbose)
 
         t = *token->a;
 
-        if (t == ' ' || t == '\n') {
-            /* Eat whitespace */
-        } else if (isdigit(t)) {
+        if (isdigit(t)) {
             if ((ret = str_to_num(token->a, LONG_MAX, &num)))
                 mgoto(clean_up);
 
@@ -191,7 +189,7 @@ int eval_ibuf(struct ibuf **input, long *res, int verbose)
 
             u = 0;
             n = 1;
-        } else {
+        } else if (isgraph(t)) {
             /*
              * Operator:
              * Some operators are two characters long.
@@ -300,6 +298,7 @@ int eval_ibuf(struct ibuf **input, long *res, int verbose)
                 break;
             }
         }
+        /* Non-graph characters will be eaten */
     }
 
     ret = 0;

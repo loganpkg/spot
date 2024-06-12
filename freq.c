@@ -39,7 +39,7 @@ int main(int argc, char **argv)
         return ERR;
     }
 
-    if (sane_io())
+    if (binary_io())
         return ERR;
 
     if (mmap_file_ro(*(argv + 1), &mem, &fs))

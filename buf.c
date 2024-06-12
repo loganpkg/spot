@@ -505,10 +505,15 @@ int get_ch(struct ibuf **input, char *ch)
                     (*input)->next = NULL;
                     if (free_ibuf(*input))
                         mreturn(ERR);
+
                     /* Update head */
                     *input = t;
                     goto top;
                 } else {
+                    if (fclose((*input)->fp))
+                        mreturn(ERR);
+
+                    (*input)->fp = NULL;
                     return EOF;
                 }
             }
@@ -589,10 +594,8 @@ int get_word(struct ibuf **input, struct obuf *token, int interpret_hex)
 
     token->i = 0;
 
-    do {
-        if ((r = get_ch(input, &ch)) != 0)
-            return r;
-    } while (ch == '\0' || ch == '\r'); /* Discard these chars */
+    if ((r = get_ch(input, &ch)))
+        return r;
 
     if (put_ch(token, ch))
         mreturn(ERR);
@@ -606,13 +609,11 @@ int get_word(struct ibuf **input, struct obuf *token, int interpret_hex)
 
     second_ch = 1;
     while (1) {
-        do {
-            r = get_ch(input, &ch);
-            if (r == ERR)
-                mreturn(ERR);
-            else if (r == EOF)  /* Ignore, as not the first char */
-                goto end;
-        } while (ch == '\0' || ch == '\r');
+        r = get_ch(input, &ch);
+        if (r == ERR)
+            mreturn(ERR);
+        else if (r == EOF)      /* Ignore, as not the first char */
+            goto end;
 
         if (interpret_hex && second_ch && type == 'd'
             && (ch == 'x' || ch == 'X'))
@@ -818,13 +819,54 @@ int write_obuf(struct obuf *b, const char *fn, int append)
     return 0;
 }
 
-int flush_obuf(struct obuf *b)
+int flush_obuf(struct obuf *b, int tty_output)
 {
+    size_t i;
+    char ch;
+
     if (!b->i)
         return 0;
 
-    if (fwrite(b->a, 1, b->i, stdout) != b->i)
-        mreturn(ERR);
+    if (tty_output) {
+        for (i = 0; i < b->i; ++i) {
+            ch = *(b->a + i);
+
+            if (isprint(ch) || ch == '\n')
+                putchar(ch);
+            else if (ch >= 1 && ch <= 26)
+                printf("^%c", 'A' + ch - 1);
+            else
+                switch (ch) {
+                case 0:
+                    printf("^@");
+                    break;
+                case 27:
+                    printf("^[");
+                    break;
+                case 28:
+                    printf("^\\");
+                    break;
+                case 29:
+                    printf("^]");
+                    break;
+                case 30:
+                    printf("^^");
+                    break;
+                case 31:
+                    printf("^_");
+                    break;
+                case 127:
+                    printf("^?");
+                    break;
+                default:
+                    printf("\\x%02X", (unsigned char) ch);
+                    break;
+                }
+        }
+    } else {
+        if (fwrite(b->a, 1, b->i, stdout) != b->i)
+            mreturn(ERR);
+    }
 
     if (fflush(stdout))
         mreturn(ERR);
