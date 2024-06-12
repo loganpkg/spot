@@ -40,15 +40,11 @@ int main(void)
     struct ibuf *input = NULL;
     long x;
 
-    if (sane_io()) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (sane_io())
+        mreturn(ERR);
 
-    if (unget_stream(&input, stdin, "stdin")) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (unget_stream(&input, stdin, "stdin"))
+        mreturn(ERR);
 
     while (1) {
         ret = eval_ibuf(&input, &x, 0);

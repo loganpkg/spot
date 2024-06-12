@@ -110,19 +110,17 @@
 #endif
 
 
-#define mgoto(lb) do {                                        \
-    fprintf(stderr, "[%s:%d]: Error\n", __FILE__, __LINE__);  \
-    goto lb;                                                  \
+#define emsg fprintf(stderr, "[%s:%d]: Error\n", __FILE__, __LINE__)
+
+#define mreturn(rv) do {    \
+    emsg;                   \
+    return (rv);            \
 } while (0)
 
-
-#ifdef _WIN32
-#define DIR_SEP_STR "\\"
-#else
-#define DIR_SEP_STR "/"
-#endif
-
-#define TAB_SIZE 8
+#define mgoto(lb) do {      \
+    emsg;                   \
+    goto lb;                \
+} while (0)
 
 /* Success return codes */
 #define SUCCESS 0
@@ -156,6 +154,17 @@
  * Exit status will be non-zero.
  */
 #define ERR_CONTINUE 7
+
+
+#ifdef _WIN32
+#define DIR_SEP_STR "\\"
+#else
+#define DIR_SEP_STR "/"
+#endif
+
+
+#define TAB_SIZE 8
+
 
 /* For printing a number as a string */
 #define NUM_BUF_SIZE 32

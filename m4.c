@@ -195,10 +195,8 @@ struct macro_call *init_mc(void)
 {
     struct macro_call *mc;
 
-    if ((mc = calloc(1, sizeof(struct macro_call))) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return NULL;
-    }
+    if ((mc = calloc(1, sizeof(struct macro_call))) == NULL)
+        mreturn(NULL);
 
     return mc;
 }
@@ -207,10 +205,8 @@ int stack_mc(struct macro_call **head, size_t *stack_depth)
 {
     struct macro_call *mc;
 
-    if ((mc = init_mc()) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if ((mc = init_mc()) == NULL)
+        mreturn(ERR);
 
     mc->next = *head;
     *head = mc;
@@ -256,10 +252,8 @@ int sub_args(M4ptr m4)
     while (1) {
         ch = *p;
         if (ch != '$') {
-            if (put_ch(m4->tmp, ch)) {
-                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                return ERR;
-            }
+            if (put_ch(m4->tmp, ch))
+                mreturn(ERR);
         } else {
             next_ch = *(p + 1);
             if (isdigit(next_ch)) {
@@ -274,23 +268,17 @@ int sub_args(M4ptr m4)
                     if (m4->warn_to_error)
                         return USAGE_ERR;
                 }
-                if (put_str(m4->tmp, arg(x))) {
-                    fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                    return ERR;
-                }
+                if (put_str(m4->tmp, arg(x)))
+                    mreturn(ERR);
                 ++p;            /* Eat an extra char */
             } else if (next_ch == '#') {
                 /* $# is the number arguments collected */
                 r = snprintf(num, NUM_BUF_SIZE, "%lu",
                              (unsigned long) num_args_collected);
-                if (r < 0 || r >= NUM_BUF_SIZE) {
-                    fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                    return ERR;
-                }
-                if (put_str(m4->tmp, num)) {
-                    fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                    return ERR;
-                }
+                if (r < 0 || r >= NUM_BUF_SIZE)
+                    mreturn(ERR);
+                if (put_str(m4->tmp, num))
+                    mreturn(ERR);
                 ++p;            /* Eat an extra char */
             } else if (next_ch == '*' || next_ch == '@') {
                 /*
@@ -323,10 +311,8 @@ int sub_args(M4ptr m4)
                 }
                 ++p;            /* Eat an extra char */
             } else {
-                if (put_ch(m4->tmp, ch)) {
-                    fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                    return ERR;
-                }
+                if (put_ch(m4->tmp, ch))
+                    mreturn(ERR);
             }
         }
 
@@ -346,10 +332,8 @@ int sub_args(M4ptr m4)
                     return USAGE_ERR;
             }
 
-    if (unget_str(m4->input, m4->tmp->a)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (unget_str(m4->input, m4->tmp->a))
+        mreturn(ERR);
 
     return 0;
 }
@@ -417,10 +401,8 @@ M4ptr init_m4(void)
     M4ptr m4;
     size_t i;
 
-    if ((m4 = calloc(1, sizeof(struct m4_info))) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return NULL;
-    }
+    if ((m4 = calloc(1, sizeof(struct m4_info))) == NULL)
+        mreturn(NULL);
 
     m4->req_exit_val = -1;
 
@@ -616,10 +598,8 @@ int add_macro(M4ptr m4, char *macro_name, char *macro_def, int push_hist)
 
     if (*macro_def == '\0' && m4->tmp_mfp != NULL) {
         /* Passed back built-in macro function pointer from defn */
-        if (upsert(m4->ht, macro_name, NULL, m4->tmp_mfp, push_hist)) {
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            return ERR;
-        }
+        if (upsert(m4->ht, macro_name, NULL, m4->tmp_mfp, push_hist))
+            mreturn(ERR);
         m4->tmp_mfp = NULL;
     } else {
         /* User-defined text macro */
@@ -632,10 +612,8 @@ int add_macro(M4ptr m4, char *macro_name, char *macro_def, int push_hist)
                 return SYNTAX_ERR;
         }
 
-        if (upsert(m4->ht, macro_name, macro_def, NULL, push_hist)) {
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            return ERR;
-        }
+        if (upsert(m4->ht, macro_name, macro_def, NULL, push_hist))
+            mreturn(ERR);
     }
 
     return 0;
@@ -884,10 +862,8 @@ int econc(m4_, NM) (void *v) {
             return USAGE_ERR;
     }
 
-    if ((tmp_lc = strdup(lc)) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if ((tmp_lc = strdup(lc)) == NULL)
+        mreturn(ERR);
 
     if ((tmp_rc = strdup(rc)) == NULL) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
@@ -965,10 +941,8 @@ int econc(m4_, NM) (void *v) {
         rq = DEFAULT_RIGHT_QUOTE;
     }
 
-    if ((tmp_lq = strdup(lq)) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if ((tmp_lq = strdup(lq)) == NULL)
+        mreturn(ERR);
 
     if ((tmp_rq = strdup(rq)) == NULL) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
@@ -1005,22 +979,14 @@ int econc(m4_, NM) (void *v) {
      * Needs to be done in reverse as ungetting.
      */
     for (i = num_args_collected; i >= 2; --i) {
-        if (unget_str(m4->input, m4->right_quote)) {
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            return ERR;
-        }
-        if (unget_str(m4->input, arg(i))) {
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            return ERR;
-        }
-        if (unget_str(m4->input, m4->left_quote)) {
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            return ERR;
-        }
-        if (i != 2 && unget_ch(m4->input, ',')) {
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            return ERR;
-        }
+        if (unget_str(m4->input, m4->right_quote))
+            mreturn(ERR);
+        if (unget_str(m4->input, arg(i)))
+            mreturn(ERR);
+        if (unget_str(m4->input, m4->left_quote))
+            mreturn(ERR);
+        if (i != 2 && unget_ch(m4->input, ','))
+            mreturn(ERR);
     }
 
     return 0;
@@ -1077,10 +1043,8 @@ int econc(m4_, NM) (void *v) {
                 return USAGE_ERR;
             } else if (isdigit(ch) && strlen(arg(i)) == 1
                        && (x = ch - '0') != m4->active_div) {
-                if (put_obuf(m4->div[m4->active_div], m4->div[x])) {
-                    fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                    return ERR;
-                }
+                if (put_obuf(m4->div[m4->active_div], m4->div[x]))
+                    mreturn(ERR);
             } else {
                 p = arg(i);
                 while (isdigit(*p++));
@@ -1094,20 +1058,16 @@ int econc(m4_, NM) (void *v) {
                  * Assume a filename. Outputs directly to the active diversion,
                  * even during argument collection.
                  */
-                if (put_file(m4->div[m4->active_div], arg(i))) {
-                    fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                    return ERR;
-                }
+                if (put_file(m4->div[m4->active_div], arg(i)))
+                    mreturn(ERR);
             }
         }
     } else {
         /* No args, so undivert all into the current diversion */
         for (i = 0; i < NUM_DIVS - 1; ++i)
             if (i != m4->active_div
-                && put_obuf(m4->div[m4->active_div], m4->div[i])) {
-                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                return ERR;
-            }
+                && put_obuf(m4->div[m4->active_div], m4->div[i]))
+                mreturn(ERR);
     }
 
     return 0;
@@ -1135,14 +1095,10 @@ int econc(m4_, NM) (void *v) {
 
     /* Cannot write diversions 0 and -1 */
     if (strlen(arg(1)) == 1 && isdigit(ch) && ch != '0') {
-        if (write_obuf(m4->div[ch - '0'], arg(2), append)) {
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            return ERR;
-        }
-    } else {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+        if (write_obuf(m4->div[ch - '0'], arg(2), append))
+            mreturn(ERR);
+    } else
+        mreturn(ERR);
 
     return 0;
 }
@@ -1160,19 +1116,15 @@ int econc(m4_, NM) (void *v) {
     max_pars(0);
 
     if (m4->active_div == 10) {
-        if (unget_str(m4->input, "-1")) {
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            return ERR;
-        }
+        if (unget_str(m4->input, "-1"))
+            mreturn(ERR);
 
         return 0;
     }
 
     ch = '0' + m4->active_div;
-    if (unget_ch(m4->input, ch)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (unget_ch(m4->input, ch))
+        mreturn(ERR);
 
     return 0;
 }
@@ -1252,10 +1204,8 @@ int econc(m4_, NM) (void *v) {
     max_pars(1);
     min_pars(1);
 
-    if (unget_file(&m4->input, arg(1))) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (unget_file(&m4->input, arg(1)))
+        mreturn(ERR);
 
     return 0;
 }
@@ -1331,10 +1281,8 @@ int econc(m4_, NM) (void *v) {
     if (q != NULL)
         *q = '\0';
 
-    if (unget_str(m4->input, arg(1))) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (unget_str(m4->input, arg(1)))
+        mreturn(ERR);
 
     return 0;
 }
@@ -1392,10 +1340,8 @@ int econc(m4_, NM) (void *v) {
     allow_pass_through;
     max_pars(1);
 
-    if ((res = ls_dir(num_args_collected ? arg(1) : ".")) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if ((res = ls_dir(num_args_collected ? arg(1) : ".")) == NULL)
+        mreturn(ERR);
 
     if (unget_str(m4->input, res)) {
         free(res);
@@ -1424,15 +1370,11 @@ int econc(m4_, NM) (void *v) {
 
     e = lookup(m4->ht, arg(1));
     if (e != NULL) {
-        if (unget_str(m4->input, arg(2))) {
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            return ERR;
-        }
+        if (unget_str(m4->input, arg(2)))
+            mreturn(ERR);
     } else if (num_args_collected >= 3) {
-        if (*arg(3) != '\0' && unget_str(m4->input, arg(3))) {
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            return ERR;
-        }
+        if (*arg(3) != '\0' && unget_str(m4->input, arg(3)))
+            mreturn(ERR);
     }
     return 0;
 }
@@ -1461,19 +1403,15 @@ int econc(m4_, NM) (void *v) {
 
     for (i = 2; i <= num_args_collected - 1; i += 2)
         if (!strcmp(arg(1), arg(i))) {
-            if (unget_str(m4->input, arg(i + 1))) {
-                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                return ERR;
-            }
+            if (unget_str(m4->input, arg(i + 1)))
+                mreturn(ERR);
             return 0;
         }
 
     /* Default */
     if (num_args_collected > 3 && num_args_collected % 2 == 0
-        && unget_str(m4->input, arg(num_args_collected))) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+        && unget_str(m4->input, arg(num_args_collected)))
+        mreturn(ERR);
 
     return 0;
 }
@@ -1497,18 +1435,12 @@ int econc(m4_, NM) (void *v) {
         e = lookup(m4->ht, arg(i));
         if (e != NULL && e->func_p == NULL) {
             /* User-defined text macro */
-            if (unget_str(m4->input, m4->right_quote)) {
-                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                return ERR;
-            }
-            if (unget_str(m4->input, e->def)) {
-                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                return ERR;
-            }
-            if (unget_str(m4->input, m4->left_quote)) {
-                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                return ERR;
-            }
+            if (unget_str(m4->input, m4->right_quote))
+                mreturn(ERR);
+            if (unget_str(m4->input, e->def))
+                mreturn(ERR);
+            if (unget_str(m4->input, m4->left_quote))
+                mreturn(ERR);
         }
     }
 
@@ -1615,10 +1547,8 @@ int econc(m4_, NM) (void *v) {
     max_pars(1);
     min_pars(1);
 
-    if (put_str(m4->wrap, arg(1))) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (put_str(m4->wrap, arg(1)))
+        mreturn(ERR);
 
     return 0;
 }
@@ -1656,15 +1586,11 @@ int econc(m4_, NM) (void *v) {
     min_pars(1);
 
     r = snprintf(num, NUM_BUF_SIZE, "%lu", (unsigned long) strlen(arg(1)));
-    if (r < 0 || r >= NUM_BUF_SIZE) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (r < 0 || r >= NUM_BUF_SIZE)
+        mreturn(ERR);
 
-    if (unget_str(m4->input, num)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (unget_str(m4->input, num))
+        mreturn(ERR);
 
     return 0;
 }
@@ -1714,10 +1640,8 @@ int econc(m4_, NM) (void *v) {
         }
     }
     if (x < len) {
-        if (unget_str(m4->input, arg(1) + x)) {
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            return ERR;
-        }
+        if (unget_str(m4->input, arg(1) + x))
+            mreturn(ERR);
     } else {
         fprintf(stderr, "%s:%lu [%s:%d]: %s: Usage warning: "
                 "Index is out of bounds\n", m4->input->nm,
@@ -1749,20 +1673,14 @@ int econc(m4_, NM) (void *v) {
     if (p != NULL) {
         r = snprintf(num, NUM_BUF_SIZE, "%lu",
                      (unsigned long) (p - arg(1)));
-        if (r < 0 || r >= NUM_BUF_SIZE) {
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            return ERR;
-        }
+        if (r < 0 || r >= NUM_BUF_SIZE)
+            mreturn(ERR);
 
-        if (unget_str(m4->input, num)) {
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            return ERR;
-        }
+        if (unget_str(m4->input, num))
+            mreturn(ERR);
     } else {
-        if (unget_str(m4->input, "-1")) {
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            return ERR;
-        }
+        if (unget_str(m4->input, "-1"))
+            mreturn(ERR);
     }
 
     return 0;
@@ -1828,20 +1746,14 @@ int econc(m4_, NM) (void *v) {
         if (!x)
             x = uch;
 
-        if (x != -1 && put_ch(m4->tmp, x)) {
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            return ERR;
-        }
+        if (x != -1 && put_ch(m4->tmp, x))
+            mreturn(ERR);
     }
-    if (put_ch(m4->tmp, '\0')) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (put_ch(m4->tmp, '\0'))
+        mreturn(ERR);
 
-    if (unget_str(m4->input, m4->tmp->a)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (unget_str(m4->input, m4->tmp->a))
+        mreturn(ERR);
 
     return 0;
 }
@@ -1891,20 +1803,14 @@ int econc(m4_, NM) (void *v) {
         neg = 0;
 
     r = snprintf(num, NUM_BUF_SIZE, "%lu", (unsigned long) x);
-    if (r < 0 || r >= NUM_BUF_SIZE) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (r < 0 || r >= NUM_BUF_SIZE)
+        mreturn(ERR);
 
-    if (unget_str(m4->input, num)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (unget_str(m4->input, num))
+        mreturn(ERR);
 
-    if (neg && unget_ch(m4->input, '-')) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (neg && unget_ch(m4->input, '-'))
+        mreturn(ERR);
 
     return 0;
 }
@@ -1954,20 +1860,14 @@ int econc(m4_, NM) (void *v) {
     }
 
     r = snprintf(num, NUM_BUF_SIZE, "%lu", (unsigned long) x);
-    if (r < 0 || r >= NUM_BUF_SIZE) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (r < 0 || r >= NUM_BUF_SIZE)
+        mreturn(ERR);
 
-    if (unget_str(m4->input, num)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (unget_str(m4->input, num))
+        mreturn(ERR);
 
-    if (neg && unget_ch(m4->input, '-')) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (neg && unget_ch(m4->input, '-'))
+        mreturn(ERR);
 
     return 0;
 }
@@ -1990,15 +1890,11 @@ int econc(m4_, NM) (void *v) {
     max_pars(4);
     min_pars(1);
 
-    if (num_args_collected >= 2 && str_to_uint(arg(2), &base)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (num_args_collected >= 2 && str_to_uint(arg(2), &base))
+        mreturn(ERR);
 
-    if (num_args_collected >= 3 && str_to_uint(arg(3), &pad)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (num_args_collected >= 3 && str_to_uint(arg(3), &pad))
+        mreturn(ERR);
 
     if (num_args_collected >= 4 && !strcmp(arg(4), "1"))
         verbose = 1;
@@ -2006,15 +1902,11 @@ int econc(m4_, NM) (void *v) {
     if ((ret = eval_str(arg(1), &x, verbose)))
         return ret;
 
-    if ((num_str = ltostr(x, base, pad)) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if ((num_str = ltostr(x, base, pad)) == NULL)
+        mreturn(ERR);
 
-    if (unget_str(m4->input, num_str)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (unget_str(m4->input, num_str))
+        mreturn(ERR);
 
     free(num_str);
 
@@ -2035,15 +1927,11 @@ int econc(m4_, NM) (void *v) {
     max_pars(0);
 
     r = snprintf(num, NUM_BUF_SIZE, "%d", m4->sys_val);
-    if (r < 0 || r >= NUM_BUF_SIZE) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (r < 0 || r >= NUM_BUF_SIZE)
+        mreturn(ERR);
 
-    if (unget_str(m4->input, num)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (unget_str(m4->input, num))
+        mreturn(ERR);
 
     return 0;
 }
@@ -2065,10 +1953,8 @@ int econc(m4_, NM) (void *v) {
     st = system(arg(1));
 
 #ifndef _WIN32
-    if (!WIFEXITED(st)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (!WIFEXITED(st))
+        mreturn(ERR);
 #endif
 
 #ifndef _WIN32
@@ -2094,10 +1980,8 @@ int econc(m4_, NM) (void *v) {
     max_pars(1);
     min_pars(1);
 
-    if ((fp = popen(arg(1), "r")) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if ((fp = popen(arg(1), "r")) == NULL)
+        mreturn(ERR);
 
     m4->tmp->i = 0;
     while ((x = getc(fp)) != EOF) {
@@ -2112,26 +1996,18 @@ int econc(m4_, NM) (void *v) {
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
         return ERR;
     }
-    if ((st = pclose(fp)) == -1) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if ((st = pclose(fp)) == -1)
+        mreturn(ERR);
 #ifndef _WIN32
-    if (!WIFEXITED(st)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (!WIFEXITED(st))
+        mreturn(ERR);
 #endif
 
-    if (put_ch(m4->tmp, '\0')) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (put_ch(m4->tmp, '\0'))
+        mreturn(ERR);
 
-    if (unget_str(m4->input, m4->tmp->a)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (unget_str(m4->input, m4->tmp->a))
+        mreturn(ERR);
 #ifndef _WIN32
     st = WEXITSTATUS(st);
 #endif
@@ -2153,15 +2029,11 @@ int econc(m4_, NM) (void *v) {
     max_pars(1);
 
     if (num_args_collected) {
-        if (str_to_size_t(arg(1), &x)) {
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            return ERR;
-        }
+        if (str_to_size_t(arg(1), &x))
+            mreturn(ERR);
 
-        if (x > UCHAR_MAX) {
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            return ERR;
-        }
+        if (x > UCHAR_MAX)
+            mreturn(ERR);
     }
 
     m4->req_exit_val = x;
@@ -2251,10 +2123,8 @@ int econc(m4_, NM) (void *v) {
         for (i = 0; i < NUM_BUCKETS; ++i) {
             e = m4->ht->b[i];
             while (e != NULL) {
-                if (upsert(m4->trace_ht, e->name, NULL, NULL, 0)) {
-                    fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                    return ERR;
-                }
+                if (upsert(m4->trace_ht, e->name, NULL, NULL, 0))
+                    mreturn(ERR);
                 e = e->next;
             }
         }
@@ -2267,10 +2137,8 @@ int econc(m4_, NM) (void *v) {
             return r;
 
     for (i = 1; i <= num_args_collected; ++i)
-        if (upsert(m4->trace_ht, arg(i), NULL, NULL, 0)) {
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            return ERR;
-        }
+        if (upsert(m4->trace_ht, arg(i), NULL, NULL, 0))
+            mreturn(ERR);
 
     m4->trace_on = 1;
     return 0;
@@ -2294,10 +2162,8 @@ int econc(m4_, NM) (void *v) {
         /* Clear trace hash table and turn off trace */
         free_ht(m4->trace_ht);
 
-        if ((m4->trace_ht = init_ht(NUM_BUCKETS)) == NULL) {
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            return ERR;
-        }
+        if ((m4->trace_ht = init_ht(NUM_BUCKETS)) == NULL)
+            mreturn(ERR);
         m4->trace_on = 0;
         return 0;
     }
@@ -2333,10 +2199,8 @@ int econc(m4_, NM) (void *v) {
         return USAGE_ERR;
     }
 
-    if (rec_rm(arg(1))) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (rec_rm(arg(1)))
+        mreturn(ERR);
 
     return 0;
 }

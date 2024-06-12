@@ -29,10 +29,8 @@ static struct entry *init_entry(void)
 {
     struct entry *e;
 
-    if ((e = calloc(1, sizeof(struct entry))) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return NULL;
-    }
+    if ((e = calloc(1, sizeof(struct entry))) == NULL)
+        mreturn(NULL);
 
     return e;
 }
@@ -54,20 +52,14 @@ struct ht *init_ht(size_t num_buckets)
 {
     struct ht *ht;
 
-    if ((ht = calloc(1, sizeof(struct ht))) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return NULL;
-    }
+    if ((ht = calloc(1, sizeof(struct ht))) == NULL)
+        mreturn(NULL);
 
-    if (mof(num_buckets, sizeof(struct entry *), SIZE_MAX)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return NULL;
-    }
+    if (mof(num_buckets, sizeof(struct entry *), SIZE_MAX))
+        mreturn(NULL);
 
-    if ((ht->b = calloc(num_buckets, sizeof(struct entry *))) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return NULL;
-    }
+    if ((ht->b = calloc(num_buckets, sizeof(struct entry *))) == NULL)
+        mreturn(NULL);
 
     ht->n = num_buckets;
 
@@ -179,10 +171,8 @@ int upsert(struct ht *ht, const char *name, const char *def, Fptr func_p,
     size_t bucket;
     char *name_copy, *def_copy = NULL;
 
-    if ((name_copy = strdup(name)) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if ((name_copy = strdup(name)) == NULL)
+        mreturn(ERR);
 
     if (def != NULL && (def_copy = strdup(def)) == NULL) {
         free(name_copy);

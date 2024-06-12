@@ -50,15 +50,11 @@ char *concat(const char *str, ...)
     const char *p;
     char *res;
 
-    if (str == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return NULL;
-    }
+    if (str == NULL)
+        mreturn(NULL);
 
-    if ((b = init_obuf(INIT_CONCAT_BUF)) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return NULL;
-    }
+    if ((b = init_obuf(INIT_CONCAT_BUF)) == NULL)
+        mreturn(NULL);
 
     p = str;
 
@@ -142,16 +138,12 @@ FILE *fopen_w(const char *fn, int append)
     if (fp != NULL)
         return fp;
 
-    if (fp == NULL && errno != ENOENT) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return NULL;
-    }
+    if (fp == NULL && errno != ENOENT)
+        mreturn(NULL);
 
     /* Try to make missing directories */
-    if ((p = strdup(fn)) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return NULL;
-    }
+    if ((p = strdup(fn)) == NULL)
+        mreturn(NULL);
 
     q = p;
 

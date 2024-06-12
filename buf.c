@@ -74,24 +74,18 @@ static int grow_ibuf(struct ibuf *b, size_t will_use)
     char *t;
     size_t new_n;
 
-    if (aof(b->n, will_use, SIZE_MAX)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (aof(b->n, will_use, SIZE_MAX))
+        mreturn(ERR);
 
     new_n = b->n + will_use;
 
-    if (mof(new_n, 2, SIZE_MAX)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (mof(new_n, 2, SIZE_MAX))
+        mreturn(ERR);
 
     new_n *= 2;
 
-    if ((t = realloc(b->a, new_n)) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if ((t = realloc(b->a, new_n)) == NULL)
+        mreturn(ERR);
 
     b->a = t;
     b->n = new_n;
@@ -100,10 +94,8 @@ static int grow_ibuf(struct ibuf *b, size_t will_use)
 
 int add_i(struct ibuf *b, char x)
 {
-    if (b->i == b->n && grow_ibuf(b, 1)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (b->i == b->n && grow_ibuf(b, 1))
+        mreturn(ERR);
 
     *(b->a + b->i) = x;
     ++b->i;
@@ -142,24 +134,18 @@ static int grow_obuf(struct obuf *b, size_t will_use)
     char *t;
     size_t new_n;
 
-    if (aof(b->n, will_use, SIZE_MAX)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (aof(b->n, will_use, SIZE_MAX))
+        mreturn(ERR);
 
     new_n = b->n + will_use;
 
-    if (mof(new_n, 2, SIZE_MAX)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (mof(new_n, 2, SIZE_MAX))
+        mreturn(ERR);
 
     new_n *= 2;
 
-    if ((t = realloc(b->a, new_n)) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if ((t = realloc(b->a, new_n)) == NULL)
+        mreturn(ERR);
 
     b->a = t;
     b->n = new_n;
@@ -168,10 +154,8 @@ static int grow_obuf(struct obuf *b, size_t will_use)
 
 int add_o(struct obuf *b, char x)
 {
-    if (b->i == b->n && grow_obuf(b, 1)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (b->i == b->n && grow_obuf(b, 1))
+        mreturn(ERR);
 
     *(b->a + b->i) = x;
     ++b->i;
@@ -213,29 +197,21 @@ static int grow_lbuf(struct lbuf *b, size_t will_use)
     long *t;
     size_t new_n;
 
-    if (aof(b->n, will_use, SIZE_MAX)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (aof(b->n, will_use, SIZE_MAX))
+        mreturn(ERR);
 
     new_n = b->n + will_use;
 
-    if (mof(new_n, 2, SIZE_MAX)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (mof(new_n, 2, SIZE_MAX))
+        mreturn(ERR);
 
     new_n *= 2;
 
-    if (mof(new_n, sizeof(long), SIZE_MAX)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (mof(new_n, sizeof(long), SIZE_MAX))
+        mreturn(ERR);
 
-    if ((t = realloc(b->a, new_n * sizeof(long))) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if ((t = realloc(b->a, new_n * sizeof(long))) == NULL)
+        mreturn(ERR);
 
     b->a = t;
     b->n = new_n;
@@ -244,10 +220,8 @@ static int grow_lbuf(struct lbuf *b, size_t will_use)
 
 int add_l(struct lbuf *b, long x)
 {
-    if (b->i == b->n && grow_lbuf(b, 1)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (b->i == b->n && grow_lbuf(b, 1))
+        mreturn(ERR);
 
     *(b->a + b->i) = x;
     ++b->i;
@@ -289,29 +263,21 @@ static int grow_sbuf(struct sbuf *b, size_t will_use)
     size_t *t;
     size_t new_n;
 
-    if (aof(b->n, will_use, SIZE_MAX)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (aof(b->n, will_use, SIZE_MAX))
+        mreturn(ERR);
 
     new_n = b->n + will_use;
 
-    if (mof(new_n, 2, SIZE_MAX)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (mof(new_n, 2, SIZE_MAX))
+        mreturn(ERR);
 
     new_n *= 2;
 
-    if (mof(new_n, sizeof(size_t), SIZE_MAX)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (mof(new_n, sizeof(size_t), SIZE_MAX))
+        mreturn(ERR);
 
-    if ((t = realloc(b->a, new_n * sizeof(size_t))) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if ((t = realloc(b->a, new_n * sizeof(size_t))) == NULL)
+        mreturn(ERR);
 
     b->a = t;
     b->n = new_n;
@@ -320,10 +286,8 @@ static int grow_sbuf(struct sbuf *b, size_t will_use)
 
 int add_s(struct sbuf *b, size_t x)
 {
-    if (b->i == b->n && grow_sbuf(b, 1)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (b->i == b->n && grow_sbuf(b, 1))
+        mreturn(ERR);
 
     *(b->a + b->i) = x;
     ++b->i;
@@ -365,29 +329,21 @@ static int grow_pbuf(struct pbuf *b, size_t will_use)
     void **t;
     size_t new_n;
 
-    if (aof(b->n, will_use, SIZE_MAX)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (aof(b->n, will_use, SIZE_MAX))
+        mreturn(ERR);
 
     new_n = b->n + will_use;
 
-    if (mof(new_n, 2, SIZE_MAX)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (mof(new_n, 2, SIZE_MAX))
+        mreturn(ERR);
 
     new_n *= 2;
 
-    if (mof(new_n, sizeof(void *), SIZE_MAX)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (mof(new_n, sizeof(void *), SIZE_MAX))
+        mreturn(ERR);
 
-    if ((t = realloc(b->a, new_n * sizeof(void *))) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if ((t = realloc(b->a, new_n * sizeof(void *))) == NULL)
+        mreturn(ERR);
 
     b->a = t;
     b->n = new_n;
@@ -396,10 +352,8 @@ static int grow_pbuf(struct pbuf *b, size_t will_use)
 
 int add_p(struct pbuf *b, void *x)
 {
-    if (b->i == b->n && grow_pbuf(b, 1)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (b->i == b->n && grow_pbuf(b, 1))
+        mreturn(ERR);
 
     *(b->a + b->i) = x;
     ++b->i;
@@ -426,10 +380,8 @@ int unget_str(struct ibuf *b, const char *str)
     if (!len)
         return 0;
 
-    if (len > b->n - b->i && grow_ibuf(b, len)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (len > b->n - b->i && grow_ibuf(b, len))
+        mreturn(ERR);
 
     p = b->a + b->i + len - 1;
     j = len;
@@ -556,10 +508,9 @@ int get_ch(struct ibuf **input, char *ch)
 
     if ((*input)->fp != NULL) {
         if ((x = getc((*input)->fp)) == EOF) {
-            if (ferror((*input)->fp)) {
-                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                return ERR;
-            } else if (feof((*input)->fp)) {
+            if (ferror((*input)->fp))
+                mreturn(ERR);
+            else if (feof((*input)->fp)) {
                 if ((*input)->next != NULL) {
                     t = (*input)->next;
                     /* Isolate old head */
@@ -616,17 +567,14 @@ int eat_str_if_match(struct ibuf **input, const char *str)
             break;
 
         r = get_ch(input, &ch);
-        if (r == ERR) {
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            return ERR;
-        } else if (r == EOF)
+        if (r == ERR)
+            mreturn(ERR);
+        else if (r == EOF)
             goto no_match;
 
         if (x != ch) {
-            if (unget_ch(*input, ch)) {
-                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                return ERR;
-            }
+            if (unget_ch(*input, ch))
+                mreturn(ERR);
 
             goto no_match;
         }
@@ -639,10 +587,8 @@ int eat_str_if_match(struct ibuf **input, const char *str)
   no_match:
     /* Return the read characters */
     while (i) {
-        if (unget_ch(*input, *(str + i - 1))) {
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            return ERR;
-        }
+        if (unget_ch(*input, *(str + i - 1)))
+            mreturn(ERR);
 
         --i;
     }
@@ -663,10 +609,8 @@ int get_word(struct ibuf **input, struct obuf *token, int interpret_hex)
             return r;
     } while (ch == '\0' || ch == '\r'); /* Discard these chars */
 
-    if (put_ch(token, ch)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (put_ch(token, ch))
+        mreturn(ERR);
 
     if (isdigit(ch))
         type = 'd';             /* Decimal (or octal) number */
@@ -679,10 +623,9 @@ int get_word(struct ibuf **input, struct obuf *token, int interpret_hex)
     while (1) {
         do {
             r = get_ch(input, &ch);
-            if (r == ERR) {
-                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                return ERR;
-            } else if (r == EOF)        /* Ignore, as not the first char */
+            if (r == ERR)
+                mreturn(ERR);
+            else if (r == EOF)  /* Ignore, as not the first char */
                 goto end;
         } while (ch == '\0' || ch == '\r');
 
@@ -694,15 +637,11 @@ int get_word(struct ibuf **input, struct obuf *token, int interpret_hex)
         if ((type == 'd' && isdigit(ch))
             || (type == 'w' && (isalnum(ch) || ch == '_'))
             || (type == 'h' && (second_ch || isxdigit(ch)))) {
-            if (put_ch(token, ch)) {
-                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                return ERR;
-            }
+            if (put_ch(token, ch))
+                mreturn(ERR);
         } else {
-            if (unget_ch(*input, ch)) {
-                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                return ERR;
-            }
+            if (unget_ch(*input, ch))
+                mreturn(ERR);
 
             goto end;
         }
@@ -726,17 +665,14 @@ int eat_whitespace(struct ibuf **input)
 
     while (1) {
         r = get_ch(input, &ch);
-        if (r == ERR) {
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            return ERR;
-        } else if (r == EOF)
+        if (r == ERR)
+            mreturn(ERR);
+        else if (r == EOF)
             break;
 
         if (!(isspace(ch) || ch == '\0')) {
-            if (unget_ch(*input, ch)) {
-                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                return ERR;
-            }
+            if (unget_ch(*input, ch))
+                mreturn(ERR);
 
             break;
         }
@@ -752,10 +688,9 @@ int delete_to_nl(struct ibuf **input)
 
     while (1) {
         r = get_ch(input, &ch);
-        if (r == ERR) {
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            return ERR;
-        } else if (r == EOF)
+        if (r == ERR)
+            mreturn(ERR);
+        else if (r == EOF)
             break;
 
         if (ch == '\n')
@@ -784,10 +719,8 @@ int put_str(struct obuf *b, const char *str)
 
 int put_mem(struct obuf *b, const char *mem, size_t mem_len)
 {
-    if (mem_len > b->n - b->i && grow_obuf(b, mem_len)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (mem_len > b->n - b->i && grow_obuf(b, mem_len))
+        mreturn(ERR);
 
     memcpy(b->a + b->i, mem, mem_len);
     b->i += mem_len;
@@ -797,10 +730,8 @@ int put_mem(struct obuf *b, const char *mem, size_t mem_len)
 int put_obuf(struct obuf *b, struct obuf *t)
 {
     /* Empties t onto the end of b */
-    if (put_mem(b, t->a, t->i)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (put_mem(b, t->a, t->i))
+        mreturn(ERR);
 
     t->i = 0;
     return 0;
@@ -812,10 +743,8 @@ int put_file(struct obuf *b, const char *fn)
     FILE *fp = NULL;
     size_t fs;
 
-    if (fn == NULL || *fn == '\0') {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (fn == NULL || *fn == '\0')
+        mreturn(ERR);
 
     if ((fp = fopen(fn, "rb")) == NULL) {
         ret = ERR;
@@ -858,10 +787,8 @@ int put_stream(struct obuf *b, FILE * fp)
 {
     size_t i_backup, rs;
 
-    if (fp == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (fp == NULL)
+        mreturn(ERR);
 
     i_backup = b->i;
 
@@ -891,25 +818,19 @@ int write_obuf(struct obuf *b, const char *fn, int append)
     /* Empties b to file fn */
     FILE *fp;
 
-    if (fn == NULL || *fn == '\0') {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (fn == NULL || *fn == '\0')
+        mreturn(ERR);
 
-    if ((fp = fopen_w(fn, append)) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if ((fp = fopen_w(fn, append)) == NULL)
+        mreturn(ERR);
 
     if (fwrite(b->a, 1, b->i, fp) != b->i) {
         fclose(fp);
         fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
         return ERR;
     }
-    if (fclose(fp)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (fclose(fp))
+        mreturn(ERR);
 
     b->i = 0;
     return 0;
@@ -920,15 +841,11 @@ int flush_obuf(struct obuf *b)
     if (!b->i)
         return 0;
 
-    if (fwrite(b->a, 1, b->i, stdout) != b->i) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (fwrite(b->a, 1, b->i, stdout) != b->i)
+        mreturn(ERR);
 
-    if (fflush(stdout)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (fflush(stdout))
+        mreturn(ERR);
 
     b->i = 0;
     return 0;
@@ -937,10 +854,8 @@ int flush_obuf(struct obuf *b)
 char *obuf_to_str(struct obuf **b)
 {
     char *str;
-    if (put_ch(*b, '\0')) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return NULL;
-    }
+    if (put_ch(*b, '\0'))
+        mreturn(NULL);
 
     /* Success */
     str = (*b)->a;

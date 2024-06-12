@@ -34,11 +34,15 @@
 #include <stddef.h>
 
 
-#define mgoto(lb) do {                                        \
-    fprintf(stderr, "[%s:%d]: Error\n", __FILE__, __LINE__);  \
-    goto lb;                                                  \
-} while (0)
+/* Success is 0 or: */
+#ifndef OK
+#define OK 0
+#endif
 
+/* System related error. Terminates execution (after clean up). */
+#ifndef ERR
+#define ERR 1
+#endif
 
 struct screen {
 #ifdef _WIN32
@@ -83,11 +87,6 @@ typedef unsigned char bool;
 #ifndef TRUE
 #define TRUE (!FALSE)
 #endif
-
-/* Success is 0 or: */
-#define OK 0
-
-#define ERR 1
 
 
 /* Set to Ctrl-H */

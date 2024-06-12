@@ -68,6 +68,12 @@
 #define DEFAULT_TABSIZE 8
 #define ESC 27
 
+#define emsg fprintf(stderr, "[%s:%d]: Error\n", __FILE__, __LINE__)
+
+#define mgoto(lb) do {      \
+    emsg;                   \
+    goto lb;                \
+} while (0)
 
 /* Unsigned overflow tests */
 /* Addition */

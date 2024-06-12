@@ -34,10 +34,8 @@ int str_to_num(const char *str, unsigned long max_val, unsigned long *res)
     unsigned int base = 10;     /* Decimal */
     unsigned int n;
 
-    if (str == NULL || *str == '\0') {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (str == NULL || *str == '\0')
+        mreturn(ERR);
 
     if (*str == '0') {
         ++str;                  /* Eat char */
@@ -52,10 +50,8 @@ int str_to_num(const char *str, unsigned long max_val, unsigned long *res)
     while ((ch = *str) != '\0') {
         if ((base == 10 && isdigit(ch)) || (base == 16 && isxdigit(ch))
             || (base == 8 && ch >= '0' && ch <= '7')) {
-            if (mof(x, base, max_val)) {
-                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                return ERR;
-            }
+            if (mof(x, base, max_val))
+                mreturn(ERR);
 
             x *= base;
 
@@ -66,10 +62,8 @@ int str_to_num(const char *str, unsigned long max_val, unsigned long *res)
             else
                 n = 10 + ch - 'A';
 
-            if (aof(x, n, max_val)) {
-                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                return ERR;
-            }
+            if (aof(x, n, max_val))
+                mreturn(ERR);
 
             x += n;
         } else {
@@ -92,10 +86,8 @@ int str_to_size_t(const char *str, size_t *res)
 {
     unsigned long n;
 
-    if (str_to_num(str, SIZE_MAX, &n)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (str_to_num(str, SIZE_MAX, &n))
+        mreturn(ERR);
 
     *res = (size_t) n;
     return 0;
@@ -105,10 +97,8 @@ int str_to_uint(const char *str, unsigned int *res)
 {
     unsigned long n;
 
-    if (str_to_num(str, UINT_MAX, &n)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (str_to_num(str, UINT_MAX, &n))
+        mreturn(ERR);
 
     *res = (unsigned int) n;
     return 0;
@@ -124,10 +114,8 @@ int hex_to_val(unsigned char h[2], unsigned char *res)
         if (i)
             x *= 16;
 
-        if (!isxdigit(h[i])) {
-            fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-            return ERR;
-        }
+        if (!isxdigit(h[i]))
+            mreturn(ERR);
 
         if (isdigit(h[i]))
             x += h[i] - '0';

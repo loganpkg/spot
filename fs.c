@@ -42,20 +42,14 @@ struct ls_info {
 int get_file_size(const char *fn, size_t *fs)
 {
     struct stat_s st;
-    if (stat_f(fn, &st) == -1) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (stat_f(fn, &st) == -1)
+        mreturn(ERR);
 
-    if (!S_ISREG(st.st_mode)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (!S_ISREG(st.st_mode))
+        mreturn(ERR);
 
-    if (st.st_size < 0) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (st.st_size < 0)
+        mreturn(ERR);
 
     *fs = (size_t) st.st_size;
 
@@ -72,10 +66,8 @@ int get_path_attr(const char *path, unsigned char *attr)
 #endif
 
 #ifdef _WIN32
-    if ((file_attr = GetFileAttributes(path)) == INVALID_FILE_ATTRIBUTES) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if ((file_attr = GetFileAttributes(path)) == INVALID_FILE_ATTRIBUTES)
+        mreturn(ERR);
 
     if (file_attr & FILE_ATTRIBUTE_DIRECTORY)
         SET_DIR(t);
@@ -83,10 +75,8 @@ int get_path_attr(const char *path, unsigned char *attr)
     if (file_attr & FILE_ATTRIBUTE_REPARSE_POINT)
         SET_SLINK(t);
 #else
-    if (lstat(path, &st)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (lstat(path, &st))
+        mreturn(ERR);
 
     if (S_ISDIR(st.st_mode))
         SET_DIR(t);
@@ -235,10 +225,8 @@ int walk_dir(const char *dir, int rec, void *info,
     /* Executes the function on dir itself too */
     unsigned char attr;
 
-    if (walk_dir_inner(dir, rec, info, func_p)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (walk_dir_inner(dir, rec, info, func_p))
+        mreturn(ERR);
 
     /* Process outer directory */
     attr = 0;
@@ -246,10 +234,8 @@ int walk_dir(const char *dir, int rec, void *info,
     if (!strcmp(dir, ".") || !strcmp(dir, ".."))
         SET_DOTDIR(attr);
 
-    if ((*func_p) (dir, attr, info)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if ((*func_p) (dir, attr, info))
+        mreturn(ERR);
 
     return 0;
 }
@@ -263,15 +249,11 @@ static int rm_path(const char *path, unsigned char attr, void *info)
 
     if (!IS_DOTDIR(attr)) {
         if (IS_DIR(attr)) {
-            if (rmdir(path)) {
-                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                return ERR;
-            }
+            if (rmdir(path))
+                mreturn(ERR);
         } else {
-            if (unlink(path)) {
-                fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-                return ERR;
-            }
+            if (unlink(path))
+                mreturn(ERR);
         }
     }
     return 0;
@@ -295,10 +277,8 @@ static int add_fn(const char *fn, unsigned char attr, void *info)
     char *fn_copy;
     lsi = (struct ls_info *) info;
 
-    if ((fn_copy = strdup(fn)) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if ((fn_copy = strdup(fn)) == NULL)
+        mreturn(ERR);
 
     if (IS_DIR(attr)) {
         if (add_p(lsi->d, fn_copy)) {
@@ -436,10 +416,8 @@ int mmap_file_ro(const char *fn, void **mem, size_t *fs)
     void *p;
 #endif
 
-    if (get_file_size(fn, &s)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (get_file_size(fn, &s))
+        mreturn(ERR);
 
     /* Empty file */
     if (!s) {
@@ -488,10 +466,8 @@ int mmap_file_ro(const char *fn, void **mem, size_t *fs)
 
 #else
 
-    if ((fd = open(fn, O_RDONLY)) == -1) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if ((fd = open(fn, O_RDONLY)) == -1)
+        mreturn(ERR);
 
     if ((p = mmap(NULL, s, PROT_READ, MAP_PRIVATE, fd, 0)) == MAP_FAILED) {
         close(fd);
@@ -518,15 +494,11 @@ int un_mmap(void *p, size_t s)
         return 0;
 
 #ifdef _WIN32
-    if (!UnmapViewOfFile(p)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (!UnmapViewOfFile(p))
+        mreturn(ERR);
 #else
-    if (munmap(p, s)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (munmap(p, s))
+        mreturn(ERR);
 #endif
     return 0;
 }
@@ -568,30 +540,22 @@ int make_temp(const char *template, char **temp_fn)
     pid = getpid();
 
     r = snprintf(num, NUM_BUF_SIZE, "%d", (int) pid);
-    if (r < 0 || r >= NUM_BUF_SIZE) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (r < 0 || r >= NUM_BUF_SIZE)
+        mreturn(ERR);
 
     pid_len = strlen(num);
 
-    if (aof(prefix_len, pid_len, SIZE_MAX)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (aof(prefix_len, pid_len, SIZE_MAX))
+        mreturn(ERR);
 
     s = prefix_len + pid_len;
 
-    if (aof(s, 1, SIZE_MAX)) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if (aof(s, 1, SIZE_MAX))
+        mreturn(ERR);
     ++s;
 
-    if ((fn = calloc(s, 1)) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if ((fn = calloc(s, 1)) == NULL)
+        mreturn(ERR);
 
     memcpy(fn, template, prefix_len);
     memcpy(fn + prefix_len, num, pid_len);
@@ -646,10 +610,8 @@ int make_stemp(const char *template, char **temp_fn)
     int fd;
 #endif
 
-    if ((template_copy = strdup(template)) == NULL) {
-        fprintf(stderr, "%s:%d: Error\n", __FILE__, __LINE__);
-        return ERR;
-    }
+    if ((template_copy = strdup(template)) == NULL)
+        mreturn(ERR);
 
 #ifdef _WIN32
     p = template_copy;
