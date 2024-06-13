@@ -500,6 +500,20 @@ to display the result can be specified.
 If verbose is 1, then the postfix form of the expression is
 printed to `stderr`.
 
+`eval` interprets numbers starting with `0x` as hexadecimal and numbers
+commencing with `0` as octal. For example:
+
+```m4
+eval(0xF - 010)
+7
+eval(0xBEEF + 0xCAFE)
+100845
+m4exit
+```
+
+The table below lists the operators (and parentheses) that are understood
+by `eval`, along with their properties.
+
 | Operator | Description | Precedence | Number of operands | Associativity |
 | :------- | :---------- | ---------: | -----------------: | :-----------: |
 | `(`      | Left parenthesis      | 12 | 0 |   N/A |
