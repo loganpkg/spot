@@ -78,25 +78,25 @@
 
 struct operator_detail {
     unsigned char precedence;
+    char associativity;
     char *str;
 };
 
 struct operator_detail op_detail[] = {
-    { 4, "(" },                 /* LEFT_PAREN */
-    { 4, ")" },                 /* RIGHT_PAREN */
-    { 3, "+" },                 /* ONE_OR_MORE */
-    { 3, "?" },                 /* ZERO_OR_ONE */
-    { 3, "*" },                 /* ZERO_OR_MORE */
-    { 2, "." },                 /* CONCAT */
-    { 1, "^" },                 /* SOL_ANCHOR */
-    { 1, "$" },                 /* EOL_ANCHOR */
-    { 0, "|" }                  /* OR */
+    { 4, '_', "(" },            /* LEFT_PAREN */
+    { 4, '_', ")" },            /* RIGHT_PAREN */
+    { 3, 'L', "+" },            /* ONE_OR_MORE */
+    { 3, 'L', "?" },            /* ZERO_OR_ONE */
+    { 3, 'L', "*" },            /* ZERO_OR_MORE */
+    { 2, 'L', "." },            /* CONCAT */
+    { 1, 'R', "^" },            /* SOL_ANCHOR */
+    { 1, 'L', "$" },            /* EOL_ANCHOR */
+    { 0, 'L', "|" }             /* OR */
 };
 
 struct regex_item {
     char *char_set;
     unsigned char operator;
-    struct regex_item *prev;
     struct regex_item *next;
 };
 
@@ -243,7 +243,7 @@ static int create_regex_chain(int *escaped_regex,
     int ret = 0;
     int *p, x, y, i;
     struct regex_item *t, *ri;
-    struct regex_item *head = NULL;
+    struct regex_item *head = NULL, *prev = NULL;
     int negate_set, first_ch_in_set;
 
     p = escaped_regex;
@@ -257,7 +257,6 @@ static int create_regex_chain(int *escaped_regex,
             head = ri;
         } else {
             ri->next = t;
-            t->prev = ri;
             ri = t;
         }
 
@@ -356,23 +355,23 @@ static int create_regex_chain(int *escaped_regex,
         }
         if ((ri->operator == NO_OPERATOR || ri->operator == LEFT_PAREN
              || ri->operator == SOL_ANCHOR)
-            && ri->prev != NULL && (ri->prev->operator == NO_OPERATOR
-                                    || ri->prev->operator == ONE_OR_MORE
-                                    || ri->prev->operator == ZERO_OR_ONE
-                                    || ri->prev->operator == ZERO_OR_MORE
-                                    || ri->prev->operator == RIGHT_PAREN
-                                    || ri->prev->operator == EOL_ANCHOR)) {
+            && prev != NULL && (prev->operator == NO_OPERATOR
+                                || prev->operator == ONE_OR_MORE
+                                || prev->operator == ZERO_OR_ONE
+                                || prev->operator == ZERO_OR_MORE
+                                || prev->operator == RIGHT_PAREN
+                                || prev->operator == EOL_ANCHOR)) {
             /* Link in concatenation */
             if ((t = init_regex_item()) == NULL)
                 mgoto(error);
 
             t->operator = CONCAT;
 
-            ri->prev->next = t;
-            t->prev = ri->prev;
-            ri->prev = t;
+            prev->next = t;
             t->next = ri;
         }
+
+        prev = ri;
     }
 
     *ri_head = head;
@@ -391,11 +390,78 @@ static int create_regex_chain(int *escaped_regex,
 }
 
 
-/*
-static int shunting_yard(struct regex_item **ri_head) {
+#define pop_operator_to_output do {             \
+    if (output_tail == NULL) {                  \
+        output_tail = operator_stack;           \
+    } else {                                    \
+        output_tail->next = operator_stack;     \
+        output_tail = output_tail->next;        \
+    }                                           \
+    operator_stack = operator_stack->next;      \
+} while (0)
 
+
+static void shunting_yard(struct regex_item **ri_head)
+{
+    struct regex_item *operator_stack = NULL;
+    struct regex_item *postfix = NULL;  /* Output head */
+    struct regex_item *output_tail = NULL;
+    struct regex_item *next = NULL;
+    struct regex_item *ri;
+
+    ri = *ri_head;
+    while (ri != NULL) {
+        next = ri->next;        /* Backup */
+        if (ri->operator == NO_OPERATOR) {
+            if (postfix == NULL) {
+                postfix = ri;
+                output_tail = ri;
+            } else {
+                output_tail->next = ri;
+                output_tail = ri;
+            }
+        } else if (ri->operator == LEFT_PAREN) {
+            ri->next = operator_stack;
+            operator_stack = ri;
+        } else if (ri->operator == RIGHT_PAREN) {
+            while (operator_stack != NULL) {
+                if (operator_stack->operator == LEFT_PAREN) {
+                    operator_stack = operator_stack->next;
+                    break;
+                } else {
+                    pop_operator_to_output;
+                }
+            }
+        } else {
+            while (operator_stack != NULL) {
+                if (operator_stack->operator == LEFT_PAREN
+                    || (op_detail[ri->operator].associativity == 'L'
+                        && op_detail[operator_stack->operator].precedence <
+                        op_detail[ri->operator].precedence)
+                    || (op_detail[ri->operator].associativity == 'R'
+                        && op_detail[operator_stack->
+                                     operator].precedence <=
+                        op_detail[ri->operator].precedence)) {
+                    break;
+                } else {
+                    pop_operator_to_output;
+                }
+            }
+            ri->next = operator_stack;
+            operator_stack = ri;
+        }
+
+        ri = next;
+    }
+    while (operator_stack != NULL)
+        pop_operator_to_output;
+
+    if (output_tail != NULL)
+        output_tail->next = NULL;
+
+    *ri_head = postfix;
 }
-*/
+
 
 int main(void)
 {
@@ -411,6 +477,12 @@ int main(void)
     if ((r = create_regex_chain(res, &head)))
         return r;
 
+    print_regex_chain(head);
+
+
+    shunting_yard(&head);
+
+    printf("Postfix:\n");
     print_regex_chain(head);
 
     return 0;
