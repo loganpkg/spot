@@ -393,6 +393,7 @@ static int create_regex_chain(int *escaped_regex,
 #define pop_operator_to_output do {             \
     if (output_tail == NULL) {                  \
         output_tail = operator_stack;           \
+        postfix = output_tail;                  \
     } else {                                    \
         output_tail->next = operator_stack;     \
         output_tail = output_tail->next;        \
@@ -413,9 +414,9 @@ static void shunting_yard(struct regex_item **ri_head)
     while (ri != NULL) {
         next = ri->next;        /* Backup */
         if (ri->operator == NO_OPERATOR) {
-            if (postfix == NULL) {
-                postfix = ri;
+            if (output_tail == NULL) {
                 output_tail = ri;
+                postfix = output_tail;
             } else {
                 output_tail->next = ri;
                 output_tail = ri;
