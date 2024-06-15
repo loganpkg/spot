@@ -45,11 +45,12 @@
 
 
 #define INIT_NUM_NODES 100
-#define INIT_OPERAND_STACK_SIZE 100
+#define INIT_OPERAND_STACK_NUM 100
 
 
 #define ERR 1
 #define SYNTAX_ERR 3
+#define USAGE_ERR 6
 
 
 #define mgoto(lab) do {                                             \
@@ -71,9 +72,6 @@
 
 /* Lookup in storage */
 #define lk(n) (*(ns->a + (n)))
-
-
-#define clear_node(n) memset(ns->a + (n), '\0', sizeof(struct nfa_node))
 
 
 /* operator: */
@@ -101,6 +99,8 @@
 #define EOL_READ_STATUS 4
 #define CHAR_SET 5
 
+#define DELETED_NODE 6
+
 
 struct operator_detail {
     unsigned char precedence;
@@ -126,9 +126,7 @@ struct nfa_node {
 struct nfa_storage {
     struct nfa_node *a;
     size_t i;
-    size_t s;
-    size_t reuse;
-    int reuse_set;
+    size_t n;                   /* Number of elements, not bytes */
 };
 
 /* Each NFA fragment is itself a valid NFA */
@@ -140,7 +138,7 @@ struct nfa {
 struct operand_stack {
     struct nfa *a;
     size_t i;
-    size_t s;
+    size_t n;                   /* Number of elements, not bytes */
 };
 
 struct regex {
@@ -187,10 +185,14 @@ static struct nfa_storage *init_nfa_storage(void)
     if ((t = calloc(1, sizeof(struct nfa_storage))) == NULL)
         mgoto(error);
 
+    if (sizeof(struct nfa_node)
+        && INIT_NUM_NODES > SIZE_MAX / sizeof(struct nfa_node))
+        mgoto(error);
+
     if ((t->a = calloc(INIT_NUM_NODES, sizeof(struct nfa_node))) == NULL)
         mgoto(error);
 
-    t->s = INIT_NUM_NODES;
+    t->n = INIT_NUM_NODES;
 
     return t;
 
@@ -214,74 +216,34 @@ static void free_nfa_storage(struct nfa_storage *ns)
 static int issue_node(struct nfa_storage *ns, size_t *node)
 {
     struct nfa_node *t;
-    size_t new_s;
-    if (ns->reuse_set) {
-        clear_node(ns->reuse);
-        *node = ns->reuse;
-        ns->reuse_set = 0;
-        ns->reuse = 0;
-        return 0;
-    }
+    size_t new_n, new_size_in_bytes;
 
-    if (ns->i == ns->s) {
-        if (ns->s > SIZE_MAX / 2)
+    if (ns->i == ns->n) {
+        if (ns->n > SIZE_MAX / 2)
             mgoto(error);
 
-        new_s = ns->s * 2;
-        if ((t = realloc(ns->a, new_s)) == NULL)
+        new_n = ns->n * 2;
+        if (sizeof(struct nfa_node)
+            && new_n > SIZE_MAX / sizeof(struct nfa_node))
+            mgoto(error);
+
+        new_size_in_bytes = new_n * sizeof(struct nfa_node);
+
+        if ((t = realloc(ns->a, new_size_in_bytes)) == NULL)
             mgoto(error);
 
         ns->a = t;
-        ns->s = new_s;
+        ns->n = new_n;
     }
 
-    clear_node(ns->i);
+    lk(ns->i).link_type = END_NODE;
     *node = ns->i;
-    ++ns->i;
+    ns->i++;
 
     return 0;
 
   error:
     return ERR;
-}
-
-static int delete_node(struct nfa_storage *ns, size_t node)
-{
-    if (ns->i && node == ns->i - 1) {
-        --ns->i;
-        return 0;
-    }
-    if (ns->reuse_set)
-        mgoto(error);
-
-    ns->reuse = node;
-    ns->reuse_set = 1;
-
-    return 0;
-
-  error:
-    return ERR;
-}
-
-static void block_up_nodes(struct nfa_storage *ns)
-{
-    if (!ns->reuse_set)
-        return;
-
-    if (ns->reuse >= ns->i) {
-        ns->reuse_set = 0;
-        ns->reuse = 0;
-        return;
-    }
-
-    /* Move down memory to fill hole */
-    memmove(ns->a + ns->reuse, ns->a + ns->reuse + 1,
-            (ns->i - (ns->reuse + 1)) * sizeof(struct nfa_node));
-
-    --ns->i;
-
-    ns->reuse_set = 0;
-    ns->reuse = 0;
 }
 
 static struct operand_stack *init_operand_stack(void)
@@ -289,13 +251,17 @@ static struct operand_stack *init_operand_stack(void)
     struct operand_stack *t = NULL;
 
     if ((t = calloc(1, sizeof(struct operand_stack))) == NULL)
-        return NULL;
-
-    if ((t->a =
-         calloc(INIT_OPERAND_STACK_SIZE, sizeof(struct nfa))) == NULL)
         mgoto(error);
 
-    t->s = INIT_OPERAND_STACK_SIZE;
+    if (sizeof(struct nfa)
+        && INIT_OPERAND_STACK_NUM > SIZE_MAX / sizeof(struct nfa))
+        mgoto(error);
+
+    if ((t->a =
+         calloc(INIT_OPERAND_STACK_NUM, sizeof(struct nfa))) == NULL)
+        mgoto(error);
+
+    t->n = INIT_OPERAND_STACK_NUM;
 
     return t;
 
@@ -334,21 +300,27 @@ static int push_operand_stack(struct operand_stack *z, size_t nfa_start,
                               size_t nfa_end)
 {
     struct nfa *t;
-    size_t new_s;
-    if (z->i == z->s) {
-        if (z->s > SIZE_MAX / 2)
+    size_t new_n, new_size_in_bytes;
+    if (z->i == z->n) {
+        if (z->n > SIZE_MAX / 2)
             mgoto(error);
 
-        new_s = z->s * 2;
-        if ((t = realloc(z->a, new_s)) == NULL)
+        new_n = z->n * 2;
+
+        if (sizeof(struct nfa) && new_n > SIZE_MAX / sizeof(struct nfa))
+            mgoto(error);
+
+        new_size_in_bytes = new_n * sizeof(struct nfa);
+
+        if ((t = realloc(z->a, new_size_in_bytes)) == NULL)
             mgoto(error);
 
         z->a = t;
-        z->s = new_s;
+        z->n = new_n;
     }
 
     (*(z->a + z->i)).start = nfa_start;
-    (*(z->a + z->i)).start = nfa_end;
+    (*(z->a + z->i)).end = nfa_end;
     ++z->i;
     return 0;
 
@@ -442,10 +414,10 @@ static int interpret_escaped_chars(const char *regex, int **escaped_regex)
 
 static void print_cs_ch(unsigned char u)
 {
-    if (isgraph(u) && u != '-')
-        putchar(u);
+    if (isgraph(u) && u != '-' && u != 'e' && u != '^' && u != '$')
+        putc(u, stderr);
     else
-        printf("\\x%02X", u);
+        fprintf(stderr, "\\x%02X", u);
 }
 
 static void print_char_set(const unsigned char *char_set)
@@ -453,7 +425,7 @@ static void print_char_set(const unsigned char *char_set)
     int i, in_range;
 
     if (char_set == NULL) {
-        printf("NULL");
+        fprintf(stderr, "NULL");
         return;
     }
 
@@ -462,7 +434,7 @@ static void print_char_set(const unsigned char *char_set)
         if (!in_range && i && char_set[i - 1] && char_set[i]
             && i != UCHAR_MAX && char_set[i + 1]) {
             in_range = 1;
-            putchar('-');
+            putc('-', stderr);
         } else if (in_range && !char_set[i]) {
             print_cs_ch(i - 1);
             in_range = 0;
@@ -478,11 +450,12 @@ static void print_regex_chain(const struct regex_item *ri_head)
 {
     while (ri_head != NULL) {
         if (ri_head->operator == NO_OPERATOR) {
-            printf("Char set: ");
+            fprintf(stderr, "Char set: ");
             print_char_set(ri_head->char_set);
-            putchar('\n');
+            putc('\n', stderr);
         } else {
-            printf("Operator: %s\n", op_detail[ri_head->operator].str);
+            fprintf(stderr, "Operator: %s\n",
+                    op_detail[ri_head->operator].str);
         }
         ri_head = ri_head->next;
     }
@@ -847,14 +820,14 @@ int thompsons_construction(const struct regex_item *ri_head,
             if (pop_operand_stack(z, &start_a, &end_a))
                 mgoto(error);
 
-            /* Copy links */
+            /* Copy links, and character set (if needed) */
             lk(end_a).link0 = lk(start_b).link0;
             lk(end_a).link1 = lk(start_b).link1;
-            lk(end_a).link_type = lk(start_b).link_type;
+            if ((lk(end_a).link_type = lk(start_b).link_type) == CHAR_SET)
+                lk(end_a).char_set = lk(start_b).char_set;
 
             /* Remove unneeded node */
-            if (delete_node(ns, start_b))
-                mgoto(error);
+            lk(start_b).link_type = DELETED_NODE;
 
             if (push_operand_stack(z, start_a, end_b))
                 mgoto(error);
@@ -869,8 +842,8 @@ int thompsons_construction(const struct regex_item *ri_head,
                 mgoto(error);
 
             /* Link in */
-            lk(end_c).link0 = start_b;
-            lk(end_c).link_type = SOL_READ_STATUS;
+            lk(start_c).link0 = start_b;
+            lk(start_c).link_type = SOL_READ_STATUS;
 
             if (push_operand_stack(z, start_c, end_b))
                 mgoto(error);
@@ -928,15 +901,13 @@ int thompsons_construction(const struct regex_item *ri_head,
     }
 
     if (pop_operand_stack(z, &start_b, &end_b))
-        mgoto(error);
+        d_mgoto(error, "No NFA generated\n");
 
     if (z->i)
         d_mgoto(syntax_error, "%lu operands left on the stack\n",
                 (unsigned long) z->i);
 
     *nfa_start = start_b;
-
-    block_up_nodes(ns);
 
     *nfa_store = ns;
 
@@ -956,11 +927,44 @@ int thompsons_construction(const struct regex_item *ri_head,
     return ret;
 }
 
+void print_nfa(struct nfa_storage *ns)
+{
+    size_t i;
+    for (i = 0; i < ns->i; ++i) {
+        if (lk(i).link_type != DELETED_NODE && lk(i).link_type != END_NODE) {
+            fprintf(stderr, "%lu -- ", (unsigned long) i);
+            switch (lk(i).link_type) {
+            case BOTH_EPSILON:
+            case EPSILON:
+                putc('e', stderr);
+                break;
+            case SOL_READ_STATUS:
+                putc('^', stderr);
+                break;
+            case EOL_READ_STATUS:
+                putc('$', stderr);
+                break;
+            case CHAR_SET:
+                print_char_set(lk(i).char_set);
+                break;
+            }
+            fprintf(stderr, " --> %lu\n", (unsigned long) lk(i).link0);
+
+            if (lk(i).link_type == BOTH_EPSILON)
+                fprintf(stderr, "%lu -- e --> %lu\n", (unsigned long) i,
+                        (unsigned long) lk(i).link1);
+        }
+    }
+}
+
 int compile_regex(const char *regex_str, struct regex **regex_st,
                   int verbose)
 {
     int ret = ERR;
-    struct regex *reg;
+    struct regex *reg = NULL;
+
+    if (regex_str == NULL || *regex_str == '\0')
+        d_mgoto(usage_error, "NULL or empty regex string\n");
 
     if ((reg = init_regex()) == NULL)
         mgoto(error);
@@ -977,15 +981,21 @@ int compile_regex(const char *regex_str, struct regex **regex_st,
     shunting_yard(&reg->ri);
 
     if (verbose) {
-        printf("Postfix:\n");
+        fprintf(stderr, "Postfix:\n");
         print_regex_chain(reg->ri);
     }
 
     if ((ret = thompsons_construction(reg->ri, &reg->ns, &reg->nfa_start)))
         mgoto(error);
 
+    if (verbose)
+        print_nfa(reg->ns);
+
     *regex_st = reg;
     return 0;
+
+  usage_error:
+    ret = USAGE_ERR;
 
   error:
     free_regex(reg);
@@ -995,7 +1005,7 @@ int compile_regex(const char *regex_str, struct regex **regex_st,
 int main(void)
 {
     int ret;
-    char *regex_str = "abc";
+    char *regex_str = "a+(b|c)";
     struct regex *reg = NULL;
 
     if ((ret = compile_regex(regex_str, &reg, 1)))
