@@ -109,13 +109,13 @@ struct operator_detail {
 };
 
 struct regex_item {
-    char *char_set;
+    unsigned char *char_set;
     unsigned char operator;
     struct regex_item *next;
 };
 
 struct nfa_node {
-    char *char_set;
+    unsigned char *char_set;
     char link_type;
     size_t link0;
     size_t link1;
@@ -141,6 +141,13 @@ struct operand_stack {
     struct nfa *a;
     size_t i;
     size_t s;
+};
+
+struct regex {
+    int *esc_reg;
+    struct regex_item *ri;
+    struct nfa_storage *ns;
+    size_t nfa_start;
 };
 
 
@@ -308,6 +315,21 @@ static void free_operand_stack(struct operand_stack *z)
     }
 }
 
+static struct regex *init_regex(void)
+{
+    return calloc(1, sizeof(struct regex));
+}
+
+void free_regex(struct regex *reg)
+{
+    if (reg != NULL) {
+        free(reg->esc_reg);
+        free_regex_chain(reg->ri);
+        free_nfa_storage(reg->ns);
+        free(reg);
+    }
+}
+
 static int push_operand_stack(struct operand_stack *z, size_t nfa_start,
                               size_t nfa_end)
 {
@@ -349,14 +371,14 @@ static int pop_operand_stack(struct operand_stack *z, size_t *nfa_start,
 static int interpret_escaped_chars(const char *regex, int **escaped_regex)
 {
     int ret = 0;
-    const char *p;
+    const unsigned char *p;
     int *esc_reg = NULL, *q, ch, c, h1, h0;
     size_t len = strlen(regex);
 
     if ((esc_reg = calloc(len + 1, sizeof(int))) == NULL)
         mgoto(error);
 
-    p = regex;
+    p = (unsigned char *) regex;
     q = esc_reg;
     while ((ch = *p++) != '\0') {
         if (ch == '\\')
@@ -418,38 +440,60 @@ static int interpret_escaped_chars(const char *regex, int **escaped_regex)
     return ret;
 }
 
-static void print_regex_chain(struct regex_item *ri_head)
+static void print_cs_ch(unsigned char u)
 {
-    int i;
+    if (isgraph(u) && u != '-')
+        putchar(u);
+    else
+        printf("\\x%02X", u);
+}
+
+static void print_char_set(const unsigned char *char_set)
+{
+    int i, in_range;
+
+    if (char_set == NULL) {
+        printf("NULL");
+        return;
+    }
+
+    in_range = 0;
+    for (i = 0; i <= UCHAR_MAX; ++i)
+        if (!in_range && i && char_set[i - 1] && char_set[i]
+            && i != UCHAR_MAX && char_set[i + 1]) {
+            in_range = 1;
+            putchar('-');
+        } else if (in_range && !char_set[i]) {
+            print_cs_ch(i - 1);
+            in_range = 0;
+        } else if (in_range && i == UCHAR_MAX && char_set[i]) {
+            print_cs_ch(i);
+            in_range = 0;
+        } else if (!in_range && char_set[i]) {
+            print_cs_ch(i);
+        }
+}
+
+static void print_regex_chain(const struct regex_item *ri_head)
+{
     while (ri_head != NULL) {
         if (ri_head->operator == NO_OPERATOR) {
             printf("Char set: ");
-            if (ri_head->char_set != NULL) {
-                for (i = 0; i <= UCHAR_MAX; ++i)
-                    if (ri_head->char_set[i]) {
-                        if (isgraph(i))
-                            putchar(i);
-                        else
-                            printf("%02X", i);
-                    }
-
-                putchar('\n');
-            } else {
-                printf("NULL\n");
-            }
+            print_char_set(ri_head->char_set);
+            putchar('\n');
         } else {
             printf("Operator: %s\n", op_detail[ri_head->operator].str);
         }
-
         ri_head = ri_head->next;
     }
 }
 
-static int create_regex_chain(int *escaped_regex,
+static int create_regex_chain(const int *escaped_regex,
                               struct regex_item **ri_head)
 {
     int ret = 0;
-    int *p, x, y, i;
+    const int *p;
+    int x, y, i;
     struct regex_item *t, *ri;
     struct regex_item *head = NULL, *prev = NULL;
     int negate_set, first_ch_in_set;
@@ -498,6 +542,9 @@ static int create_regex_chain(int *escaped_regex,
                 if ((first_ch_in_set || (*p != ']' && *p != EOF))
                     && *(p + 1) == '-' && *(p + 2) != ']'
                     && *(p + 2) != EOF) {
+                    if (*p > *(p + 2))
+                        d_mgoto(syntax_error, "Descending range\n");
+
                     for (y = *p; y <= *(p + 2); ++y)
                         ri->char_set[y] = 1;
 
@@ -656,8 +703,8 @@ static void shunting_yard(struct regex_item **ri_head)
                         && op_detail[operator_stack->operator].precedence <
                         op_detail[ri->operator].precedence)
                     || (op_detail[ri->operator].associativity == 'R'
-                        && op_detail[operator_stack->
-                                     operator].precedence <=
+                        && op_detail[operator_stack->operator].
+                        precedence <=
                         op_detail[ri->operator].precedence)) {
                     break;
                 } else {
@@ -681,14 +728,14 @@ static void shunting_yard(struct regex_item **ri_head)
 #undef pop_operator_to_output
 
 
-int thompsons_construction(struct regex_item *ri_head,
+int thompsons_construction(const struct regex_item *ri_head,
                            struct nfa_storage **nfa_store,
                            size_t *nfa_start)
 {
     int ret = 0;
     struct nfa_storage *ns = NULL;
     struct operand_stack *z = NULL;
-    struct regex_item *ri;
+    const struct regex_item *ri;
     size_t start_a, end_a, start_b, end_b, start_c, end_c;
 
     if ((ns = init_nfa_storage()) == NULL)
@@ -909,39 +956,52 @@ int thompsons_construction(struct regex_item *ri_head,
     return ret;
 }
 
+int compile_regex(const char *regex_str, struct regex **regex_st,
+                  int verbose)
+{
+    int ret = ERR;
+    struct regex *reg;
+
+    if ((reg = init_regex()) == NULL)
+        mgoto(error);
+
+    if ((ret = interpret_escaped_chars(regex_str, &reg->esc_reg)))
+        mgoto(error);
+
+    if ((ret = create_regex_chain(reg->esc_reg, &reg->ri)))
+        mgoto(error);
+
+    if (verbose)
+        print_regex_chain(reg->ri);
+
+    shunting_yard(&reg->ri);
+
+    if (verbose) {
+        printf("Postfix:\n");
+        print_regex_chain(reg->ri);
+    }
+
+    if ((ret = thompsons_construction(reg->ri, &reg->ns, &reg->nfa_start)))
+        mgoto(error);
+
+    *regex_st = reg;
+    return 0;
+
+  error:
+    free_regex(reg);
+    return ret;
+}
+
 int main(void)
 {
-    int r;
-/*    char *reg = "\\thello\\nworld \\x43\\x4F\\x4F\\x4C \\xEB \\e"; */
-    char *reg = "^^(ab)(az)|c";
-    int *res = NULL;
-    struct regex_item *head = NULL;
-    struct nfa_storage *nfa_store = NULL;
-    size_t nfa_start;
+    int ret;
+    char *regex_str = "abc";
+    struct regex *reg = NULL;
 
-    if ((r = interpret_escaped_chars(reg, &res)))
-        mgoto(clean_up);
+    if ((ret = compile_regex(regex_str, &reg, 1)))
+        return ret;
 
-    if ((r = create_regex_chain(res, &head)))
-        mgoto(clean_up);
-
-    print_regex_chain(head);
-
-    shunting_yard(&head);
-
-    printf("Postfix:\n");
-    print_regex_chain(head);
-
-    if ((r = thompsons_construction(head, &nfa_store, &nfa_start)))
-        mgoto(clean_up);
-
-    printf("After TC:\n");
-    print_regex_chain(head);
-
-  clean_up:
-    free(res);
-    free_regex_chain(head);
-    free_nfa_storage(nfa_store);
+    free_regex(reg);
 
     return 0;
 }
