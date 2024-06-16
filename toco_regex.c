@@ -73,6 +73,13 @@
 /* Lookup in storage */
 #define lk(n) (*(ns->a + (n)))
 
+/* Sets link_type to END_NODE */
+#define clear_node(n) memset(ns->a + (n), '\0', sizeof(struct nfa_node))
+
+
+#define copy_node(dst, src) memcpy(ns->a + (dst), ns->a + (src),    \
+    sizeof(struct nfa_node))
+
 
 /* operator: */
 #define LEFT_PAREN 0
@@ -98,8 +105,6 @@
 #define SOL_READ_STATUS 3
 #define EOL_READ_STATUS 4
 #define CHAR_SET 5
-
-#define DELETED_NODE 6
 
 
 struct operator_detail {
@@ -127,6 +132,8 @@ struct nfa_storage {
     struct nfa_node *a;
     size_t i;
     size_t n;                   /* Number of elements, not bytes */
+    size_t reuse;               /* For reusing deleted nodes */
+    unsigned char reuse_set;
 };
 
 /* Each NFA fragment is itself a valid NFA */
@@ -218,6 +225,13 @@ static int issue_node(struct nfa_storage *ns, size_t *node)
     struct nfa_node *t;
     size_t new_n, new_size_in_bytes;
 
+    if (ns->reuse_set) {
+        clear_node(ns->reuse);
+        *node = ns->reuse;
+        ns->reuse_set = 0;
+        return 0;
+    }
+
     if (ns->i == ns->n) {
         if (ns->n > SIZE_MAX / 2)
             mgoto(error);
@@ -236,14 +250,62 @@ static int issue_node(struct nfa_storage *ns, size_t *node)
         ns->n = new_n;
     }
 
-    lk(ns->i).link_type = END_NODE;
+    clear_node(ns->i);
     *node = ns->i;
-    ns->i++;
+    ++ns->i;
 
     return 0;
 
   error:
     return ERR;
+}
+
+static int delete_node(struct nfa_storage *ns, size_t node)
+{
+    if (ns->i && node == ns->i - 1) {
+        ns->i--;
+        return 0;
+    }
+
+    /* There can only be one node marked for reuse at a time */
+    if (ns->reuse_set)
+        d_mgoto(error, "Node reuse already set");
+
+    ns->reuse = node;
+    ns->reuse_set = 1;
+
+    return 0;
+
+  error:
+    return ERR;
+}
+
+static void fill_hole(struct nfa_storage *ns)
+{
+    size_t old_node, i;
+
+    if (!ns->i) {
+        ns->reuse_set = 0;
+        return;
+    }
+
+    if (!ns->reuse_set)
+        return;
+
+    old_node = ns->i - 1;
+    copy_node(ns->reuse, old_node);
+    --ns->i;
+
+    /* Patch references */
+    for (i = 0; i < ns->i; ++i) {
+        if (lk(i).link0 == old_node)
+            lk(i).link0 = ns->reuse;
+
+        if (lk(i).link1 == old_node)
+            lk(i).link1 = ns->reuse;
+    }
+
+    ns->reuse_set = 0;
 }
 
 static struct operand_stack *init_operand_stack(void)
@@ -676,8 +738,8 @@ static void shunting_yard(struct regex_item **ri_head)
                         && op_detail[operator_stack->operator].precedence <
                         op_detail[ri->operator].precedence)
                     || (op_detail[ri->operator].associativity == 'R'
-                        && op_detail[operator_stack->operator].
-                        precedence <=
+                        && op_detail[operator_stack->
+                                     operator].precedence <=
                         op_detail[ri->operator].precedence)) {
                     break;
                 } else {
@@ -820,14 +882,12 @@ int thompsons_construction(const struct regex_item *ri_head,
             if (pop_operand_stack(z, &start_a, &end_a))
                 mgoto(error);
 
-            /* Copy links, and character set (if needed) */
-            lk(end_a).link0 = lk(start_b).link0;
-            lk(end_a).link1 = lk(start_b).link1;
-            if ((lk(end_a).link_type = lk(start_b).link_type) == CHAR_SET)
-                lk(end_a).char_set = lk(start_b).char_set;
+            /* Copy contents */
+            copy_node(end_a, start_b);
 
             /* Remove unneeded node */
-            lk(start_b).link_type = DELETED_NODE;
+            if (delete_node(ns, start_b))
+                mgoto(error);
 
             if (push_operand_stack(z, start_a, end_b))
                 mgoto(error);
@@ -907,10 +967,10 @@ int thompsons_construction(const struct regex_item *ri_head,
         d_mgoto(syntax_error, "%lu operands left on the stack\n",
                 (unsigned long) z->i);
 
+
+    fill_hole(ns);
     *nfa_start = start_b;
-
     *nfa_store = ns;
-
     free_operand_stack(z);
 
     return 0;
@@ -931,7 +991,7 @@ void print_nfa(struct nfa_storage *ns)
 {
     size_t i;
     for (i = 0; i < ns->i; ++i) {
-        if (lk(i).link_type != DELETED_NODE && lk(i).link_type != END_NODE) {
+        if (lk(i).link_type != END_NODE) {
             fprintf(stderr, "%lu -- ", (unsigned long) i);
             switch (lk(i).link_type) {
             case BOTH_EPSILON:
@@ -1005,7 +1065,7 @@ int compile_regex(const char *regex_str, struct regex **regex_st,
 int main(void)
 {
     int ret;
-    char *regex_str = "a+(b|c)";
+    char *regex_str = "abcdef";
     struct regex *reg = NULL;
 
     if ((ret = compile_regex(regex_str, &reg, 1)))
