@@ -124,8 +124,6 @@ struct nfa_node {
     char link_type;
     size_t link0;
     size_t link1;
-    unsigned char in_state;
-    unsigned char in_state_next;
 };
 
 struct nfa_storage {
@@ -153,6 +151,10 @@ struct regex {
     struct regex_item *ri;
     struct nfa_storage *ns;
     size_t nfa_start;
+    size_t nfa_end;
+    int nl_ins;                 /* Newline insensitive matching */
+    unsigned char *state;
+    unsigned char *state_next;
 };
 
 
@@ -354,6 +356,8 @@ void free_regex(struct regex *reg)
         free(reg->esc_reg);
         free_regex_chain(reg->ri);
         free_nfa_storage(reg->ns);
+        free(reg->state);
+        free(reg->state_next);
         free(reg);
     }
 }
@@ -524,7 +528,7 @@ static void print_regex_chain(const struct regex_item *ri_head)
 }
 
 static int create_regex_chain(const int *escaped_regex,
-                              struct regex_item **ri_head)
+                              struct regex_item **ri_head, int nl_ins)
 {
     int ret = 0;
     const int *p;
@@ -634,11 +638,16 @@ static int create_regex_chain(const int *escaped_regex,
 
                 ri->operator = NO_OPERATOR;
 
-                if (x == '.')   /* Set of all chars */
+                if (x == '.') {
+                    /* Set of all chars */
                     for (i = 0; i <= UCHAR_MAX; ++i)
                         ri->char_set[i] = 1;
-                else
+
+                    if (!nl_ins)
+                        ri->char_set['\n'] = 0;
+                } else {
                     ri->char_set[x] = 1;
+                }
 
                 break;
             }
@@ -738,8 +747,8 @@ static void shunting_yard(struct regex_item **ri_head)
                         && op_detail[operator_stack->operator].precedence <
                         op_detail[ri->operator].precedence)
                     || (op_detail[ri->operator].associativity == 'R'
-                        && op_detail[operator_stack->
-                                     operator].precedence <=
+                        && op_detail[operator_stack->operator].
+                        precedence <=
                         op_detail[ri->operator].precedence)) {
                     break;
                 } else {
@@ -765,7 +774,7 @@ static void shunting_yard(struct regex_item **ri_head)
 
 int thompsons_construction(const struct regex_item *ri_head,
                            struct nfa_storage **nfa_store,
-                           size_t *nfa_start)
+                           size_t *nfa_start, size_t *nfa_end)
 {
     int ret = 0;
     struct nfa_storage *ns = NULL;
@@ -894,34 +903,64 @@ int thompsons_construction(const struct regex_item *ri_head,
 
             break;
         case SOL_ANCHOR:
-            if (pop_operand_stack(z, &start_b, &end_b))
-                mgoto(error);
+            if (z->i) {
+                if (pop_operand_stack(z, &start_b, &end_b))
+                    mgoto(error);
 
-            /* New start node */
-            if (issue_node(ns, &start_c))
-                mgoto(error);
+                /* New start node */
+                if (issue_node(ns, &start_c))
+                    mgoto(error);
 
-            /* Link in */
-            lk(start_c).link0 = start_b;
-            lk(start_c).link_type = SOL_READ_STATUS;
+                /* Link in */
+                lk(start_c).link0 = start_b;
+                lk(start_c).link_type = SOL_READ_STATUS;
 
-            if (push_operand_stack(z, start_c, end_b))
-                mgoto(error);
+                if (push_operand_stack(z, start_c, end_b))
+                    mgoto(error);
+            } else {
+                /* ^ is a valid regex by itself */
+                if (issue_node(ns, &start_c))
+                    mgoto(error);
+
+                if (issue_node(ns, &end_c))
+                    mgoto(error);
+
+                lk(start_c).link0 = end_c;
+                lk(start_c).link_type = SOL_READ_STATUS;
+
+                if (push_operand_stack(z, start_c, end_c))
+                    mgoto(error);
+            }
 
             break;
         case EOL_ANCHOR:
-            if (pop_operand_stack(z, &start_b, &end_b))
-                mgoto(error);
+            if (z->i) {
+                if (pop_operand_stack(z, &start_b, &end_b))
+                    mgoto(error);
 
-            /* New end node */
-            if (issue_node(ns, &end_c))
-                mgoto(error);
+                /* New end node */
+                if (issue_node(ns, &end_c))
+                    mgoto(error);
 
-            lk(end_b).link0 = end_c;
-            lk(end_b).link_type = EOL_READ_STATUS;
+                lk(end_b).link0 = end_c;
+                lk(end_b).link_type = EOL_READ_STATUS;
 
-            if (push_operand_stack(z, start_b, end_c))
-                mgoto(error);
+                if (push_operand_stack(z, start_b, end_c))
+                    mgoto(error);
+            } else {
+                /* $ is a valid regex by itself */
+                if (issue_node(ns, &start_c))
+                    mgoto(error);
+
+                if (issue_node(ns, &end_c))
+                    mgoto(error);
+
+                lk(start_c).link0 = end_c;
+                lk(start_c).link_type = EOL_READ_STATUS;
+
+                if (push_operand_stack(z, start_c, end_c))
+                    mgoto(error);
+            }
 
             break;
         case OR:
@@ -967,9 +1006,10 @@ int thompsons_construction(const struct regex_item *ri_head,
         d_mgoto(syntax_error, "%lu operands left on the stack\n",
                 (unsigned long) z->i);
 
-
     fill_hole(ns);
+
     *nfa_start = start_b;
+    *nfa_end = end_b;
     *nfa_store = ns;
     free_operand_stack(z);
 
@@ -1017,8 +1057,8 @@ void print_nfa(struct nfa_storage *ns)
     }
 }
 
-int compile_regex(const char *regex_str, struct regex **regex_st,
-                  int verbose)
+int compile_regex(const char *regex_str, int nl_ins,
+                  struct regex **regex_st, int verbose)
 {
     int ret = ERR;
     struct regex *reg = NULL;
@@ -1029,10 +1069,12 @@ int compile_regex(const char *regex_str, struct regex **regex_st,
     if ((reg = init_regex()) == NULL)
         mgoto(error);
 
+    reg->nl_ins = nl_ins;
+
     if ((ret = interpret_escaped_chars(regex_str, &reg->esc_reg)))
         mgoto(error);
 
-    if ((ret = create_regex_chain(reg->esc_reg, &reg->ri)))
+    if ((ret = create_regex_chain(reg->esc_reg, &reg->ri, reg->nl_ins)))
         mgoto(error);
 
     if (verbose)
@@ -1045,11 +1087,20 @@ int compile_regex(const char *regex_str, struct regex **regex_st,
         print_regex_chain(reg->ri);
     }
 
-    if ((ret = thompsons_construction(reg->ri, &reg->ns, &reg->nfa_start)))
+    if ((ret =
+         thompsons_construction(reg->ri, &reg->ns, &reg->nfa_start,
+                                &reg->nfa_end)))
         mgoto(error);
 
     if (verbose)
         print_nfa(reg->ns);
+
+    /* Allocate state tables */
+    if ((reg->state = calloc(reg->ns->i, 1)) == NULL)
+        mgoto(error);
+
+    if ((reg->state_next = calloc(reg->ns->i, 1)) == NULL)
+        mgoto(error);
 
     *regex_st = reg;
     return 0;
@@ -1062,14 +1113,250 @@ int compile_regex(const char *regex_str, struct regex **regex_st,
     return ret;
 }
 
-int main(void)
+
+#define swap_state_tables do {              \
+    t = reg->state;                         \
+    reg->state = reg->state_next;           \
+    reg->state_next = t;                    \
+} while (0)
+
+
+#define clear_state_table(tb)  memset(tb, '\0', ns->i)
+
+
+#define check_for_winner do {                                               \
+    if (reg->state_next[reg->nfa_end]) {                                    \
+        /*                                                                  \
+         * End node is in state. Record the match. Regex takes the longest  \
+         * match, so OK to overwrite any previous match.                    \
+         */                                                                 \
+        last_match = p;                                                     \
+    } else {                                                                \
+        count = 0;                                                          \
+        for (i = 0; i < ns->i; ++i)                                         \
+            if (reg->state_next[i])                                         \
+                ++count;                                                    \
+                                                                            \
+        if (!count) {       /* All nodes out */                             \
+            goto report;                                                    \
+        }                                                                   \
+    }                                                                       \
+} while (0)
+
+
+#define print_state_tables for (i = 0; i < ns->i; ++i)          \
+    fprintf(stderr, "Node %lu: %d %d\n", (unsigned long) i,     \
+        reg->state[i], reg->state_next[i])
+
+
+char *run_nfa(const char *text, size_t text_size, int sol,
+              struct regex *reg, size_t *match_len, int verbose)
+{
+    /* Does not advance */
+    struct nfa_storage *ns;
+    unsigned char *t;
+    const char *p, *last_match = NULL;
+    unsigned char u;
+    size_t s, i, count;
+    int diff, eol = 0;
+
+    ns = reg->ns;               /* Make a shortcut so that lk works */
+    p = text;
+    s = text_size;
+
+    if (verbose)
+        fprintf(stderr, "=== Start of NFA run ===\n");
+
+    /* Clear state tables */
+    clear_state_table(reg->state);
+    clear_state_table(reg->state_next);
+
+    /* Set start node */
+    reg->state[reg->nfa_start] = 1;
+
+    while (1) {
+        /*
+         * sol is initially inherited from the function call, as it is internally unknown
+         * if text is at the start of the greater context line. This is because
+         * this function will be called repetitively by an advancing wrapper.
+         */
+
+        /*
+         * Set end of line read status.
+         * Note that the character \n cannot match when in newline sensitive
+         * (not insensitive) mode, as the process will stop before it is read.
+         */
+        if (!s || (*p == '\n' && !reg->nl_ins))
+            eol = 1;
+
+        /*
+         * Move without reading a character from text. States are additive.
+         * Stop when no new states are being added.
+         */
+        while (1) {
+            for (i = 0; i < ns->i; ++i) {
+                if (reg->state[i]) {
+                    reg->state_next[i] = 1;     /* Accumulative */
+                    if (lk(i).link_type == EPSILON
+                        || lk(i).link_type == BOTH_EPSILON
+                        || (lk(i).link_type == SOL_READ_STATUS && sol)
+                        || (lk(i).link_type == EOL_READ_STATUS && eol))
+                        reg->state_next[lk(i).link0] = 1;
+
+                    if (lk(i).link_type == BOTH_EPSILON)
+                        reg->state_next[lk(i).link1] = 1;
+                }
+            }
+
+            diff = 0;
+
+            if (verbose) {
+                fprintf(stderr, "No read:\n");
+                print_state_tables;
+            }
+
+            /* Check if the states are the same */
+            for (i = 0; i < ns->i; ++i)
+                if (reg->state[i] != reg->state_next[i]) {
+                    diff = 1;
+                    break;
+                }
+
+            /* Stops infinite loops */
+            if (!diff)
+                break;
+
+            swap_state_tables;
+            clear_state_table(reg->state_next);
+        }
+
+        /* State tables are the same now */
+
+        check_for_winner;
+
+        if (eol)
+            goto report;
+
+        /* Read a char */
+        u = *p++;
+        --s;
+
+        /* Deactivate start of line read status after first read */
+        sol = 0;
+
+        if (verbose)
+            fprintf(stderr, "Read char: %c\n", u);
+
+        clear_state_table(reg->state_next);
+
+        /* Advance or be eliminated */
+        for (i = 0; i < ns->i; ++i)
+            if (reg->state[i])
+                if (lk(i).link_type == CHAR_SET && lk(i).char_set[u])
+                    reg->state_next[lk(i).link0] = 1;
+
+        if (verbose)
+            print_state_tables;
+
+        check_for_winner;
+
+        swap_state_tables;
+        clear_state_table(reg->state_next);
+    }
+
+  report:
+    /* End of text */
+    if (last_match == NULL)
+        return NULL;            /* No match */
+
+    *match_len = last_match - text;
+    return (char *) text;       /* Match */
+}
+
+#undef swap_state_tables
+#undef clear_state_table
+#undef check_for_winner
+#undef print_state_tables
+
+
+char *regex_search(const char *text, size_t text_size, int sol,
+                   struct regex *reg, size_t *match_len, int verbose)
+{
+    /* Advances */
+    const char *q;
+    size_t ts;
+    char *match = NULL;
+    size_t ml;                  /* Match length */
+
+    q = text;
+    ts = text_size;
+    while ((match = run_nfa(q, ts, sol, reg, &ml, verbose)) == NULL) {
+        if (!reg->nl_ins && *q == '\n')
+            sol = 1;
+        else
+            sol = 0;
+
+        if (!ts)
+            break;
+
+        ++q;
+        --ts;
+    }
+
+    if (verbose)
+        fprintf(stderr, "=== Search result ===\n");
+
+    if (match == NULL) {
+        if (verbose)
+            fprintf(stderr, "No match\n");
+
+        return NULL;
+    }
+
+    if (verbose) {
+        printf("match_offset: %lu\n", match - text);
+        printf("match_len: %lu\n", ml);
+    }
+
+    *match_len = ml;
+    return match;
+}
+
+
+int main(int argc, char **argv)
 {
     int ret;
-    char *regex_str = "abcdef";
+    char *regex_str = "^";
+    char *text;
+    int sol = 1;
+    int nl_ins = 0;             /* Default setting */
+    int verbose = 1;
     struct regex *reg = NULL;
+    char *res;
+    size_t match_len;
 
-    if ((ret = compile_regex(regex_str, &reg, 1)))
+    if (!(argc == 3 || (argc == 4 && !strcmp(*(argv + 3), "-nl_ins")))) {
+        fprintf(stderr, "Usage: %s text regex_str [-nl_ins]\n", *argv);
+        return 1;
+    }
+
+    if (argc == 4)
+        nl_ins = 1;
+
+    text = *(argv + 1);
+    regex_str = *(argv + 2);
+
+    if ((ret = compile_regex(regex_str, nl_ins, &reg, verbose)))
         return ret;
+
+    res = regex_search(text, strlen(text), sol, reg, &match_len, verbose);
+
+    if (res == NULL) {
+        printf("No match\n");
+    } else {
+        fwrite(res, 1, match_len, stdout);
+        putchar('\n');
+    }
 
     free_regex(reg);
 
