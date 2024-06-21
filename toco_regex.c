@@ -147,7 +147,9 @@ struct operand_stack {
 };
 
 struct regex {
-    int *esc_reg;
+    char *find_esc;
+    size_t find_esc_size;
+    int *find_eof;
     struct regex_item *ri;
     struct nfa_storage *ns;
     size_t nfa_start;
@@ -157,6 +159,11 @@ struct regex {
     unsigned char *state_next;
 };
 
+struct mem_buf {
+    char *a;
+    size_t i;
+    size_t s;
+};
 
 struct operator_detail op_detail[] = {
     { 4, '_', "(" },            /* LEFT_PAREN */
@@ -170,6 +177,8 @@ struct operator_detail op_detail[] = {
     { 0, 'L', "|" }             /* OR */
 };
 
+
+/* ********** Helper functions ********** */
 
 static struct regex_item *init_regex_item(void)
 {
@@ -345,23 +354,6 @@ static void free_operand_stack(struct operand_stack *z)
     }
 }
 
-static struct regex *init_regex(void)
-{
-    return calloc(1, sizeof(struct regex));
-}
-
-void free_regex(struct regex *reg)
-{
-    if (reg != NULL) {
-        free(reg->esc_reg);
-        free_regex_chain(reg->ri);
-        free_nfa_storage(reg->ns);
-        free(reg->state);
-        free(reg->state_next);
-        free(reg);
-    }
-}
-
 static int push_operand_stack(struct operand_stack *z, size_t nfa_start,
                               size_t nfa_end)
 {
@@ -406,18 +398,110 @@ static int pop_operand_stack(struct operand_stack *z, size_t *nfa_start,
     return 0;
 }
 
-static int interpret_escaped_chars(const char *regex, int **escaped_regex)
+static struct regex *init_regex(void)
 {
-    int ret = 0;
-    const unsigned char *p;
-    int *esc_reg = NULL, *q, ch, c, h1, h0;
-    size_t len = strlen(regex);
+    return calloc(1, sizeof(struct regex));
+}
 
-    if ((esc_reg = calloc(len + 1, sizeof(int))) == NULL)
+void free_regex(struct regex *reg)
+{
+    if (reg != NULL) {
+        free(reg->find_esc);
+        free(reg->find_eof);
+        free_regex_chain(reg->ri);
+        free_nfa_storage(reg->ns);
+        free(reg->state);
+        free(reg->state_next);
+        free(reg);
+    }
+}
+
+static struct mem_buf *init_mem_buf(size_t size)
+{
+    struct mem_buf *t = NULL;
+    if ((t = calloc(1, sizeof(struct mem_buf))) == NULL)
         mgoto(error);
 
-    p = (unsigned char *) regex;
-    q = esc_reg;
+    if ((t->a = calloc(size, 1)) == NULL)
+        mgoto(error);
+
+    t->s = size;
+
+    return t;
+
+  error:
+    if (t != NULL) {
+        free(t->a);
+        free(t);
+    }
+    return NULL;
+}
+
+static void free_mem_buf_exterior(struct mem_buf *b)
+{
+    free(b);
+}
+
+static void free_mem_buf_all(struct mem_buf *b)
+{
+    if (b != NULL) {
+        free(b->a);
+        free(b);
+    }
+}
+
+static int append_to_mem_buf(struct mem_buf *b, const char *append,
+                             size_t append_size)
+{
+    char *t;
+    size_t new_s;
+
+    if (append == NULL)
+        return ERR;
+
+    if (!append_size)
+        return 0;
+
+    if (append_size > b->s - b->i) {
+        /* Grow buffer */
+        if (b->i > SIZE_MAX - append_size)
+            return ERR;
+
+        new_s = b->i + append_size;
+
+        if (new_s > SIZE_MAX / 2)
+            return ERR;
+
+        new_s *= 2;
+
+        if ((t = realloc(b->a, new_s)) == NULL)
+            return ERR;
+
+        b->a = t;
+        b->s = new_s;
+    }
+
+    memcpy(b->a + b->i, append, append_size);
+    b->i += append_size;
+
+    return 0;
+}
+
+/* ********** Regex related functions ********** */
+
+static int interpret_escaped_chars(const char *input_str, char **output,
+                                   size_t *output_size)
+{
+    int ret = 0;
+    const char *p;
+    char *mem = NULL, *q, ch, c, h1, h0;
+    size_t len = strlen(input_str);
+
+    if ((mem = calloc(len + 1, 1)) == NULL)
+        mgoto(error);
+
+    p = input_str;
+    q = mem;
     while ((ch = *p++) != '\0') {
         if (ch == '\\')
             switch ((c = *p++)) {
@@ -463,8 +547,8 @@ static int interpret_escaped_chars(const char *regex, int **escaped_regex)
         } else
             *q++ = ch;
     }
-    *q = EOF;
-    *escaped_regex = esc_reg;
+    *output_size = q - mem;
+    *output = mem;
     return 0;
 
   error:
@@ -474,8 +558,37 @@ static int interpret_escaped_chars(const char *regex, int **escaped_regex)
     if (!ret)
         ret = SYNTAX_ERR;
 
-    free(esc_reg);
+    free(mem);
     return ret;
+}
+
+static int char_to_int_eof_term(const char *input, size_t input_size,
+                                int **output)
+{
+    /* EOF terminated */
+    int *imem = NULL;
+    const unsigned char *p;
+    size_t i;
+
+    p = (unsigned char *) input;
+
+    if (input_size == SIZE_MAX)
+        mgoto(error);
+
+    if ((imem = calloc(input_size + 1, sizeof(int))) == NULL)
+        mgoto(error);
+
+    for (i = 0; i < input_size; ++i)
+        imem[i] = p[i];
+
+    imem[input_size] = EOF;
+
+    *output = imem;
+    return 0;
+
+  error:
+    free(imem);
+    return ERR;
 }
 
 static void print_cs_ch(unsigned char u)
@@ -527,7 +640,7 @@ static void print_regex_chain(const struct regex_item *ri_head)
     }
 }
 
-static int create_regex_chain(const int *escaped_regex,
+static int create_regex_chain(const int *find_eof,
                               struct regex_item **ri_head, int nl_ins)
 {
     int ret = 0;
@@ -537,12 +650,12 @@ static int create_regex_chain(const int *escaped_regex,
     struct regex_item *head = NULL, *prev = NULL;
     int negate_set, first_ch_in_set;
 
-    p = escaped_regex;
+    p = find_eof;
     while ((x = *p++) != EOF) {
         if ((t = init_regex_item()) == NULL)
             mgoto(error);
 
-        if (p == escaped_regex + 1) {
+        if (p == find_eof + 1) {
             /* First node */
             ri = t;
             head = ri;
@@ -1071,10 +1184,17 @@ int compile_regex(const char *regex_str, int nl_ins,
 
     reg->nl_ins = nl_ins;
 
-    if ((ret = interpret_escaped_chars(regex_str, &reg->esc_reg)))
+    if ((ret =
+         interpret_escaped_chars(regex_str, &reg->find_esc,
+                                 &reg->find_esc_size)))
         mgoto(error);
 
-    if ((ret = create_regex_chain(reg->esc_reg, &reg->ri, reg->nl_ins)))
+    if ((ret =
+         char_to_int_eof_term(reg->find_esc, reg->find_esc_size,
+                              &reg->find_eof)))
+        mgoto(error);
+
+    if ((ret = create_regex_chain(reg->find_eof, &reg->ri, reg->nl_ins)))
         mgoto(error);
 
     if (verbose)
@@ -1314,8 +1434,8 @@ char *regex_search(const char *text, size_t text_size, int sol,
     }
 
     if (verbose) {
-        printf("match_offset: %lu\n", match - text);
-        printf("match_len: %lu\n", ml);
+        fprintf(stderr, "match_offset: %lu\n", match - text);
+        fprintf(stderr, "match_len: %lu\n", ml);
     }
 
     *match_len = ml;
@@ -1323,42 +1443,155 @@ char *regex_search(const char *text, size_t text_size, int sol,
 }
 
 
-int main(int argc, char **argv)
+int regex_replace(const char *text, size_t text_size,
+                  const char *regex_str, int nl_ins,
+                  const char *replace_str, char **result,
+                  size_t *result_len, int verbose)
 {
-    int ret;
-    char *regex_str = "^";
-    char *text;
-    int sol = 1;
-    int nl_ins = 0;             /* Default setting */
-    int verbose = 1;
+    /*
+     * Repeated search and replace. The result is \0 terminated and the length
+     * is provide in result_len (excluding the final added \0 char).
+     * However, the result might have embedded \0 chars.
+     */
+    int ret = ERR;
     struct regex *reg = NULL;
-    char *res;
-    size_t match_len;
+    char *replace_esc = NULL;
+    size_t replace_esc_size;
+    struct mem_buf *output;
 
-    if (!(argc == 3 || (argc == 4 && !strcmp(*(argv + 3), "-nl_ins")))) {
-        fprintf(stderr, "Usage: %s text regex_str [-nl_ins]\n", *argv);
-        return 1;
+    int sol;
+    const char *q;
+    const char *q_stop;         /* Exclusive */
+    char *m, *m_last_end;
+    size_t ml;
+
+    if (text == NULL) {
+        ret = USAGE_ERR;
+        mgoto(clean_up);
     }
-
-    if (argc == 4)
-        nl_ins = 1;
-
-    text = *(argv + 1);
-    regex_str = *(argv + 2);
 
     if ((ret = compile_regex(regex_str, nl_ins, &reg, verbose)))
-        return ret;
+        mgoto(clean_up);
 
-    res = regex_search(text, strlen(text), sol, reg, &match_len, verbose);
+    if ((ret =
+         interpret_escaped_chars(replace_str, &replace_esc,
+                                 &replace_esc_size)))
+        mgoto(clean_up);
 
-    if (res == NULL) {
-        printf("No match\n");
-    } else {
-        fwrite(res, 1, match_len, stdout);
-        putchar('\n');
+    if (text_size > SIZE_MAX / 2)
+        mgoto(clean_up);
+
+    if ((output = init_mem_buf(text_size * 2)) == NULL)
+        mgoto(clean_up);
+
+    /* Do not run NFA if there is no input text */
+    if (!text_size)
+        goto finish;
+
+    q = text;
+    q_stop = q + text_size;
+    sol = 1;
+    m_last_end = NULL;
+    while (1) {
+        /* Recheck start of line read status */
+        if (q != text && *(q - 1) == '\n' && !nl_ins) {
+            sol = 1;
+            m_last_end = NULL;
+        }
+
+        m = regex_search(q, q_stop - q, sol, reg, &ml, verbose);
+
+        if (m == NULL) {
+            /* Print rest of text */
+            if (append_to_mem_buf(output, q, q_stop - q))
+                mgoto(clean_up);
+
+            break;
+        }
+
+        /* Print text before match */
+        if (append_to_mem_buf(output, q, m - q))
+            mgoto(clean_up);
+
+        /* Print replacement text */
+        if (!(!ml && m == m_last_end)
+            && append_to_mem_buf(output, replace_esc, replace_esc_size))
+            mgoto(clean_up);
+
+        /* Stop after running on the zero length input */
+        if (q == q_stop)
+            break;
+
+        /* Advance */
+        if (ml) {
+            q = m + ml;
+        } else {
+            if (m == q_stop)
+                break;
+
+            /* Jump forward a char, but pass it through */
+            if (append_to_mem_buf(output, m, 1))
+                mgoto(clean_up);
+
+            q = m + 1;
+        }
+
+        sol = 0;
+        m_last_end = m + ml;
     }
 
+
+  finish:
+
+    /* Terminate */
+    if (append_to_mem_buf(output, "\0", 1))
+        mgoto(clean_up);
+
+    ret = 0;
+    *result = output->a;
+    *result_len = output->i - 1;
+
+  clean_up:
     free_regex(reg);
+    free(replace_esc);
+
+    if (ret)
+        free_mem_buf_all(output);
+    else
+        free_mem_buf_exterior(output);
+
+    return ret;
+}
+
+
+int main(int argc, char **argv)
+{
+    int ret = ERR;
+    int nl_ins = 0;             /* Default setting */
+    int verbose = 1;
+    char *result = NULL;
+    size_t result_len;
+
+    if (!(argc == 4 || (argc == 5 && !strcmp(*(argv + 4), "-nl_ins")))) {
+        fprintf(stderr, "Usage: %s text find replace [-nl_ins]\n", *argv);
+        mgoto(clean_up);
+    }
+
+    if (argc == 5)
+        nl_ins = 1;
+
+    if ((ret = regex_replace
+         (*(argv + 1), strlen(*(argv + 1)), *(argv + 2),
+          nl_ins, *(argv + 3), &result, &result_len, verbose)))
+        mgoto(clean_up);
+
+    if (fwrite(result, 1, result_len, stdout) != result_len)
+        mgoto(clean_up);
+
+    ret = 0;
+
+  clean_up:
+    free(result);
 
     return 0;
 }
