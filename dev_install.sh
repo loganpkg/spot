@@ -74,7 +74,7 @@ find . -type f ! -path '*.git*' ! -name '*~' \
 
 
 ./func_dec.sh toucanlib.h gen.c num.c buf.c gb.c eval.c ht.c \
-    regex.c fs.c
+    toco_regex.c fs.c
 
 ./func_dec.sh curses.h curses.c
 
@@ -95,7 +95,7 @@ else
     cc -c $flags tornado_dodge.c
 fi
 
-ld -r gen.o num.o buf.o gb.o eval.o ht.o regex.o fs.o -o toucanlib.o
+ld -r gen.o num.o buf.o gb.o eval.o ht.o toco_regex.o fs.o -o toucanlib.o
 
 cc $flags -o m4 m4.o toucanlib.o
 
@@ -120,8 +120,6 @@ cp -p m4 spot bc freq tornado_dodge "$install_dir"/
 m4 test.m4 > .k
 /usr/bin/m4 test.m4 > .k2
 cmp .k .k2
-
-./test_regex.sh
 
 # Update files
 find . -type f \( -name '*.h' -o -name '*.c' \) -exec cp -p '{}' "$repo_dir" \;

@@ -35,11 +35,11 @@ buf.o: toucanlib.h
 gb.o: toucanlib.h
 eval.o: toucanlib.h
 ht.o: toucanlib.h
-regex.o: toucanlib.h
 fs.o: toucanlib.h
+toco_regex.o:
 
-toucanlib.o: gen.o num.o buf.o gb.o eval.o ht.o regex.o fs.o
-	ld -r gen.o num.o buf.o gb.o eval.o ht.o regex.o fs.o \
+toucanlib.o: gen.o num.o buf.o gb.o eval.o ht.o toco_regex.o fs.o
+	ld -r gen.o num.o buf.o gb.o eval.o ht.o toco_regex.o fs.o \
 		-o toucanlib.o
 
 spot: spot.c curses.o toucanlib.o

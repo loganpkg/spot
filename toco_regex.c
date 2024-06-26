@@ -49,6 +49,7 @@
 
 
 #define ERR 1
+#define NO_MATCH 2
 #define SYNTAX_ERR 3
 #define USAGE_ERR 6
 
@@ -403,7 +404,7 @@ static struct regex *init_regex(void)
     return calloc(1, sizeof(struct regex));
 }
 
-void free_regex(struct regex *reg)
+static void free_regex(struct regex *reg)
 {
     if (reg != NULL) {
         free(reg->find_esc);
@@ -646,7 +647,7 @@ static int create_regex_chain(const int *find_eof,
     int ret = 0;
     const int *p;
     int x, y, i;
-    struct regex_item *t, *ri;
+    struct regex_item *t, *ri = NULL;
     struct regex_item *head = NULL, *prev = NULL;
     int negate_set, first_ch_in_set;
 
@@ -885,9 +886,9 @@ static void shunting_yard(struct regex_item **ri_head)
 #undef pop_operator_to_output
 
 
-int thompsons_construction(const struct regex_item *ri_head,
-                           struct nfa_storage **nfa_store,
-                           size_t *nfa_start, size_t *nfa_end)
+static int thompsons_construction(const struct regex_item *ri_head,
+                                  struct nfa_storage **nfa_store,
+                                  size_t *nfa_start, size_t *nfa_end)
 {
     int ret = 0;
     struct nfa_storage *ns = NULL;
@@ -1140,7 +1141,7 @@ int thompsons_construction(const struct regex_item *ri_head,
     return ret;
 }
 
-void print_nfa(struct nfa_storage *ns)
+static void print_nfa(struct nfa_storage *ns)
 {
     size_t i;
     for (i = 0; i < ns->i; ++i) {
@@ -1170,8 +1171,8 @@ void print_nfa(struct nfa_storage *ns)
     }
 }
 
-int compile_regex(const char *regex_str, int nl_ins,
-                  struct regex **regex_st, int verbose)
+static int compile_regex(const char *regex_str, int nl_ins,
+                         struct regex **regex_st, int verbose)
 {
     int ret = ERR;
     struct regex *reg = NULL;
@@ -1269,8 +1270,8 @@ int compile_regex(const char *regex_str, int nl_ins,
         reg->state[i], reg->state_next[i])
 
 
-char *run_nfa(const char *text, size_t text_size, int sol,
-              struct regex *reg, size_t *match_len, int verbose)
+static char *run_nfa(const char *text, size_t text_size, int sol,
+                     struct regex *reg, size_t *match_len, int verbose)
 {
     /* Does not advance */
     struct nfa_storage *ns;
@@ -1399,8 +1400,9 @@ char *run_nfa(const char *text, size_t text_size, int sol,
 #undef print_state_tables
 
 
-char *regex_search(const char *text, size_t text_size, int sol,
-                   struct regex *reg, size_t *match_len, int verbose)
+static char *internal_regex_search(const char *text, size_t text_size,
+                                   int sol, struct regex *reg,
+                                   size_t *match_len, int verbose)
 {
     /* Advances */
     const char *q;
@@ -1442,6 +1444,40 @@ char *regex_search(const char *text, size_t text_size, int sol,
     return match;
 }
 
+int regex_search(const char *text, size_t text_size, int sol,
+                 const char *regex_str, int nl_ins, size_t *match_offset,
+                 size_t *match_len, int verbose)
+{
+    int ret = ERR;
+    struct regex *reg = NULL;
+    char *m;
+    size_t ml;
+
+    if (text == NULL) {
+        ret = USAGE_ERR;
+        mgoto(clean_up);
+    }
+
+    if ((ret = compile_regex(regex_str, nl_ins, &reg, verbose)))
+        mgoto(clean_up);
+
+    m = internal_regex_search(text, text_size, sol, reg, &ml, verbose);
+
+    if (m == NULL) {
+        ret = NO_MATCH;
+        mgoto(clean_up);
+    }
+
+    *match_offset = m - text;
+    *match_len = ml;
+
+    ret = 0;
+
+  clean_up:
+    free_regex(reg);
+
+    return ret;
+}
 
 int regex_replace(const char *text, size_t text_size,
                   const char *regex_str, int nl_ins,
@@ -1457,7 +1493,7 @@ int regex_replace(const char *text, size_t text_size,
     struct regex *reg = NULL;
     char *replace_esc = NULL;
     size_t replace_esc_size;
-    struct mem_buf *output;
+    struct mem_buf *output = NULL;
 
     int sol;
     const char *q;
@@ -1499,7 +1535,7 @@ int regex_replace(const char *text, size_t text_size,
             m_last_end = NULL;
         }
 
-        m = regex_search(q, q_stop - q, sol, reg, &ml, verbose);
+        m = internal_regex_search(q, q_stop - q, sol, reg, &ml, verbose);
 
         if (m == NULL) {
             /* Print rest of text */
@@ -1561,37 +1597,4 @@ int regex_replace(const char *text, size_t text_size,
         free_mem_buf_exterior(output);
 
     return ret;
-}
-
-
-int main(int argc, char **argv)
-{
-    int ret = ERR;
-    int nl_ins = 0;             /* Default setting */
-    int verbose = 1;
-    char *result = NULL;
-    size_t result_len;
-
-    if (!(argc == 4 || (argc == 5 && !strcmp(*(argv + 4), "-nl_ins")))) {
-        fprintf(stderr, "Usage: %s text find replace [-nl_ins]\n", *argv);
-        mgoto(clean_up);
-    }
-
-    if (argc == 5)
-        nl_ins = 1;
-
-    if ((ret = regex_replace
-         (*(argv + 1), strlen(*(argv + 1)), *(argv + 2),
-          nl_ins, *(argv + 3), &result, &result_len, verbose)))
-        mgoto(clean_up);
-
-    if (fwrite(result, 1, result_len, stdout) != result_len)
-        mgoto(clean_up);
-
-    ret = 0;
-
-  clean_up:
-    free(result);
-
-    return 0;
 }

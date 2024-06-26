@@ -1246,9 +1246,10 @@ int econc(m4_, NM) (void *v) {
     if (!strcmp(arg(5), "1"))
         verbose = 1;
 
-    if ((ret = regex_replace(arg(1), strlen(arg(1)), arg(2),
-                             arg(3), strlen(arg(3)), nl_insen, &res,
-                             &res_len, verbose)))
+    if ((ret = regex_replace(arg(1),
+                             strlen(arg(1)),
+                             arg(2),
+                             nl_insen, arg(3), &res, &res_len, verbose)))
         return ret;
 
     if (unget_str(m4->input, res)) {
