@@ -34,9 +34,6 @@ The applications are:
 * [bc](#bc): A basic calculator, and
 * [freq](#freq): Determines the character frequency in a file.
 
-spot and m4 utilise the built-in regular expression module in toucanlib which
-understands the [regex syntax](#regex-syntax) listed in a later section.
-
 toucanlib has a monolithic interface to make usage easy, but multiple modules
 to make maintenance easy. Currently, the modules include:
 * gen: Generic functions,
@@ -45,7 +42,6 @@ to make maintenance easy. Currently, the modules include:
 * gb: Gap buffers,
 * eval: Evaluate arithmetic expression,
 * ht: Hash table,
-* regex: Regular expression,
 * curses: Curses (terminal graphics), and
 * fs: File system related functions.
 
@@ -697,8 +693,6 @@ then newline insensitive matching occurs.
 If verbose is 1, then the posfix form of the expression and the
 nondeterministic finite automaton (NFA) structure are printed to `stderr`.
 
-See the [regex syntax](#regex-syntax) for more details.
-
 ```m4
 sysval
 ```
@@ -822,58 +816,6 @@ Usage:
 freq file
 ```
 
-
-Regex syntax
-============
-
-Regular expression syntax:
-* Special escaped characters (interpreted in all contexts):
-    - `\t` Tab.
-    - `\n` Line feed.
-    - `\r` Carriage return.
-    - `\0` Null character.
-    - `\xAA` Two digit hex value.
-* Non-special escape characters. Interpretation is deactivated inside
-  character sets:
-    - `\c` Any other character, `c`, is interpreted literally.
-* `[^a-b]` Character set.
-* `(` and `)` Grouping.
-* Anchors. These work line-wise when in newline sensitive mode, otherwise they
-  work at the entire text level (uninfluenced by embedded '\n' characters):
-    - `^` Start of line.
-    - `$` End of line.
-* Repetition operators:
-    - `*` Zero or more.
-    - `+` One or more.
-    - `?` Zero or one.
-* `|` Alternate.
-* `.` Any character, except `\n` when in newline sensitive mode.
-
-Escaped Characters
-------------------
-
-All escaped characters work in both the *find* and *replace* components of a
-regular expression replacement operation. Typically, escape sequences are
-deactivated inside character sets, with the exception of the *special* escaped
-characters mentioned above.
-
-For example, `[\x41-\x5A]` will be the character set containing characters
-`A` to `Z`, inclusively. Whereas, `[\*]` will be the character set containing
-the characters `\` and `*`.
-
-Character sets
---------------
-
-* Most characters are treated literally inside a character set
-  (see the escaped character rules above).
-* `^` immediately after the opening `[` negates the set and is *not considered
-  as a character*.
-* `-` _between_ *characters* creates an inclusive range.
-* Characters sets cannot be empty.
-* The first *character* is always treated literally, so `[^]]` is
-  the set of all characters except for `]`.
-* As an example, `[][^\%-]` is the set containing the characters;
-  `]`, `[`, `^`, `\`, `%`, and `-`.
 
 Enjoy,
 Logan =)_
