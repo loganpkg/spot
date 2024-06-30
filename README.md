@@ -816,6 +816,28 @@ Usage:
 freq file
 ```
 
+toco_regex
+==========
+
+toco_regex is the built-in regular expression engine.
+
+Special escape sequences are processed first. This occurs on the find and the
+replace strings as a preprocessing step (before any regex content is
+interpreted). These consist of a subset of the C escape sequences, most notably
+the octal escape sequences are omitted. The recognised escape sequences are:
+
+* `\0`
+* `\a`
+* `\b`
+* `\t`
+* `\n`
+* `\v`
+* `\f`
+* `\r`
+* `\xBE`
+
+Where `BE` can be any two hexadecimal digits.
+
 
 Enjoy,
 Logan =)_

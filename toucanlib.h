@@ -120,9 +120,15 @@
     return (rv);                                                        \
 } while (0)
 
-#define mgoto(lb) do {                                                  \
-    fprintf(stderr, "[%s:%d]: Error: " #lb "\n", __FILE__, __LINE__);   \
-    goto lb;                                                            \
+#define mgoto(lab) do {                                                 \
+    fprintf(stderr, "[%s:%d]: Error: " #lab "\n", __FILE__, __LINE__);  \
+    goto lab;                                                           \
+} while (0)
+
+#define d_mgoto(lab, ...) do {                                      \
+    fprintf(stderr, "[%s: %d]: " #lab ": ", __FILE__, __LINE__);    \
+    fprintf(stderr, __VA_ARGS__);                                   \
+    goto lab;                                                       \
 } while (0)
 
 
@@ -231,6 +237,12 @@
 /* Unsigned multiplication overflow test */
 #define mof(a, b, max_val) ((a) && (b) > (max_val) / (a))
 
+
+/* Inputs need to be isxdigit */
+#define hex_nibble(h) (((h) & 0x0F) + ((h) & 0x40 ? 9 : 0))
+#define hex(h1, h0) (hex_nibble(h1) << 4 | hex_nibble(h0))
+
+
 #define start_of_gb(b) while (!left_ch(b))
 #define end_of_gb(b) while (!right_ch(b))
 
@@ -338,7 +350,7 @@ int tty_check(FILE * stream, int *is_tty);
 int str_to_num(const char *str, unsigned long max_val, unsigned long *res);
 int str_to_size_t(const char *str, size_t *res);
 int str_to_uint(const char *str, unsigned int *res);
-int hex_to_val(unsigned char h[2], unsigned char *res);
+int hex_to_val(unsigned char h1, unsigned char h0, unsigned char *res);
 int lop(long *a, long b, unsigned char op);
 int lpow(long *a, long b);
 char *ltostr(long a, unsigned int base, unsigned int pad);

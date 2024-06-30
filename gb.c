@@ -439,19 +439,15 @@ int goto_row(struct gb *b, struct gb *cl)
 int insert_hex(struct gb *b, struct gb *cl)
 {
     const unsigned char *str;
-    unsigned char ch[2], x;
+    unsigned char h1, h0, x;
 
     start_of_gb(cl);
     str = cl->a + cl->c;
-    while ((ch[0] = *str) != '\0') {
-        ++str;
-
-        if ((ch[1] = *str) == '\0')
+    while ((h1 = *str++) != '\0') {
+        if ((h0 = *str++) == '\0')
             return ERR;
 
-        ++str;
-
-        if (hex_to_val(ch, &x))
+        if (hex_to_val(h1, h0, &x))
             return ERR;
 
         if (insert_ch(b, x))

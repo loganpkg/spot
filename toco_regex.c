@@ -36,39 +36,11 @@
  *                                      John 13:34-35 GNT
  */
 
-#include <ctype.h>
-#include <limits.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 
+#include "toucanlib.h"
 
 #define INIT_NUM_NODES 100
 #define INIT_OPERAND_STACK_NUM 100
-
-
-#define ERR 1
-#define NO_MATCH 2
-#define SYNTAX_ERR 3
-#define USAGE_ERR 6
-
-
-#define mgoto(lab) do {                                             \
-    fprintf(stderr, "[%s: %d]: " #lab "\n", __FILE__, __LINE__);    \
-    goto lab;                                                       \
-} while (0)
-
-#define d_mgoto(lab, ...) do {                                      \
-    fprintf(stderr, "[%s: %d]: " #lab ": ", __FILE__, __LINE__);    \
-    fprintf(stderr, __VA_ARGS__);                                   \
-    goto lab;                                                       \
-} while (0)
-
-
-/* Inputs need to be isxdigit */
-#define hex_nibble(h) (((h) & 0x0F) + ((h) & 0x40 ? 9 : 0))
-#define hex(h1, h0) (hex_nibble(h1) << 4 | hex_nibble(h0))
 
 
 /* Lookup in storage */
@@ -861,8 +833,8 @@ static void shunting_yard(struct regex_item **ri_head)
                         && op_detail[operator_stack->operator].precedence <
                         op_detail[ri->operator].precedence)
                     || (op_detail[ri->operator].associativity == 'R'
-                        && op_detail[operator_stack->operator].
-                        precedence <=
+                        && op_detail[operator_stack->
+                                     operator].precedence <=
                         op_detail[ri->operator].precedence)) {
                     break;
                 } else {

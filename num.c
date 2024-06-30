@@ -55,12 +55,7 @@ int str_to_num(const char *str, unsigned long max_val, unsigned long *res)
 
             x *= base;
 
-            if (isdigit(ch))
-                n = ch - '0';
-            else if (islower(ch))
-                n = 10 + ch - 'a';
-            else
-                n = 10 + ch - 'A';
+            n = hex_nibble(ch);
 
             if (aof(x, n, max_val))
                 mreturn(ERR);
@@ -104,27 +99,13 @@ int str_to_uint(const char *str, unsigned int *res)
     return 0;
 }
 
-int hex_to_val(unsigned char h[2], unsigned char *res)
+int hex_to_val(unsigned char h1, unsigned char h0, unsigned char *res)
 {
-    unsigned char x;
-    size_t i;
+    if (!isxdigit(h1) || !isxdigit(h0))
+        mreturn(ERR);
 
-    x = 0;
-    for (i = 0; i < 2; ++i) {
-        if (i)
-            x *= 16;
+    *res = hex(h1, h0);
 
-        if (!isxdigit(h[i]))
-            mreturn(ERR);
-
-        if (isdigit(h[i]))
-            x += h[i] - '0';
-        else if (islower(h[i]))
-            x += h[i] - 'a' + 10;
-        else if (isupper(h[i]))
-            x += h[i] - 'A' + 10;
-    }
-    *res = x;
     return 0;
 }
 
