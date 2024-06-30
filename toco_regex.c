@@ -132,12 +132,6 @@ struct regex {
     unsigned char *state_next;
 };
 
-struct mem_buf {
-    char *a;
-    size_t i;
-    size_t s;
-};
-
 struct operator_detail op_detail[] = {
     { 4, '_', "(" },            /* LEFT_PAREN */
     { 4, '_', ")" },            /* RIGHT_PAREN */
@@ -389,76 +383,6 @@ static void free_regex(struct regex *reg)
     }
 }
 
-static struct mem_buf *init_mem_buf(size_t size)
-{
-    struct mem_buf *t = NULL;
-    if ((t = calloc(1, sizeof(struct mem_buf))) == NULL)
-        mgoto(error);
-
-    if ((t->a = calloc(size, 1)) == NULL)
-        mgoto(error);
-
-    t->s = size;
-
-    return t;
-
-  error:
-    if (t != NULL) {
-        free(t->a);
-        free(t);
-    }
-    return NULL;
-}
-
-static void free_mem_buf_exterior(struct mem_buf *b)
-{
-    free(b);
-}
-
-static void free_mem_buf_all(struct mem_buf *b)
-{
-    if (b != NULL) {
-        free(b->a);
-        free(b);
-    }
-}
-
-static int append_to_mem_buf(struct mem_buf *b, const char *append,
-                             size_t append_size)
-{
-    char *t;
-    size_t new_s;
-
-    if (append == NULL)
-        return ERR;
-
-    if (!append_size)
-        return 0;
-
-    if (append_size > b->s - b->i) {
-        /* Grow buffer */
-        if (b->i > SIZE_MAX - append_size)
-            return ERR;
-
-        new_s = b->i + append_size;
-
-        if (new_s > SIZE_MAX / 2)
-            return ERR;
-
-        new_s *= 2;
-
-        if ((t = realloc(b->a, new_s)) == NULL)
-            return ERR;
-
-        b->a = t;
-        b->s = new_s;
-    }
-
-    memcpy(b->a + b->i, append, append_size);
-    b->i += append_size;
-
-    return 0;
-}
 
 /* ********** Regex related functions ********** */
 
@@ -1465,7 +1389,7 @@ int regex_replace(const char *text, size_t text_size,
     struct regex *reg = NULL;
     char *replace_esc = NULL;
     size_t replace_esc_size;
-    struct mem_buf *output = NULL;
+    struct obuf *output = NULL;
 
     int sol;
     const char *q;
@@ -1489,7 +1413,7 @@ int regex_replace(const char *text, size_t text_size,
     if (text_size > SIZE_MAX / 2)
         mgoto(clean_up);
 
-    if ((output = init_mem_buf(text_size * 2)) == NULL)
+    if ((output = init_obuf(text_size * 2)) == NULL)
         mgoto(clean_up);
 
     /* Do not run NFA if there is no input text */
@@ -1511,19 +1435,19 @@ int regex_replace(const char *text, size_t text_size,
 
         if (m == NULL) {
             /* Print rest of text */
-            if (append_to_mem_buf(output, q, q_stop - q))
+            if (put_mem(output, q, q_stop - q))
                 mgoto(clean_up);
 
             break;
         }
 
         /* Print text before match */
-        if (append_to_mem_buf(output, q, m - q))
+        if (put_mem(output, q, m - q))
             mgoto(clean_up);
 
         /* Print replacement text */
         if (!(!ml && m == m_last_end)
-            && append_to_mem_buf(output, replace_esc, replace_esc_size))
+            && put_mem(output, replace_esc, replace_esc_size))
             mgoto(clean_up);
 
         /* Stop after running on the zero length input */
@@ -1538,7 +1462,7 @@ int regex_replace(const char *text, size_t text_size,
                 break;
 
             /* Jump forward a char, but pass it through */
-            if (append_to_mem_buf(output, m, 1))
+            if (put_mem(output, m, 1))
                 mgoto(clean_up);
 
             q = m + 1;
@@ -1552,7 +1476,7 @@ int regex_replace(const char *text, size_t text_size,
   finish:
 
     /* Terminate */
-    if (append_to_mem_buf(output, "\0", 1))
+    if (put_ch(output, '\0'))
         mgoto(clean_up);
 
     ret = 0;
@@ -1564,9 +1488,9 @@ int regex_replace(const char *text, size_t text_size,
     free(replace_esc);
 
     if (ret)
-        free_mem_buf_all(output);
+        free_obuf(output);
     else
-        free_mem_buf_exterior(output);
+        free_obuf_exterior(output);
 
     return ret;
 }

@@ -22,6 +22,8 @@
 #define INIT_BUF_SIZE 512
 
 
+/* ###################################################################### */
+
 struct ibuf *init_ibuf(size_t n)
 {
     struct ibuf *b = NULL;
@@ -86,282 +88,14 @@ static int grow_ibuf(struct ibuf *b, size_t will_use)
     return 0;
 }
 
-int add_i(struct ibuf *b, char x)
+int unget_ch(struct ibuf *b, char ch)
 {
     if (b->i == b->n && grow_ibuf(b, 1))
         mreturn(ERR);
 
-    *(b->a + b->i) = x;
+    *(b->a + b->i) = ch;
     ++b->i;
     return 0;
-}
-
-struct obuf *init_obuf(size_t n)
-{
-    struct obuf *b = NULL;
-
-    if ((b = calloc(1, sizeof(struct obuf))) == NULL)
-        mgoto(error);
-
-    if ((b->a = calloc(n, 1)) == NULL)
-        mgoto(error);
-
-    b->i = 0;
-    b->n = n;
-    return b;
-
-  error:
-    free_obuf(b);
-    return NULL;
-}
-
-void free_obuf(struct obuf *b)
-{
-    if (b != NULL) {
-        free(b->a);
-        free(b);
-    }
-}
-
-static int grow_obuf(struct obuf *b, size_t will_use)
-{
-    char *t;
-    size_t new_n;
-
-    if (aof(b->n, will_use, SIZE_MAX))
-        mreturn(ERR);
-
-    new_n = b->n + will_use;
-
-    if (mof(new_n, 2, SIZE_MAX))
-        mreturn(ERR);
-
-    new_n *= 2;
-
-    if ((t = realloc(b->a, new_n)) == NULL)
-        mreturn(ERR);
-
-    b->a = t;
-    b->n = new_n;
-    return 0;
-}
-
-int add_o(struct obuf *b, char x)
-{
-    if (b->i == b->n && grow_obuf(b, 1))
-        mreturn(ERR);
-
-    *(b->a + b->i) = x;
-    ++b->i;
-    return 0;
-}
-
-struct lbuf *init_lbuf(size_t n)
-{
-    struct lbuf *b = NULL;
-
-    if ((b = calloc(1, sizeof(struct lbuf))) == NULL)
-        mgoto(error);
-
-    if (mof(n, sizeof(long), SIZE_MAX))
-        mgoto(error);
-
-    if ((b->a = calloc(n, sizeof(long))) == NULL)
-        mgoto(error);
-
-    b->i = 0;
-    b->n = n;
-    return b;
-
-  error:
-    free_lbuf(b);
-    return NULL;
-}
-
-void free_lbuf(struct lbuf *b)
-{
-    if (b != NULL) {
-        free(b->a);
-        free(b);
-    }
-}
-
-static int grow_lbuf(struct lbuf *b, size_t will_use)
-{
-    long *t;
-    size_t new_n;
-
-    if (aof(b->n, will_use, SIZE_MAX))
-        mreturn(ERR);
-
-    new_n = b->n + will_use;
-
-    if (mof(new_n, 2, SIZE_MAX))
-        mreturn(ERR);
-
-    new_n *= 2;
-
-    if (mof(new_n, sizeof(long), SIZE_MAX))
-        mreturn(ERR);
-
-    if ((t = realloc(b->a, new_n * sizeof(long))) == NULL)
-        mreturn(ERR);
-
-    b->a = t;
-    b->n = new_n;
-    return 0;
-}
-
-int add_l(struct lbuf *b, long x)
-{
-    if (b->i == b->n && grow_lbuf(b, 1))
-        mreturn(ERR);
-
-    *(b->a + b->i) = x;
-    ++b->i;
-    return 0;
-}
-
-struct sbuf *init_sbuf(size_t n)
-{
-    struct sbuf *b = NULL;
-
-    if ((b = calloc(1, sizeof(struct sbuf))) == NULL)
-        mgoto(error);
-
-    if (mof(n, sizeof(size_t), SIZE_MAX))
-        mgoto(error);
-
-    if ((b->a = calloc(n, sizeof(size_t))) == NULL)
-        mgoto(error);
-
-    b->i = 0;
-    b->n = n;
-    return b;
-
-  error:
-    free_sbuf(b);
-    return NULL;
-}
-
-void free_sbuf(struct sbuf *b)
-{
-    if (b != NULL) {
-        free(b->a);
-        free(b);
-    }
-}
-
-static int grow_sbuf(struct sbuf *b, size_t will_use)
-{
-    size_t *t;
-    size_t new_n;
-
-    if (aof(b->n, will_use, SIZE_MAX))
-        mreturn(ERR);
-
-    new_n = b->n + will_use;
-
-    if (mof(new_n, 2, SIZE_MAX))
-        mreturn(ERR);
-
-    new_n *= 2;
-
-    if (mof(new_n, sizeof(size_t), SIZE_MAX))
-        mreturn(ERR);
-
-    if ((t = realloc(b->a, new_n * sizeof(size_t))) == NULL)
-        mreturn(ERR);
-
-    b->a = t;
-    b->n = new_n;
-    return 0;
-}
-
-int add_s(struct sbuf *b, size_t x)
-{
-    if (b->i == b->n && grow_sbuf(b, 1))
-        mreturn(ERR);
-
-    *(b->a + b->i) = x;
-    ++b->i;
-    return 0;
-}
-
-struct pbuf *init_pbuf(size_t n)
-{
-    struct pbuf *b = NULL;
-
-    if ((b = calloc(1, sizeof(struct pbuf))) == NULL)
-        mgoto(error);
-
-    if (mof(n, sizeof(void *), SIZE_MAX))
-        mgoto(error);
-
-    if ((b->a = calloc(n, sizeof(void *))) == NULL)
-        mgoto(error);
-
-    b->i = 0;
-    b->n = n;
-    return b;
-
-  error:
-    free_pbuf(b);
-    return NULL;
-}
-
-void free_pbuf(struct pbuf *b)
-{
-    if (b != NULL) {
-        free(b->a);
-        free(b);
-    }
-}
-
-static int grow_pbuf(struct pbuf *b, size_t will_use)
-{
-    void **t;
-    size_t new_n;
-
-    if (aof(b->n, will_use, SIZE_MAX))
-        mreturn(ERR);
-
-    new_n = b->n + will_use;
-
-    if (mof(new_n, 2, SIZE_MAX))
-        mreturn(ERR);
-
-    new_n *= 2;
-
-    if (mof(new_n, sizeof(void *), SIZE_MAX))
-        mreturn(ERR);
-
-    if ((t = realloc(b->a, new_n * sizeof(void *))) == NULL)
-        mreturn(ERR);
-
-    b->a = t;
-    b->n = new_n;
-    return 0;
-}
-
-int add_p(struct pbuf *b, void *x)
-{
-    if (b->i == b->n && grow_pbuf(b, 1))
-        mreturn(ERR);
-
-    *(b->a + b->i) = x;
-    ++b->i;
-    return 0;
-}
-
-int unget_ch(struct ibuf *b, char ch)
-{
-    return add_i(b, ch);
-}
-
-int put_ch(struct obuf *b, char ch)
-{
-    return add_o(b, ch);
 }
 
 int unget_str(struct ibuf *b, const char *str)
@@ -535,6 +269,47 @@ int get_ch(struct ibuf **input, char *ch)
     return EOF;
 }
 
+int eat_whitespace(struct ibuf **input)
+{
+    int r;
+    char ch;
+
+    while (1) {
+        r = get_ch(input, &ch);
+        if (r == ERR)
+            mreturn(ERR);
+        else if (r == EOF)
+            break;
+
+        if (!(isspace(ch) || ch == '\0')) {
+            if (unget_ch(*input, ch))
+                mreturn(ERR);
+
+            break;
+        }
+    }
+    return 0;
+}
+
+int delete_to_nl(struct ibuf **input)
+{
+    /* Delete to (and including) the next newline character */
+    int r;
+    char ch;
+
+    while (1) {
+        r = get_ch(input, &ch);
+        if (r == ERR)
+            mreturn(ERR);
+        else if (r == EOF)
+            break;
+
+        if (ch == '\n')
+            break;
+    }
+    return 0;
+}
+
 int eat_str_if_match(struct ibuf **input, const char *str)
 {
     /*
@@ -643,44 +418,71 @@ int get_word(struct ibuf **input, struct obuf *token, int interpret_hex)
     return 0;
 }
 
-int eat_whitespace(struct ibuf **input)
+
+/* ###################################################################### */
+
+struct obuf *init_obuf(size_t n)
 {
-    int r;
-    char ch;
+    struct obuf *b = NULL;
 
-    while (1) {
-        r = get_ch(input, &ch);
-        if (r == ERR)
-            mreturn(ERR);
-        else if (r == EOF)
-            break;
+    if ((b = calloc(1, sizeof(struct obuf))) == NULL)
+        mgoto(error);
 
-        if (!(isspace(ch) || ch == '\0')) {
-            if (unget_ch(*input, ch))
-                mreturn(ERR);
+    if ((b->a = calloc(n, 1)) == NULL)
+        mgoto(error);
 
-            break;
-        }
+    b->i = 0;
+    b->n = n;
+    return b;
+
+  error:
+    free_obuf(b);
+    return NULL;
+}
+
+void free_obuf(struct obuf *b)
+{
+    if (b != NULL) {
+        free(b->a);
+        free(b);
     }
+}
+
+void free_obuf_exterior(struct obuf *b)
+{
+    free(b);
+}
+
+static int grow_obuf(struct obuf *b, size_t will_use)
+{
+    char *t;
+    size_t new_n;
+
+    if (aof(b->n, will_use, SIZE_MAX))
+        mreturn(ERR);
+
+    new_n = b->n + will_use;
+
+    if (mof(new_n, 2, SIZE_MAX))
+        mreturn(ERR);
+
+    new_n *= 2;
+
+    if ((t = realloc(b->a, new_n)) == NULL)
+        mreturn(ERR);
+
+    b->a = t;
+    b->n = new_n;
     return 0;
 }
 
-int delete_to_nl(struct ibuf **input)
+int put_ch(struct obuf *b, char ch)
 {
-    /* Delete to (and including) the next newline character */
-    int r;
-    char ch;
+    if (b->i == b->n && grow_obuf(b, 1))
+        mreturn(ERR);
 
-    while (1) {
-        r = get_ch(input, &ch);
-        if (r == ERR)
-            mreturn(ERR);
-        else if (r == EOF)
-            break;
-
-        if (ch == '\n')
-            break;
-    }
+    *(b->a + b->i) = ch;
+    ++b->i;
     return 0;
 }
 
@@ -886,4 +688,211 @@ char *obuf_to_str(struct obuf **b)
     free(*b);
     *b = NULL;
     return str;
+}
+
+
+/* ###################################################################### */
+
+struct lbuf *init_lbuf(size_t n)
+{
+    struct lbuf *b = NULL;
+
+    if ((b = calloc(1, sizeof(struct lbuf))) == NULL)
+        mgoto(error);
+
+    if (mof(n, sizeof(long), SIZE_MAX))
+        mgoto(error);
+
+    if ((b->a = calloc(n, sizeof(long))) == NULL)
+        mgoto(error);
+
+    b->i = 0;
+    b->n = n;
+    return b;
+
+  error:
+    free_lbuf(b);
+    return NULL;
+}
+
+void free_lbuf(struct lbuf *b)
+{
+    if (b != NULL) {
+        free(b->a);
+        free(b);
+    }
+}
+
+static int grow_lbuf(struct lbuf *b, size_t will_use)
+{
+    long *t;
+    size_t new_n;
+
+    if (aof(b->n, will_use, SIZE_MAX))
+        mreturn(ERR);
+
+    new_n = b->n + will_use;
+
+    if (mof(new_n, 2, SIZE_MAX))
+        mreturn(ERR);
+
+    new_n *= 2;
+
+    if (mof(new_n, sizeof(long), SIZE_MAX))
+        mreturn(ERR);
+
+    if ((t = realloc(b->a, new_n * sizeof(long))) == NULL)
+        mreturn(ERR);
+
+    b->a = t;
+    b->n = new_n;
+    return 0;
+}
+
+int add_l(struct lbuf *b, long x)
+{
+    if (b->i == b->n && grow_lbuf(b, 1))
+        mreturn(ERR);
+
+    *(b->a + b->i) = x;
+    ++b->i;
+    return 0;
+}
+
+
+/* ###################################################################### */
+
+struct sbuf *init_sbuf(size_t n)
+{
+    struct sbuf *b = NULL;
+
+    if ((b = calloc(1, sizeof(struct sbuf))) == NULL)
+        mgoto(error);
+
+    if (mof(n, sizeof(size_t), SIZE_MAX))
+        mgoto(error);
+
+    if ((b->a = calloc(n, sizeof(size_t))) == NULL)
+        mgoto(error);
+
+    b->i = 0;
+    b->n = n;
+    return b;
+
+  error:
+    free_sbuf(b);
+    return NULL;
+}
+
+void free_sbuf(struct sbuf *b)
+{
+    if (b != NULL) {
+        free(b->a);
+        free(b);
+    }
+}
+
+static int grow_sbuf(struct sbuf *b, size_t will_use)
+{
+    size_t *t;
+    size_t new_n;
+
+    if (aof(b->n, will_use, SIZE_MAX))
+        mreturn(ERR);
+
+    new_n = b->n + will_use;
+
+    if (mof(new_n, 2, SIZE_MAX))
+        mreturn(ERR);
+
+    new_n *= 2;
+
+    if (mof(new_n, sizeof(size_t), SIZE_MAX))
+        mreturn(ERR);
+
+    if ((t = realloc(b->a, new_n * sizeof(size_t))) == NULL)
+        mreturn(ERR);
+
+    b->a = t;
+    b->n = new_n;
+    return 0;
+}
+
+int add_s(struct sbuf *b, size_t x)
+{
+    if (b->i == b->n && grow_sbuf(b, 1))
+        mreturn(ERR);
+
+    *(b->a + b->i) = x;
+    ++b->i;
+    return 0;
+}
+
+
+/* ###################################################################### */
+
+struct pbuf *init_pbuf(size_t n)
+{
+    struct pbuf *b = NULL;
+
+    if ((b = calloc(1, sizeof(struct pbuf))) == NULL)
+        mgoto(error);
+
+    if (mof(n, sizeof(void *), SIZE_MAX))
+        mgoto(error);
+
+    if ((b->a = calloc(n, sizeof(void *))) == NULL)
+        mgoto(error);
+
+    b->i = 0;
+    b->n = n;
+    return b;
+
+  error:
+    free_pbuf(b);
+    return NULL;
+}
+
+void free_pbuf(struct pbuf *b)
+{
+    if (b != NULL) {
+        free(b->a);
+        free(b);
+    }
+}
+
+static int grow_pbuf(struct pbuf *b, size_t will_use)
+{
+    void **t;
+    size_t new_n;
+
+    if (aof(b->n, will_use, SIZE_MAX))
+        mreturn(ERR);
+
+    new_n = b->n + will_use;
+
+    if (mof(new_n, 2, SIZE_MAX))
+        mreturn(ERR);
+
+    new_n *= 2;
+
+    if (mof(new_n, sizeof(void *), SIZE_MAX))
+        mreturn(ERR);
+
+    if ((t = realloc(b->a, new_n * sizeof(void *))) == NULL)
+        mreturn(ERR);
+
+    b->a = t;
+    b->n = new_n;
+    return 0;
+}
+
+int add_p(struct pbuf *b, void *x)
+{
+    if (b->i == b->n && grow_pbuf(b, 1))
+        mreturn(ERR);
+
+    *(b->a + b->i) = x;
+    ++b->i;
+    return 0;
 }
