@@ -182,7 +182,7 @@ int walk_dir_inner(const char *dir, int rec, void *info,
     }
 
 #ifdef _WIN32
-    if (GetLastError() != ERROROR_NO_MORE_FILES) {
+    if (GetLastError() != ERROR_NO_MORE_FILES) {
         ret = ERROR;
         mgoto(clean_up);
     }
@@ -642,7 +642,7 @@ int make_stemp(const char *template, char **temp_fn)
                        FILE_ATTRIBUTE_NORMAL, NULL);
 
         if (h == INVALID_HANDLE_VALUE) {
-            if (GetLastError() != ERROROR_FILE_EXISTS) {
+            if (GetLastError() != ERROR_FILE_EXISTS) {
                 free(template_copy);
                 mreturn(ERROR);
             }
