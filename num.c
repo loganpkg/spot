@@ -29,7 +29,7 @@ int str_to_num(const char *str, unsigned long max_val, unsigned long *res)
     unsigned int n;
 
     if (str == NULL || *str == '\0')
-        mreturn(ERR);
+        mreturn(ERROR);
 
     if (*str == '0') {
         ++str;                  /* Eat char */
@@ -45,14 +45,14 @@ int str_to_num(const char *str, unsigned long max_val, unsigned long *res)
         if ((base == 10 && isdigit(ch)) || (base == 16 && isxdigit(ch))
             || (base == 8 && ch >= '0' && ch <= '7')) {
             if (mof(x, base, max_val))
-                mreturn(ERR);
+                mreturn(ERROR);
 
             x *= base;
 
             n = hex_nibble(ch);
 
             if (aof(x, n, max_val))
-                mreturn(ERR);
+                mreturn(ERROR);
 
             x += n;
         } else {
@@ -62,7 +62,7 @@ int str_to_num(const char *str, unsigned long max_val, unsigned long *res)
                     base == 10 ? "decimal" : (base ==
                                               16 ? "hexadecimal" :
                                               "octal"));
-            return SYNTAX_ERR;
+            return SYNTAX_ERROR;
         }
 
         ++str;
@@ -76,7 +76,7 @@ int str_to_size_t(const char *str, size_t *res)
     unsigned long n;
 
     if (str_to_num(str, SIZE_MAX, &n))
-        mreturn(ERR);
+        mreturn(ERROR);
 
     *res = (size_t) n;
     return 0;
@@ -87,7 +87,7 @@ int str_to_uint(const char *str, unsigned int *res)
     unsigned long n;
 
     if (str_to_num(str, UINT_MAX, &n))
-        mreturn(ERR);
+        mreturn(ERROR);
 
     *res = (unsigned int) n;
     return 0;
@@ -96,7 +96,7 @@ int str_to_uint(const char *str, unsigned int *res)
 int hex_to_val(unsigned char h1, unsigned char h0, unsigned char *res)
 {
     if (!isxdigit(h1) || !isxdigit(h0))
-        mreturn(ERR);
+        mreturn(ERROR);
 
     *res = hex(h1, h0);
 
@@ -115,7 +115,7 @@ int lop(long *a, long b, unsigned char op)
         break;
     case NEGATIVE:
         if (*a == LONG_MIN)
-            d_mreturn("User overflow", USER_OVERFLOW_ERR);
+            d_mreturn("User overflow", USER_OVERFLOW_ERROR);
         *a *= -1;
         break;
     case BITWISE_COMPLEMENT:
@@ -136,28 +136,28 @@ int lop(long *a, long b, unsigned char op)
         }
         /* Same sign, result will be positive */
         if (*a > 0 && b > 0 && *a > LONG_MAX / b)
-            d_mreturn("User overflow", USER_OVERFLOW_ERR);
+            d_mreturn("User overflow", USER_OVERFLOW_ERROR);
 
         if (*a < 0 && b < 0 && *a < LONG_MAX / b)
-            d_mreturn("User overflow", USER_OVERFLOW_ERR);
+            d_mreturn("User overflow", USER_OVERFLOW_ERROR);
 
         /* Opposite sign, result will be negative */
         if (*a > 0 && b < 0 && b < LONG_MIN / *a)
-            d_mreturn("User overflow", USER_OVERFLOW_ERR);
+            d_mreturn("User overflow", USER_OVERFLOW_ERROR);
 
         if (*a < 0 && b > 0 && *a < LONG_MIN / b)
-            d_mreturn("User overflow", USER_OVERFLOW_ERR);
+            d_mreturn("User overflow", USER_OVERFLOW_ERROR);
         *a *= b;
         break;
     case DIVISION:
     case MODULO:
         if (!b) {
             fprintf(stderr, "%s:%d: Divide by zero\n", __FILE__, __LINE__);
-            return DIV_BY_ZERO_ERR;
+            return DIV_BY_ZERO_ERROR;
         }
 
         if (*a == LONG_MIN && b == -1)
-            d_mreturn("User overflow", USER_OVERFLOW_ERR);
+            d_mreturn("User overflow", USER_OVERFLOW_ERROR);
         if (op == DIVISION)
             *a /= b;
         else
@@ -168,13 +168,13 @@ int lop(long *a, long b, unsigned char op)
         /* Need to be the same sign to overflow */
         if ((*a > 0 && b > 0 && *a > LONG_MAX - b)
             || (*a < 0 && b < 0 && *a < LONG_MIN - b))
-            d_mreturn("User overflow", USER_OVERFLOW_ERR);
+            d_mreturn("User overflow", USER_OVERFLOW_ERROR);
         *a += b;
         break;
     case SUBTRACTION:
         if ((b < 0 && *a > LONG_MAX + b)
             || (b > 0 && *a < LONG_MIN + b))
-            d_mreturn("User overflow", USER_OVERFLOW_ERR);
+            d_mreturn("User overflow", USER_OVERFLOW_ERROR);
         *a -= b;
         break;
     case BITWISE_LEFT_SHIFT:
@@ -219,7 +219,7 @@ int lop(long *a, long b, unsigned char op)
     default:
         fprintf(stderr, "%s:%d: Syntax error: Invalid operator\n",
                 __FILE__, __LINE__);
-        return SYNTAX_ERR;
+        return SYNTAX_ERROR;
     }
 
     return 0;
@@ -227,7 +227,7 @@ int lop(long *a, long b, unsigned char op)
 
 int lpow(long *a, long b)
 {
-    int ret = ERR;
+    int ret = ERROR;
     long x;
 
     if (!b) {
@@ -241,7 +241,7 @@ int lpow(long *a, long b)
     if (b < 0) {
         fprintf(stderr, "%s:%d: Syntax error: Negative exponent\n",
                 __FILE__, __LINE__);
-        return SYNTAX_ERR;
+        return SYNTAX_ERROR;
     }
 
     x = *a;

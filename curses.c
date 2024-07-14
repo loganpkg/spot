@@ -175,6 +175,11 @@ int endwin(void)
     return ret;
 }
 
+int set_tabsize(size_t size)
+{
+    stdscr->tabsize = size;
+    return OK;
+}
 
 int getch(void)
 {

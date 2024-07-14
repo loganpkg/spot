@@ -32,10 +32,8 @@
 #define OK 0
 #endif
 
-/* System related error. Terminates execution (after clean up). */
-#ifndef ERR
-#define ERR 1
-#endif
+/* Only use with curses */
+#define ERR EOF
 
 struct screen {
 #ifdef _WIN32
@@ -96,8 +94,6 @@ typedef unsigned char bool;
 /* Not set by this implementation */
 #define KEY_BACKSPACE (UCHAR_MAX + 8)
 
-#define set_tabsize(size) (stdscr->tabsize = (size))
-
 #define TABSIZE (stdscr->tabsize)
 
 
@@ -118,6 +114,7 @@ typedef unsigned char bool;
 /* Function declarations */
 WINDOW *initscr(void);
 int endwin(void);
+int set_tabsize(size_t size);
 int getch(void);
 int erase(void);
 int clear(void);

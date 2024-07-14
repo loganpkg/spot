@@ -141,23 +141,23 @@
 #define OK 0
 
 /* System related error. Terminates execution (after clean up). */
-#define ERR 1
+#define ERROR 1
 
 /*
  * User related errors.
  * Execution continutes, but exit status will be non-zero.
  */
 #define NO_MATCH 2
-#define SYNTAX_ERR 3
-#define DIV_BY_ZERO_ERR 4
-#define USER_OVERFLOW_ERR 5
-#define USAGE_ERR 6
+#define SYNTAX_ERROR 3
+#define DIV_BY_ZERO_ERROR 4
+#define USER_OVERFLOW_ERROR 5
+#define USAGE_ERROR 6
 
 /*
  * System or user related error whereby execution continutes.
  * Exit status will be non-zero.
  */
-#define ERR_CONTINUE 7
+#define ERROR_CONTINUE 7
 
 
 #ifdef _WIN32

@@ -27,20 +27,20 @@ int print_object(size_t y, size_t x, const char *object)
     size_t c_y, c_x;
 
     if (move(y, x) == ERR)
-        return ERR;
+        return ERROR;
 
     while ((ch = *object++) != '\0') {
         if (addch(ch) == ERR)
-            return ERR;
+            return ERROR;
 
         if (ch == '\n') {
             /* Indent */
             getyx(stdscr, c_y, c_x);
             if (c_x)
-                return ERR;
+                return ERROR;
 
             if (move(c_y, x) == ERR)
-                return ERR;
+                return ERROR;
         }
     }
 
@@ -50,7 +50,7 @@ int print_object(size_t y, size_t x, const char *object)
 
 int main(void)
 {
-    int ret = ERR;
+    int ret = ERROR;
     int x;
     size_t man_y = 0, man_x = 0;
 
@@ -98,7 +98,7 @@ int main(void)
 
   clean_up:
     if (endwin() == ERR)
-        ret = ERR;
+        ret = ERROR;
 
     return ret;
 }

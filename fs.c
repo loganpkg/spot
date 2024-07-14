@@ -37,13 +37,13 @@ int get_file_size(const char *fn, size_t *fs)
 {
     struct stat_s st;
     if (stat_f(fn, &st) == -1)
-        mreturn(ERR);
+        mreturn(ERROR);
 
     if (!S_ISREG(st.st_mode))
-        mreturn(ERR);
+        mreturn(ERROR);
 
     if (st.st_size < 0)
-        mreturn(ERR);
+        mreturn(ERROR);
 
     *fs = (size_t) st.st_size;
 
@@ -61,7 +61,7 @@ int get_path_attr(const char *path, unsigned char *attr)
 
 #ifdef _WIN32
     if ((file_attr = GetFileAttributes(path)) == INVALID_FILE_ATTRIBUTES)
-        mreturn(ERR);
+        mreturn(ERROR);
 
     if (file_attr & FILE_ATTRIBUTE_DIRECTORY)
         SET_DIR(t);
@@ -70,7 +70,7 @@ int get_path_attr(const char *path, unsigned char *attr)
         SET_SLINK(t);
 #else
     if (lstat(path, &st))
-        mreturn(ERR);
+        mreturn(ERROR);
 
     if (S_ISDIR(st.st_mode))
         SET_DIR(t);
@@ -91,7 +91,7 @@ int walk_dir_inner(const char *dir, int rec, void *info,
                    int (*func_p)(const char *, unsigned char, void *info))
 {
     /* Does not execute the function on dir itself */
-    int ret = ERR;
+    int ret = ERROR;
 
 #ifdef _WIN32
     HANDLE h = INVALID_HANDLE_VALUE;
@@ -107,17 +107,17 @@ int walk_dir_inner(const char *dir, int rec, void *info,
 
 #ifdef _WIN32
     if ((dir_wc = concat(dir, "\\*", NULL)) == NULL) {
-        ret = ERR;
+        ret = ERROR;
         mgoto(clean_up);
     }
 
     if ((h = FindFirstFile(dir_wc, &d)) == INVALID_HANDLE_VALUE) {
-        ret = ERR;
+        ret = ERROR;
         mgoto(clean_up);
     }
 #else
     if ((h = opendir(dir)) == NULL) {
-        ret = ERR;
+        ret = ERROR;
         mgoto(clean_up);
     }
 #endif
@@ -135,7 +135,7 @@ int walk_dir_inner(const char *dir, int rec, void *info,
         fn = d->d_name;
 #endif
         if ((path = concat(dir, DIR_SEP_STR, fn, NULL)) == NULL) {
-            ret = ERR;
+            ret = ERROR;
             mgoto(clean_up);
         }
 
@@ -155,7 +155,7 @@ int walk_dir_inner(const char *dir, int rec, void *info,
 
         if (d->d_type == DT_UNKNOWN)
             if (get_path_attr(path, &attr)) {
-                ret = ERR;
+                ret = ERROR;
                 mgoto(clean_up);
             }
 #endif
@@ -164,12 +164,12 @@ int walk_dir_inner(const char *dir, int rec, void *info,
 
         if (rec && IS_DIR(attr) && !IS_SLINK(attr) && !IS_DOTDIR(attr))
             if (walk_dir_inner(path, rec, info, func_p)) {      /* Recurse */
-                ret = ERR;
+                ret = ERROR;
                 mgoto(clean_up);
             }
 
         if ((*func_p) (rec ? path : fn, attr, info)) {
-            ret = ERR;
+            ret = ERROR;
             mgoto(clean_up);
         }
 
@@ -182,13 +182,13 @@ int walk_dir_inner(const char *dir, int rec, void *info,
     }
 
 #ifdef _WIN32
-    if (GetLastError() != ERROR_NO_MORE_FILES) {
-        ret = ERR;
+    if (GetLastError() != ERROROR_NO_MORE_FILES) {
+        ret = ERROR;
         mgoto(clean_up);
     }
 #else
     if (errno) {
-        ret = ERR;
+        ret = ERROR;
         mgoto(clean_up);
     }
 #endif
@@ -199,13 +199,13 @@ int walk_dir_inner(const char *dir, int rec, void *info,
 
 #ifdef _WIN32
     if (h != INVALID_HANDLE_VALUE && !FindClose(h))
-        ret = ERR;
+        ret = ERROR;
 
     if (dir_wc != NULL)
         free(dir_wc);
 #else
     if (closedir(h))
-        ret = ERR;
+        ret = ERROR;
 #endif
     if (path != NULL)
         free(path);
@@ -220,7 +220,7 @@ int walk_dir(const char *dir, int rec, void *info,
     unsigned char attr;
 
     if (walk_dir_inner(dir, rec, info, func_p))
-        mreturn(ERR);
+        mreturn(ERROR);
 
     /* Process outer directory */
     attr = 0;
@@ -229,7 +229,7 @@ int walk_dir(const char *dir, int rec, void *info,
         SET_DOTDIR(attr);
 
     if ((*func_p) (dir, attr, info))
-        mreturn(ERR);
+        mreturn(ERROR);
 
     return 0;
 }
@@ -238,15 +238,15 @@ static int rm_path(const char *path, unsigned char attr, void *info)
 {
     /* Not used in this function */
     if (info != NULL)
-        mreturn(ERR);
+        mreturn(ERROR);
 
     if (!IS_DOTDIR(attr)) {
         if (IS_DIR(attr)) {
             if (rmdir(path))
-                mreturn(ERR);
+                mreturn(ERROR);
         } else {
             if (unlink(path))
-                mreturn(ERR);
+                mreturn(ERROR);
         }
     }
     return 0;
@@ -271,17 +271,17 @@ static int add_fn(const char *fn, unsigned char attr, void *info)
     lsi = (struct ls_info *) info;
 
     if ((fn_copy = strdup(fn)) == NULL)
-        mreturn(ERR);
+        mreturn(ERROR);
 
     if (IS_DIR(attr)) {
         if (add_p(lsi->d, fn_copy)) {
             free(fn_copy);
-            mreturn(ERR);
+            mreturn(ERROR);
         }
     } else {
         if (add_p(lsi->f, fn_copy)) {
             free(fn_copy);
-            mreturn(ERR);
+            mreturn(ERROR);
         }
     }
 
@@ -295,34 +295,34 @@ static int order_func(const void *a, const void *b)
 
 char *ls_dir(const char *dir)
 {
-    int err = ERR;
+    int err = ERROR;
     struct ls_info *lsi = NULL;
     struct obuf *b = NULL;
     char *t = NULL;
     size_t j;
 
     if ((lsi = calloc(1, sizeof(struct ls_info))) == NULL) {
-        err = ERR;
+        err = ERROR;
         mgoto(clean_up);
     }
 
     if ((lsi->d = init_pbuf(INIT_LS_ENTRY_NUM)) == NULL) {
-        err = ERR;
+        err = ERROR;
         mgoto(clean_up);
     }
 
     if ((lsi->f = init_pbuf(INIT_LS_ENTRY_NUM)) == NULL) {
-        err = ERR;
+        err = ERROR;
         mgoto(clean_up);
     }
 
     if ((b = init_obuf(INIT_BUF_SIZE)) == NULL) {
-        err = ERR;
+        err = ERROR;
         mgoto(clean_up);
     }
 
     if (walk_dir_inner(dir, 0, lsi, &add_fn)) {
-        err = ERR;
+        err = ERROR;
         mgoto(clean_up);
     }
 
@@ -333,35 +333,35 @@ char *ls_dir(const char *dir)
 
     for (j = 0; j < lsi->d->i; ++j) {
         if (put_str(b, *(lsi->d->a + j))) {
-            err = ERR;
+            err = ERROR;
             mgoto(clean_up);
         }
 
         if (put_ch(b, '\n')) {
-            err = ERR;
+            err = ERROR;
             mgoto(clean_up);
         }
     }
 
     if (put_str(b, "----------\n")) {
-        err = ERR;
+        err = ERROR;
         mgoto(clean_up);
     }
 
     for (j = 0; j < lsi->f->i; ++j) {
         if (put_str(b, *(lsi->f->a + j))) {
-            err = ERR;
+            err = ERROR;
             mgoto(clean_up);
         }
 
         if (put_ch(b, '\n')) {
-            err = ERR;
+            err = ERROR;
             mgoto(clean_up);
         }
     }
 
     if ((t = obuf_to_str(&b)) == NULL) {
-        err = ERR;
+        err = ERROR;
         mgoto(clean_up);
     }
 
@@ -397,7 +397,7 @@ int mmap_file_ro(const char *fn, void **mem, size_t *fs)
 {
     size_t s;
 #ifdef _WIN32
-    int ret = ERR;
+    int ret = ERROR;
     HANDLE file_h = INVALID_HANDLE_VALUE;
     HANDLE map_h = NULL;
     LPVOID p = NULL;
@@ -407,7 +407,7 @@ int mmap_file_ro(const char *fn, void **mem, size_t *fs)
 #endif
 
     if (get_file_size(fn, &s))
-        mreturn(ERR);
+        mreturn(ERROR);
 
     /* Empty file */
     if (!s) {
@@ -423,49 +423,49 @@ int mmap_file_ro(const char *fn, void **mem, size_t *fs)
          CreateFile(fn, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING,
                     FILE_ATTRIBUTE_NORMAL,
                     NULL)) == INVALID_HANDLE_VALUE) {
-        ret = ERR;
+        ret = ERROR;
         mgoto(clean_up);
     }
 
     if ((map_h =
          CreateFileMapping(file_h, NULL, PAGE_READONLY, 0, 0,
                            NULL)) == NULL) {
-        ret = ERR;
+        ret = ERROR;
         mgoto(clean_up);
     }
 
     if ((p = MapViewOfFile(map_h, FILE_MAP_READ, 0, 0, 0)) == NULL) {
-        ret = ERR;
+        ret = ERROR;
         mgoto(clean_up);
     }
 
     ret = 0;
   clean_up:
     if (file_h != INVALID_HANDLE_VALUE && !CloseHandle(file_h))
-        ret = ERR;
+        ret = ERROR;
 
     if (map_h != NULL && !CloseHandle(map_h))
-        ret = ERR;
+        ret = ERROR;
 
     if (ret) {
         if (p != NULL)
             UnmapViewOfFile(p);
-        mreturn(ERR);
+        mreturn(ERROR);
     }
 
 #else
 
     if ((fd = open(fn, O_RDONLY)) == -1)
-        mreturn(ERR);
+        mreturn(ERROR);
 
     if ((p = mmap(NULL, s, PROT_READ, MAP_PRIVATE, fd, 0)) == MAP_FAILED) {
         close(fd);
-        mreturn(ERR);
+        mreturn(ERROR);
     }
 
     if (close(fd)) {
         munmap(p, s);
-        mreturn(ERR);
+        mreturn(ERROR);
     }
 
 #endif
@@ -482,10 +482,10 @@ int un_mmap(void *p, size_t s)
 
 #ifdef _WIN32
     if (!UnmapViewOfFile(p))
-        mreturn(ERR);
+        mreturn(ERROR);
 #else
     if (munmap(p, s))
-        mreturn(ERR);
+        mreturn(ERROR);
 #endif
     return 0;
 }
@@ -519,7 +519,7 @@ int make_temp(const char *template, char **temp_fn)
         fprintf(stderr, "%s:%d: Syntax error: "
                 "make_temp: Invalid template, no X suffix\n", __FILE__,
                 __LINE__);
-        return SYNTAX_ERR;
+        return SYNTAX_ERROR;
     }
 
     prefix_len = suffix_start - template;
@@ -528,21 +528,21 @@ int make_temp(const char *template, char **temp_fn)
 
     r = snprintf(num, NUM_BUF_SIZE, "%d", (int) pid);
     if (r < 0 || r >= NUM_BUF_SIZE)
-        mreturn(ERR);
+        mreturn(ERROR);
 
     pid_len = strlen(num);
 
     if (aof(prefix_len, pid_len, SIZE_MAX))
-        mreturn(ERR);
+        mreturn(ERROR);
 
     s = prefix_len + pid_len;
 
     if (aof(s, 1, SIZE_MAX))
-        mreturn(ERR);
+        mreturn(ERROR);
     ++s;
 
     if ((fn = calloc(s, 1)) == NULL)
-        mreturn(ERR);
+        mreturn(ERROR);
 
     memcpy(fn, template, prefix_len);
     memcpy(fn + prefix_len, num, pid_len);
@@ -567,7 +567,7 @@ static int rand_alnum(char *ch)
         }
 
         if (rand_s(&x))
-            return ERR;
+            return ERROR;
 
         y = (char *) &x;
 
@@ -581,7 +581,7 @@ static int rand_alnum(char *ch)
         --try;
     }
 
-    return ERR;
+    return ERROR;
 }
 
 #endif
@@ -598,7 +598,7 @@ int make_stemp(const char *template, char **temp_fn)
 #endif
 
     if ((template_copy = strdup(template)) == NULL)
-        mreturn(ERR);
+        mreturn(ERROR);
 
 #ifdef _WIN32
     p = template_copy;
@@ -618,13 +618,13 @@ int make_stemp(const char *template, char **temp_fn)
                 "make_temp: Invalid template, no X suffix\n", __FILE__,
                 __LINE__);
         free(template_copy);
-        return SYNTAX_ERR;
+        return SYNTAX_ERROR;
     }
 
     while (1) {
         if (!try) {
             free(template_copy);
-            mreturn(ERR);
+            mreturn(ERROR);
         }
 
         /* Overwrite suffix X chars with random chars */
@@ -632,7 +632,7 @@ int make_stemp(const char *template, char **temp_fn)
         while (*q) {
             if (rand_alnum(&ch)) {
                 free(template_copy);
-                mreturn(ERR);
+                mreturn(ERROR);
             }
             *q = ch;
             ++q;
@@ -642,14 +642,14 @@ int make_stemp(const char *template, char **temp_fn)
                        FILE_ATTRIBUTE_NORMAL, NULL);
 
         if (h == INVALID_HANDLE_VALUE) {
-            if (GetLastError() != ERROR_FILE_EXISTS) {
+            if (GetLastError() != ERROROR_FILE_EXISTS) {
                 free(template_copy);
-                mreturn(ERR);
+                mreturn(ERROR);
             }
         } else {
             if (!CloseHandle(h)) {
                 free(template_copy);
-                mreturn(ERR);
+                mreturn(ERROR);
             }
             break;
         }
@@ -660,12 +660,12 @@ int make_stemp(const char *template, char **temp_fn)
 #else
     if ((fd = mkstemp(template_copy)) == -1) {
         free(template_copy);
-        mreturn(ERR);
+        mreturn(ERROR);
     }
 
     if (close(fd)) {
         free(template_copy);
-        mreturn(ERR);
+        mreturn(ERROR);
     }
 #endif
 

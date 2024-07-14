@@ -235,7 +235,7 @@ static int issue_node(struct nfa_storage *ns, size_t *node)
     return 0;
 
   error:
-    return ERR;
+    return ERROR;
 }
 
 static int delete_node(struct nfa_storage *ns, size_t node)
@@ -255,7 +255,7 @@ static int delete_node(struct nfa_storage *ns, size_t node)
     return 0;
 
   error:
-    return ERR;
+    return ERROR;
 }
 
 static void fill_hole(struct nfa_storage *ns)
@@ -350,14 +350,14 @@ static int push_operand_stack(struct operand_stack *z, size_t nfa_start,
     return 0;
 
   error:
-    return ERR;
+    return ERROR;
 }
 
 static int pop_operand_stack(struct operand_stack *z, size_t *nfa_start,
                              size_t *nfa_end)
 {
     if (!z->i)
-        return ERR;
+        return ERROR;
 
     --z->i;
     *nfa_start = (*(z->a + z->i)).start;
@@ -449,11 +449,11 @@ static int interpret_escaped_chars(const char *input_str, char **output,
     return 0;
 
   error:
-    ret = ERR;
+    ret = ERROR;
 
   syntax_error:
     if (!ret)
-        ret = SYNTAX_ERR;
+        ret = SYNTAX_ERROR;
 
     free(mem);
     return ret;
@@ -485,7 +485,7 @@ static int char_to_int_eof_term(const char *input, size_t input_size,
 
   error:
     free(imem);
-    return ERR;
+    return ERROR;
 }
 
 static void print_cs_ch(unsigned char u)
@@ -688,11 +688,11 @@ static int create_regex_chain(const int *find_eof,
     return 0;
 
   error:
-    ret = ERR;
+    ret = ERROR;
 
   syntax_error:
     if (!ret)
-        ret = SYNTAX_ERR;
+        ret = SYNTAX_ERROR;
 
     free_regex_chain(head);
     return ret;
@@ -757,8 +757,8 @@ static void shunting_yard(struct regex_item **ri_head)
                         && op_detail[operator_stack->operator].precedence <
                         op_detail[ri->operator].precedence)
                     || (op_detail[ri->operator].associativity == 'R'
-                        && op_detail[operator_stack->
-                                     operator].precedence <=
+                        && op_detail[operator_stack->operator].
+                        precedence <=
                         op_detail[ri->operator].precedence)) {
                     break;
                 } else {
@@ -1026,11 +1026,11 @@ static int thompsons_construction(const struct regex_item *ri_head,
     return 0;
 
   error:
-    ret = ERR;
+    ret = ERROR;
 
   syntax_error:
     if (!ret)
-        ret = SYNTAX_ERR;
+        ret = SYNTAX_ERROR;
 
     free_nfa_storage(ns);
     free_operand_stack(z);
@@ -1070,7 +1070,7 @@ static void print_nfa(struct nfa_storage *ns)
 static int compile_regex(const char *regex_str, int nl_ins,
                          struct regex **regex_st, int verbose)
 {
-    int ret = ERR;
+    int ret = ERROR;
     struct regex *reg = NULL;
 
     if (regex_str == NULL || *regex_str == '\0')
@@ -1123,7 +1123,7 @@ static int compile_regex(const char *regex_str, int nl_ins,
     return 0;
 
   usage_error:
-    ret = USAGE_ERR;
+    ret = USAGE_ERROR;
 
   error:
     free_regex(reg);
@@ -1344,13 +1344,13 @@ int regex_search(const char *text, size_t text_size, int sol,
                  const char *regex_str, int nl_ins, size_t *match_offset,
                  size_t *match_len, int verbose)
 {
-    int ret = ERR;
+    int ret = ERROR;
     struct regex *reg = NULL;
     char *m;
     size_t ml;
 
     if (text == NULL) {
-        ret = USAGE_ERR;
+        ret = USAGE_ERROR;
         mgoto(clean_up);
     }
 
@@ -1385,7 +1385,7 @@ int regex_replace(const char *text, size_t text_size,
      * is provide in result_len (excluding the final added \0 char).
      * However, the result might have embedded \0 chars.
      */
-    int ret = ERR;
+    int ret = ERROR;
     struct regex *reg = NULL;
     char *replace_esc = NULL;
     size_t replace_esc_size;
@@ -1398,7 +1398,7 @@ int regex_replace(const char *text, size_t text_size,
     size_t ml;
 
     if (text == NULL) {
-        ret = USAGE_ERR;
+        ret = USAGE_ERROR;
         mgoto(clean_up);
     }
 

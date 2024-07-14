@@ -506,31 +506,31 @@ by `eval`, along with their properties.
 
 | Operator | Description | Precedence | Number of operands | Associativity |
 | :------- | :---------- | ---------: | -----------------: | :-----------: |
-| `(`      | Left parenthesis      | 12 | 0 |   N/A |
-| `)`      | Right parenthesis     | 12 | 0 |   N/A |
-| `+ve`    | Positive              | 11 | 1 | Right |
-| `-ve`    | Negative              | 11 | 1 | Right |
-| `~`      | Bitwise complement    | 11 | 1 | Right |
-| `!`      | Logical negation      | 11 | 1 | Right |
-| `**`     | Exponentiation        | 10 | 2 | Right |
-| `*`      | Multiplication        |  9 | 2 |  Left |
-| `/`      | Division              |  9 | 2 |  Left |
-| `%`      | Modulo                |  9 | 2 |  Left |
-| `+`      | Addition              |  8 | 2 |  Left |
-| `-`      | Subtraction           |  8 | 2 |  Left |
-| `<<`     | Bitwise left shift    |  7 | 2 |  Left |
-| `>>`     | Bitwise right shift   |  7 | 2 |  Left |
-| `<`      | Less than             |  6 | 2 |  Left |
-| `<=`     | Less than or equal    |  6 | 2 |  Left |
-| `>`      | Greater than          |  6 | 2 |  Left |
-| `>=`     | Greater than or equal |  6 | 2 |  Left |
-| `==`     | Equal                 |  5 | 2 |  Left |
-| `!=`     | Not equal             |  5 | 2 |  Left |
-| `&`      | Bitwise AND           |  4 | 2 |  Left |
-| `^`      | Bitwise XOR           |  3 | 2 |  Left |
-| `\|`     | Bitwise OR            |  2 | 2 |  Left |
-| `&&`     | Logical AND           |  1 | 2 |  Left |
-| `\|\|`   | Logical OR            |  0 | 2 |  Left |
+| `(`      | Left parenthesis    | 12 |                  0 |     N/A       |
+| `)`      | Right parenthesis   | 12 |                  0 |     N/A       |
+| `+ve`    | Positive            | 11 |                  1 |     Right     |
+| `-ve`    | Negative            | 11 |                  1 |     Right     |
+| `~`      | Bitwise complement  | 11 |                  1 |     Right     |
+| `!`      | Logical negation    | 11 |                  1 |     Right     |
+| `**`     | Exponentiation      | 10 |                  2 |     Right     |
+| `*`      | Multiplication      |  9 |                  2 |     Left      |
+| `/`      | Division            |  9 |                  2 |     Left      |
+| `%`      | Modulo              |  9 |                  2 |     Left      |
+| `+`      | Addition            |  8 |                  2 |     Left      |
+| `-`      | Subtraction         |  8 |                  2 |     Left      |
+| `<<`     | Bitwise left shift  |  7 |                  2 |     Left      |
+| `>>`     | Bitwise right shift |  7 |                  2 |     Left      |
+| `<`      | Less than           |  6 |                  2 |     Left      |
+| `<=`     | Less than or equal  |  6 |                  2 |     Left      |
+| `>`      | Greater than        |  6 |                  2 |     Left      |
+| `>=`     | Greater than or equ |  6 |                  2 |     Left      |
+| `==`     | Equal               |  5 |                  2 |     Left      |
+| `!=`     | Not equal           |  5 |                  2 |     Left      |
+| `&`      | Bitwise AND         |  4 |                  2 |     Left      |
+| `^`      | Bitwise XOR         |  3 |                  2 |     Left      |
+| `\|`     | Bitwise OR          |  2 |                  2 |     Left      |
+| `&&`     | Logical AND         |  1 |                  2 |     Left      |
+| `\|\|`   | Logical OR          |  0 |                  2 |     Left      |
 
 
 ```m4
@@ -815,9 +815,15 @@ toco_regex
 
 toco_regex is the built-in regular expression engine.
 
-Special escape sequences are processed first. This occurs on the find and the
-replace strings as a preprocessing step (before any regex content is
-interpreted). These consist of a subset of the C escape sequences, most notably
+Preprocessed escape sequences
+-----------------------------
+
+Preprocessed escape sequences are converted before any regular expression
+processing commences. This occurs on both the find and replace components.
+As this is a preprocessing step, the results can become any part of the
+regex. For example, `\x5B\x41\x2D\x5A\x5D\x2B` will become `[A-Z]+`.
+
+The syntax is a subset of the C escape sequences. Most notably
 the octal escape sequences are omitted. The recognised escape sequences are:
 
 * `\0`
@@ -830,7 +836,148 @@ the octal escape sequences are omitted. The recognised escape sequences are:
 * `\r`
 * `\xBE`
 
-Where `BE` can be any two hexadecimal digits.
+Where `BE` can be any two hexadecimal digits. Other backslashes are passed
+through to the output, unchanged.
+
+Integer string
+--------------
+
+After preprocessing, the find string an integer "string" that is `EOF`
+terminated. This is so that it can handle the special escape sequences of `\0`
+or `\x00` above, and not become null-terminated early.
+
+From here, the find integer string is converted into a chain with each link
+being either a character set or an operator.
+
+Character sets
+--------------
+
+A character set is a selection of bytes from the 256 different bytes.
+Single characters are automatically converted to a character set
+containing only that character.
+
+A `.` is a character set containing every character except for `\n`
+(unless it is in newline insensitive mode, in which case `\n` is included too).
+
+Character sets can also be created using square brackets, with the following
+syntax:
+
+* `[` commences the character set.
+* `]` concludes the character set (but not if it would result in an empty set).
+* `^` in the first position negates the set (by itself, the set is still
+    considered empty, as it is not considered a "character").
+* `-` between two characters creates a range (the negation symbol cannot be
+    used as the start of a range).
+* Character sets cannot be empty.
+* All other characters in the set are treated literally, including backslashes
+    and operators.
+
+```
+     End of character set
+     |
+     v
+[^A-Z]
+^^ ^
+|| |
+|| Range
+|Negation
+Start of character set
+```
+
+For example:
+
+* `[]]` is the set of just `]`. The first `]` does not conclude the set because
+    the set would be empty.
+* `[^]]` is the set of all characters except for `]`. The first `]` does not
+    conclude the set because the set would be empty, as the negation symbol
+    is not considered a character.
+* `[-A]` and `[A-]` are the sets containing only the two characters
+    `-` and `A`.
+* `[^-Z]` and `[^Z-]` are the sets containing all of the characters except for
+    `-` and `Z`.
+* `[^][^-]` is the set containing all of the characters except for
+    `]`, `[`, `^` and `-`.
+
+Backslashes
+-----------
+
+Backslashes outside of a character set cause the following character to be
+treated literally. For example, `\*` would be interpreted as a character
+set containing only the character `*` and not the zero-or-many operator.
+Likewise `\[` would be treated as a character set containing just the
+character `[` and not the commencement of an explicit character set.
+
+Operators
+---------
+
+If not escaped by a backslash or present inside a character set, the
+characters in the table below are interpreted as operators (or parentheses).
+Please note that the concatenation operator is implied, and not explicitly
+written in the original regular expression. The character `.` is used to
+denoted it when displaying internal information in verbose mode, not to be
+confused with the `.` character set (mentioned above).
+
+| Operator | Description | Precedence | Number of operands | Associativity |
+| :------- | :---------- | ---------: | -----------------: | :-----------: |
+| `(`      | Left parenthesis     | 4 |                  0 |     N/A       |
+| `)`      | Right parenthesis    | 4 |                  0 |     N/A       |
+| `+`      | One or more          | 3 |                  1 |     Left      |
+| `?`      | Zero or one          | 3 |                  1 |     Left      |
+| `*`      | Zero or more         | 3 |                  1 |     Left      |
+| `.`      | Concatenation        | 2 |                  2 |     Left      |
+| `^`      | Start of line anchor | 1 |             0 or 1 |     Right     |
+| `$`      | End of line anchor   | 1 |             0 or 1 |     Left      |
+| `|`      | Or (alternation)     | 0 |                  2 |     Left      |
+
+
+Shunting yard algorithm
+-----------------------
+
+The regex chain of character sets and operators (or parentheses) goes into
+the shunting yard algorithm, which, rearranges the links in the chain, placing
+the expression into postfix form, removing parentheses.
+
+The precedence and associativity in the table above is used in this process.
+
+Running the engine with verbose mode on will display the posfix form
+to `stderr`.
+
+Thompson's construction
+-----------------------
+
+Next the nondeterministic finite automaton (NFA) is made using Thompson's
+construction. The posfix expression is "evaluated".
+
+The operands are NFA fragments. Please note that one of the very clever things
+about Thompson's construction is that every NFA "fragment" is, itself,
+a complete and valid NFA!
+
+Character sets are converted into the following NFA fragments:
+```
++---+                       +---+
+| S | === Character set ==> | E |
++---+                       +---+
+
+S = Start node.
+E = End node.
+```
+
+And the NFA fragment is placed onto the operand stack.
+binary
+
+unary
+
+When run in verbose mode, the transitions for a mermaid graph are printed
+to `stderr`. These are very useful for visualising your regex and help to
+create an intuitive understanding of them.
+
+
+
+Running the NFA
+---------------
+
+
+
 
 
 Enjoy,

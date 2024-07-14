@@ -65,7 +65,7 @@
     ms("Usage warning: ");                                  \
     fprintf(stderr, __VA_ARGS__);                           \
     if (m4->warn_to_error)                                  \
-        return USAGE_ERR;                                   \
+        return USAGE_ERROR;                                   \
 } while (0)
 
 /* Syntax warning */
@@ -73,14 +73,14 @@
     ms("Syntax warning: ");                                 \
     fprintf(stderr, __VA_ARGS__);                           \
     if (m4->warn_to_error)                                  \
-        return SYNTAX_ERR;                                  \
+        return SYNTAX_ERROR;                                  \
 } while (0)
 
 /* Usage error */
 #define ue(...) do {                                        \
     ms("Usage error: ");                                    \
     fprintf(stderr, __VA_ARGS__);                           \
-    return USAGE_ERR;                                       \
+    return USAGE_ERROR;                                       \
 } while (0)
 
 /* Syntax error, without using m4 struct */
@@ -88,13 +88,13 @@
     fprintf(stderr, "[%s:%d]: Syntax error: ",              \
         __FILE__, __LINE__);                                \
     fprintf(stderr, __VA_ARGS__);                           \
-    return SYNTAX_ERR;                                      \
+    return SYNTAX_ERROR;                                      \
 } while (0)
 
 /* User overflow error */
 #define uofe do {                                           \
     ms("User overflow error\n");                            \
-    return USER_OVERFLOW_ERR;                               \
+    return USER_OVERFLOW_ERROR;                               \
 } while (0)
 
 /* Location macro return - specifies location in file input */
@@ -255,7 +255,7 @@ int stack_mc(struct macro_call **head, size_t *stack_depth)
     struct macro_call *mc;
 
     if ((mc = init_mc()) == NULL)
-        mreturn(ERR);
+        mreturn(ERROR);
 
     mc->next = *head;
     *head = mc;
@@ -302,7 +302,7 @@ int sub_args(M4ptr m4)
         ch = *p;
         if (ch != '$') {
             if (put_ch(m4->tmp, ch))
-                mreturn(ERR);
+                mreturn(ERROR);
         } else {
             next_ch = *(p + 1);
             if (isdigit(next_ch)) {
@@ -315,7 +315,7 @@ int sub_args(M4ptr m4)
                        (unsigned long) x);
 
                 if (put_str(m4->tmp, arg(x)))
-                    mreturn(ERR);
+                    mreturn(ERROR);
 
                 ++p;            /* Eat an extra char */
             } else if (next_ch == '#') {
@@ -323,9 +323,9 @@ int sub_args(M4ptr m4)
                 r = snprintf(num, NUM_BUF_SIZE, "%lu",
                              (unsigned long) num_args_collected);
                 if (r < 0 || r >= NUM_BUF_SIZE)
-                    mreturn(ERR);
+                    mreturn(ERROR);
                 if (put_str(m4->tmp, num))
-                    mreturn(ERR);
+                    mreturn(ERROR);
                 ++p;            /* Eat an extra char */
             } else if (next_ch == '*' || next_ch == '@') {
                 /*
@@ -335,19 +335,19 @@ int sub_args(M4ptr m4)
                 all_args_accessed = 1;
                 for (i = 1; i <= num_args_collected; ++i) {
                     if (next_ch == '@' && put_str(m4->tmp, m4->left_quote))
-                        mreturn(ERR);
+                        mreturn(ERROR);
                     if (put_str(m4->tmp, arg(i)))
-                        mreturn(ERR);
+                        mreturn(ERROR);
                     if (next_ch == '@'
                         && put_str(m4->tmp, m4->right_quote))
-                        mreturn(ERR);
+                        mreturn(ERROR);
                     if (i != num_args_collected && put_ch(m4->tmp, ','))
-                        mreturn(ERR);
+                        mreturn(ERROR);
                 }
                 ++p;            /* Eat an extra char */
             } else {
                 if (put_ch(m4->tmp, ch))
-                    mreturn(ERR);
+                    mreturn(ERROR);
             }
         }
 
@@ -364,7 +364,7 @@ int sub_args(M4ptr m4)
                    (unsigned long) i);
 
     if (unget_str(m4->input, m4->tmp->a))
-        mreturn(ERR);
+        mreturn(ERROR);
 
     return 0;
 }
@@ -392,7 +392,7 @@ int end_macro(M4ptr m4)
 
     if (m4->pass_through) {
         if (put_str(output, nm))
-            return ERR;
+            return ERROR;
 
         m4->pass_through = 0;
     }
@@ -614,7 +614,7 @@ int add_macro(M4ptr m4, char *macro_name, char *macro_def, int push_hist)
     if (*macro_def == '\0' && m4->tmp_mfp != NULL) {
         /* Passed back built-in macro function pointer from defn */
         if (upsert(m4->ht, macro_name, NULL, m4->tmp_mfp, push_hist))
-            mreturn(ERR);
+            mreturn(ERROR);
 
         m4->tmp_mfp = NULL;
     } else {
@@ -623,7 +623,7 @@ int add_macro(M4ptr m4, char *macro_name, char *macro_def, int push_hist)
             sw("Macro definition has gaps in argument references\n");
 
         if (upsert(m4->ht, macro_name, macro_def, NULL, push_hist))
-            mreturn(ERR);
+            mreturn(ERROR);
     }
 
     return 0;
@@ -679,7 +679,7 @@ int output_line_directive(M4ptr m4)
     return 0;
 
   error:
-    return ERR;
+    return ERROR;
 }
 
 
@@ -702,7 +702,7 @@ int output_line_directive(M4ptr m4)
         "Required arguments not collected: %s%s\n",     \
         m4->input->nm, (unsigned long) m4->input->rn,   \
         __FILE__, __LINE__, arg(0), PAR_DESC);          \
-    return USAGE_ERR;                                   \
+    return USAGE_ERROR;                                   \
 }                                                       \
 
 
@@ -827,11 +827,11 @@ int econc(m4_, NM) (void *v) {
         uw("Left and right comments should not be the same\n");
 
     if ((tmp_lc = strdup(lc)) == NULL)
-        mreturn(ERR);
+        mreturn(ERROR);
 
     if ((tmp_rc = strdup(rc)) == NULL) {
         free(tmp_lc);
-        l_mreturn(ERR);
+        l_mreturn(ERROR);
     }
 
     free(m4->left_comment);
@@ -880,11 +880,11 @@ int econc(m4_, NM) (void *v) {
     }
 
     if ((tmp_lq = strdup(lq)) == NULL)
-        mreturn(ERR);
+        mreturn(ERROR);
 
     if ((tmp_rq = strdup(rq)) == NULL) {
         free(tmp_lq);
-        l_mreturn(ERR);
+        l_mreturn(ERROR);
     }
 
     free(m4->left_quote);
@@ -917,16 +917,16 @@ int econc(m4_, NM) (void *v) {
      */
     for (i = num_args_collected; i >= 2; --i) {
         if (unget_str(m4->input, m4->right_quote))
-            mreturn(ERR);
+            mreturn(ERROR);
 
         if (unget_str(m4->input, arg(i)))
-            mreturn(ERR);
+            mreturn(ERROR);
 
         if (unget_str(m4->input, m4->left_quote))
-            mreturn(ERR);
+            mreturn(ERROR);
 
         if (i != 2 && unget_ch(m4->input, ','))
-            mreturn(ERR);
+            mreturn(ERROR);
     }
 
     return 0;
@@ -957,7 +957,7 @@ int econc(m4_, NM) (void *v) {
         return 0;
     }
 
-    mreturn(ERR);
+    mreturn(ERROR);
 }
 
 #undef NM
@@ -980,7 +980,7 @@ int econc(m4_, NM) (void *v) {
             } else if (isdigit(ch) && strlen(arg(i)) == 1
                        && (x = ch - '0') != m4->active_div) {
                 if (put_obuf(m4->div[m4->active_div], m4->div[x]))
-                    mreturn(ERR);
+                    mreturn(ERROR);
             } else {
                 p = arg(i);
                 while (isdigit(*p++));
@@ -991,7 +991,7 @@ int econc(m4_, NM) (void *v) {
                  * even during argument collection.
                  */
                 if (put_file(m4->div[m4->active_div], arg(i)))
-                    mreturn(ERR);
+                    mreturn(ERROR);
             }
         }
     } else {
@@ -999,7 +999,7 @@ int econc(m4_, NM) (void *v) {
         for (i = 0; i < NUM_DIVS - 1; ++i)
             if (i != m4->active_div
                 && put_obuf(m4->div[m4->active_div], m4->div[i]))
-                mreturn(ERR);
+                mreturn(ERROR);
     }
 
     return 0;
@@ -1028,9 +1028,9 @@ int econc(m4_, NM) (void *v) {
     /* Cannot write diversions 0 and -1 */
     if (strlen(arg(1)) == 1 && isdigit(ch) && ch != '0') {
         if (write_obuf(m4->div[ch - '0'], arg(2), append))
-            mreturn(ERR);
+            mreturn(ERROR);
     } else
-        mreturn(ERR);
+        mreturn(ERROR);
 
     return 0;
 }
@@ -1049,14 +1049,14 @@ int econc(m4_, NM) (void *v) {
 
     if (m4->active_div == 10) {
         if (unget_str(m4->input, "-1"))
-            mreturn(ERR);
+            mreturn(ERROR);
 
         return 0;
     }
 
     ch = '0' + m4->active_div;
     if (unget_ch(m4->input, ch))
-        mreturn(ERR);
+        mreturn(ERROR);
 
     return 0;
 }
@@ -1083,7 +1083,7 @@ int econc(m4_, NM) (void *v) {
 
     if (unget_str(m4->input, temp_fn)) {
         free(temp_fn);
-        l_mreturn(ERR);
+        l_mreturn(ERROR);
     }
 
     free(temp_fn);
@@ -1109,11 +1109,11 @@ int econc(m4_, NM) (void *v) {
     r = make_stemp(arg(1), &temp_fn);
 
     if (r)
-        return ERR_CONTINUE;
+        return ERROR_CONTINUE;
 
     if (unget_str(m4->input, temp_fn)) {
         free(temp_fn);
-        l_mreturn(ERR);
+        l_mreturn(ERROR);
     }
 
     free(temp_fn);
@@ -1135,7 +1135,7 @@ int econc(m4_, NM) (void *v) {
     min_pars(1);
 
     if (unget_file(&m4->input, arg(1)))
-        mreturn(ERR);
+        mreturn(ERROR);
 
     return 0;
 }
@@ -1161,7 +1161,7 @@ int econc(m4_, NM) (void *v) {
 
     if (unget_stream(&m4->input, fp, arg(1))) {
         fclose(fp);
-        l_mreturn(ERR);
+        l_mreturn(ERROR);
     }
 
     return 0;
@@ -1211,7 +1211,7 @@ int econc(m4_, NM) (void *v) {
         *q = '\0';
 
     if (unget_str(m4->input, arg(1)))
-        mreturn(ERR);
+        mreturn(ERROR);
 
     return 0;
 }
@@ -1223,7 +1223,7 @@ int econc(m4_, NM) (void *v) {
 
 int econc(m4_, NM) (void *v) {
     M4ptr m4 = (M4ptr) v;
-    int ret = ERR;
+    int ret = ERROR;
     char *res;
     size_t res_len;
     int nl_insen = 0;           /* Newline insensitive off */
@@ -1248,7 +1248,7 @@ int econc(m4_, NM) (void *v) {
 
     if (unget_str(m4->input, res)) {
         free(res);
-        mreturn(ERR);
+        mreturn(ERROR);
     }
 
     free(res);
@@ -1270,11 +1270,11 @@ int econc(m4_, NM) (void *v) {
     max_pars(1);
 
     if ((res = ls_dir(num_args_collected ? arg(1) : ".")) == NULL)
-        mreturn(ERR);
+        mreturn(ERROR);
 
     if (unget_str(m4->input, res)) {
         free(res);
-        mreturn(ERR);
+        mreturn(ERROR);
     }
 
     free(res);
@@ -1299,10 +1299,10 @@ int econc(m4_, NM) (void *v) {
     e = lookup(m4->ht, arg(1));
     if (e != NULL) {
         if (unget_str(m4->input, arg(2)))
-            mreturn(ERR);
+            mreturn(ERROR);
     } else if (num_args_collected >= 3) {
         if (*arg(3) != '\0' && unget_str(m4->input, arg(3)))
-            mreturn(ERR);
+            mreturn(ERROR);
     }
     return 0;
 }
@@ -1327,20 +1327,20 @@ int econc(m4_, NM) (void *v) {
         fprintf(stderr, "%s:%lu [%s:%d]: Usage: %s%s\n", m4->input->nm,
                 (unsigned long) m4->input->rn, __FILE__, __LINE__, arg(0),
                 PAR_DESC);
-        return USAGE_ERR;
+        return USAGE_ERROR;
     }
 
     for (i = 2; i <= num_args_collected - 1; i += 2)
         if (!strcmp(arg(1), arg(i))) {
             if (unget_str(m4->input, arg(i + 1)))
-                mreturn(ERR);
+                mreturn(ERROR);
             return 0;
         }
 
     /* Default */
     if (num_args_collected > 3 && num_args_collected % 2 == 0
         && unget_str(m4->input, arg(num_args_collected)))
-        mreturn(ERR);
+        mreturn(ERROR);
 
     return 0;
 }
@@ -1365,11 +1365,11 @@ int econc(m4_, NM) (void *v) {
         if (e != NULL && e->func_p == NULL) {
             /* User-defined text macro */
             if (unget_str(m4->input, m4->right_quote))
-                mreturn(ERR);
+                mreturn(ERROR);
             if (unget_str(m4->input, e->def))
-                mreturn(ERR);
+                mreturn(ERROR);
             if (unget_str(m4->input, m4->left_quote))
-                mreturn(ERR);
+                mreturn(ERROR);
         }
     }
 
@@ -1474,7 +1474,7 @@ int econc(m4_, NM) (void *v) {
     min_pars(1);
 
     if (put_str(m4->wrap, arg(1)))
-        mreturn(ERR);
+        mreturn(ERROR);
 
     return 0;
 }
@@ -1513,10 +1513,10 @@ int econc(m4_, NM) (void *v) {
 
     r = snprintf(num, NUM_BUF_SIZE, "%lu", (unsigned long) strlen(arg(1)));
     if (r < 0 || r >= NUM_BUF_SIZE)
-        mreturn(ERR);
+        mreturn(ERROR);
 
     if (unget_str(m4->input, num))
-        mreturn(ERR);
+        mreturn(ERROR);
 
     return 0;
 }
@@ -1555,7 +1555,7 @@ int econc(m4_, NM) (void *v) {
     }
     if (x < len) {
         if (unget_str(m4->input, arg(1) + x))
-            mreturn(ERR);
+            mreturn(ERROR);
     } else {
         uw("Index is out of bounds\n");
     }
@@ -1584,13 +1584,13 @@ int econc(m4_, NM) (void *v) {
         r = snprintf(num, NUM_BUF_SIZE, "%lu",
                      (unsigned long) (p - arg(1)));
         if (r < 0 || r >= NUM_BUF_SIZE)
-            mreturn(ERR);
+            mreturn(ERROR);
 
         if (unget_str(m4->input, num))
-            mreturn(ERR);
+            mreturn(ERROR);
     } else {
         if (unget_str(m4->input, "-1"))
-            mreturn(ERR);
+            mreturn(ERROR);
     }
 
     return 0;
@@ -1652,13 +1652,13 @@ int econc(m4_, NM) (void *v) {
             x = uch;
 
         if (x != -1 && put_ch(m4->tmp, x))
-            mreturn(ERR);
+            mreturn(ERROR);
     }
     if (put_ch(m4->tmp, '\0'))
-        mreturn(ERR);
+        mreturn(ERROR);
 
     if (unget_str(m4->input, m4->tmp->a))
-        mreturn(ERR);
+        mreturn(ERROR);
 
     return 0;
 }
@@ -1704,13 +1704,13 @@ int econc(m4_, NM) (void *v) {
 
     r = snprintf(num, NUM_BUF_SIZE, "%lu", (unsigned long) x);
     if (r < 0 || r >= NUM_BUF_SIZE)
-        mreturn(ERR);
+        mreturn(ERROR);
 
     if (unget_str(m4->input, num))
-        mreturn(ERR);
+        mreturn(ERROR);
 
     if (neg && unget_ch(m4->input, '-'))
-        mreturn(ERR);
+        mreturn(ERROR);
 
     return 0;
 }
@@ -1756,13 +1756,13 @@ int econc(m4_, NM) (void *v) {
 
     r = snprintf(num, NUM_BUF_SIZE, "%lu", (unsigned long) x);
     if (r < 0 || r >= NUM_BUF_SIZE)
-        mreturn(ERR);
+        mreturn(ERROR);
 
     if (unget_str(m4->input, num))
-        mreturn(ERR);
+        mreturn(ERROR);
 
     if (neg && unget_ch(m4->input, '-'))
-        mreturn(ERR);
+        mreturn(ERROR);
 
     return 0;
 }
@@ -1774,7 +1774,7 @@ int econc(m4_, NM) (void *v) {
 
 int econc(m4_, NM) (void *v) {
     M4ptr m4 = (M4ptr) v;
-    int ret = ERR;
+    int ret = ERROR;
     long x;
     unsigned int base = 10, pad = 0;
     char *num_str = NULL;
@@ -1786,10 +1786,10 @@ int econc(m4_, NM) (void *v) {
     min_pars(1);
 
     if (num_args_collected >= 2 && str_to_uint(arg(2), &base))
-        mreturn(ERR);
+        mreturn(ERROR);
 
     if (num_args_collected >= 3 && str_to_uint(arg(3), &pad))
-        mreturn(ERR);
+        mreturn(ERROR);
 
     if (num_args_collected >= 4 && !strcmp(arg(4), "1"))
         verbose = 1;
@@ -1798,10 +1798,10 @@ int econc(m4_, NM) (void *v) {
         return ret;
 
     if ((num_str = ltostr(x, base, pad)) == NULL)
-        mreturn(ERR);
+        mreturn(ERROR);
 
     if (unget_str(m4->input, num_str))
-        mreturn(ERR);
+        mreturn(ERROR);
 
     free(num_str);
 
@@ -1823,10 +1823,10 @@ int econc(m4_, NM) (void *v) {
 
     r = snprintf(num, NUM_BUF_SIZE, "%d", m4->sys_val);
     if (r < 0 || r >= NUM_BUF_SIZE)
-        mreturn(ERR);
+        mreturn(ERROR);
 
     if (unget_str(m4->input, num))
-        mreturn(ERR);
+        mreturn(ERROR);
 
     return 0;
 }
@@ -1849,7 +1849,7 @@ int econc(m4_, NM) (void *v) {
 
 #ifndef _WIN32
     if (!WIFEXITED(st))
-        mreturn(ERR);
+        mreturn(ERROR);
 #endif
 
 #ifndef _WIN32
@@ -1876,31 +1876,31 @@ int econc(m4_, NM) (void *v) {
     min_pars(1);
 
     if ((fp = popen(arg(1), "r")) == NULL)
-        mreturn(ERR);
+        mreturn(ERROR);
 
     m4->tmp->i = 0;
     while ((x = getc(fp)) != EOF) {
         if (x != '\0' && put_ch(m4->tmp, x)) {
             pclose(fp);
-            mreturn(ERR);
+            mreturn(ERROR);
         }
     }
     if (ferror(fp) || !feof(fp)) {
         pclose(fp);
-        mreturn(ERR);
+        mreturn(ERROR);
     }
     if ((st = pclose(fp)) == -1)
-        mreturn(ERR);
+        mreturn(ERROR);
 #ifndef _WIN32
     if (!WIFEXITED(st))
-        mreturn(ERR);
+        mreturn(ERROR);
 #endif
 
     if (put_ch(m4->tmp, '\0'))
-        mreturn(ERR);
+        mreturn(ERROR);
 
     if (unget_str(m4->input, m4->tmp->a))
-        mreturn(ERR);
+        mreturn(ERROR);
 #ifndef _WIN32
     st = WEXITSTATUS(st);
 #endif
@@ -1923,10 +1923,10 @@ int econc(m4_, NM) (void *v) {
 
     if (num_args_collected) {
         if (str_to_size_t(arg(1), &x))
-            mreturn(ERR);
+            mreturn(ERROR);
 
         if (x > UCHAR_MAX)
-            mreturn(ERR);
+            mreturn(ERROR);
     }
 
     m4->req_exit_val = x;
@@ -2017,7 +2017,7 @@ int econc(m4_, NM) (void *v) {
             e = m4->ht->b[i];
             while (e != NULL) {
                 if (upsert(m4->trace_ht, e->name, NULL, NULL, 0))
-                    mreturn(ERR);
+                    mreturn(ERROR);
                 e = e->next;
             }
         }
@@ -2031,7 +2031,7 @@ int econc(m4_, NM) (void *v) {
 
     for (i = 1; i <= num_args_collected; ++i)
         if (upsert(m4->trace_ht, arg(i), NULL, NULL, 0))
-            mreturn(ERR);
+            mreturn(ERROR);
 
     m4->trace_on = 1;
     return 0;
@@ -2056,7 +2056,7 @@ int econc(m4_, NM) (void *v) {
         free_ht(m4->trace_ht);
 
         if ((m4->trace_ht = init_ht(NUM_BUCKETS)) == NULL)
-            mreturn(ERR);
+            mreturn(ERROR);
         m4->trace_on = 0;
         return 0;
     }
@@ -2085,7 +2085,7 @@ int econc(m4_, NM) (void *v) {
         ue("Argument is empty string\n");
 
     if (rec_rm(arg(1)))
-        mreturn(ERR);
+        mreturn(ERROR);
 
     return 0;
 }
@@ -2186,7 +2186,7 @@ int main(int argc, char **argv)
             if (i + 1 == argc) {
                 fprintf(stderr, "[%s:%d]: Error: Usage: %s\n", __FILE__,
                         __LINE__, program_usage);
-                ret = USAGE_ERR;
+                ret = USAGE_ERROR;
                 goto error;
             }
             p = strchr(*(argv + i + 1), '=');
@@ -2202,7 +2202,7 @@ int main(int argc, char **argv)
             if (i + 1 == argc) {
                 fprintf(stderr, "[%s:%d]: Error: Usage: %s\n", __FILE__,
                         __LINE__, program_usage);
-                ret = USAGE_ERR;
+                ret = USAGE_ERROR;
                 goto error;
             }
             if (delete_entry(m4->ht, *(argv + i + 1), 0)) {
@@ -2210,7 +2210,7 @@ int main(int argc, char **argv)
                         "[%s:%d]: Usage warning: Macro does not exist: %s\n",
                         __FILE__, __LINE__, *(argv + i + 1));
                 if (m4->warn_to_error) {
-                    ret = USAGE_ERR;
+                    ret = USAGE_ERROR;
                     goto error;
                 }
             }
@@ -2261,7 +2261,7 @@ int main(int argc, char **argv)
         if (m4->left_comment != NULL && m4->right_comment != NULL) {
             if (!m4->comment_on) {
                 r = eat_str_if_match(&m4->input, m4->left_comment);
-                if (r == ERR)
+                if (r == ERROR)
                     mgoto(error);
 
                 if (output_line_directive(m4))
@@ -2278,7 +2278,7 @@ int main(int argc, char **argv)
                 }
             } else {
                 r = eat_str_if_match(&m4->input, m4->right_comment);
-                if (r == ERR)
+                if (r == ERROR)
                     mgoto(error);
 
                 if (output_line_directive(m4))
@@ -2297,7 +2297,7 @@ int main(int argc, char **argv)
         }
 
         r = eat_str_if_match(&m4->input, m4->left_quote);
-        if (r == ERR)
+        if (r == ERROR)
             mgoto(error);
 
         if (output_line_directive(m4))
@@ -2313,7 +2313,7 @@ int main(int argc, char **argv)
         }
 
         r = eat_str_if_match(&m4->input, m4->right_quote);
-        if (r == ERR)
+        if (r == ERROR)
             mgoto(error);
 
         if (output_line_directive(m4))
@@ -2332,7 +2332,7 @@ int main(int argc, char **argv)
 
         /* Not a quote, so read a token */
         r = get_word(&m4->input, m4->token, 0);
-        if (r == ERR) {
+        if (r == ERROR) {
             mgoto(error);
         } else if (r == EOF) {
             if (m4->wrap->i) {
@@ -2375,7 +2375,7 @@ int main(int argc, char **argv)
 
             if ((mrv = end_macro(m4))) {
                 ret = mrv;      /* Save for exit time */
-                if ((mrv == ERR || m4->error_exit)) {
+                if ((mrv == ERROR || m4->error_exit)) {
                     ms_na0("Error\n");
                     goto error;
                 }
@@ -2441,14 +2441,14 @@ int main(int argc, char **argv)
                             e->name, (unsigned long) m4->stack_depth);
 
                 /* See if called with or without brackets */
-                if ((r = eat_str_if_match(&m4->input, "(")) == ERR)
+                if ((r = eat_str_if_match(&m4->input, "(")) == ERROR)
                     mgoto(error);
 
                 if (r == NO_MATCH) {
                     /* Called without arguments */
                     if ((mrv = end_macro(m4))) {
                         ret = mrv;      /* Save for exit time */
-                        if (mrv == ERR || m4->error_exit)
+                        if (mrv == ERROR || m4->error_exit)
                             mgoto(error);
                     }
                 } else {
@@ -2468,11 +2468,11 @@ int main(int argc, char **argv)
         /* Check */
         if (m4->stack != NULL) {
             fprintf(stderr, "m4: Stack not completed\n");
-            ret = ERR;
+            ret = ERROR;
         }
         if (m4->quote_depth) {
             fprintf(stderr, "m4: Quotes not balanced\n");
-            ret = ERR;
+            ret = ERROR;
         }
 
         /* Automatically undivert all diversions */
@@ -2502,7 +2502,7 @@ int main(int argc, char **argv)
 
   error:
     if (!ret)
-        ret = ERR;
+        ret = ERROR;
 
     goto clean_up;
 }

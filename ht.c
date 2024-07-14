@@ -119,7 +119,7 @@ int delete_entry(struct ht *ht, const char *name, int pop_hist)
     e = lookup(ht, name);
 
     if (e == NULL)
-        return ERR;             /* Error as not found */
+        return ERROR;           /* Error as not found */
 
     bucket = hash_func(name, ht->n);
 
@@ -166,11 +166,11 @@ int upsert(struct ht *ht, const char *name, const char *def, Fptr func_p,
     char *name_copy, *def_copy = NULL;
 
     if ((name_copy = strdup(name)) == NULL)
-        mreturn(ERR);
+        mreturn(ERROR);
 
     if (def != NULL && (def_copy = strdup(def)) == NULL) {
         free(name_copy);
-        mreturn(ERR);
+        mreturn(ERROR);
     }
 
     e = lookup(ht, name);
@@ -180,7 +180,7 @@ int upsert(struct ht *ht, const char *name, const char *def, Fptr func_p,
         if ((new_e = init_entry()) == NULL) {
             free(name_copy);
             free(def_copy);
-            mreturn(ERR);
+            mreturn(ERROR);
         }
     }
 
