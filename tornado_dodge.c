@@ -53,9 +53,13 @@ int main(void)
     int ret = ERROR;
     int x;
     size_t man_y = 0, man_x = 0;
+    size_t cloud_y = 6, cloud_x = 0;
 
     char *man = " o \n" "<|>\n" "/\\ ";
     char *man_vert = " o \n" " V \n" " | ";
+    char *cloud = " /=========\\ \n" "|           |\n" " \\=========/";
+
+    size_t loop_count = 0;
 
     if (initscr() == NULL)
         mgoto(clean_up);
@@ -67,6 +71,9 @@ int main(void)
         mgoto(clean_up);
 
     if (keypad(stdscr, TRUE) == ERR)
+        mgoto(clean_up);
+
+    if (nodelay(stdscr, TRUE) == ERR)
         mgoto(clean_up);
 
     if (set_tabsize(8) == ERR)
@@ -84,14 +91,22 @@ int main(void)
                 mgoto(clean_up);
         }
 
+        if (print_object(cloud_y, cloud_x, cloud))
+            mgoto(clean_up);
+
+        if (loop_count % 10000 == 0)
+            ++cloud_x;
+
         refresh();
 
         x = getch();
 
-        if (x == KEY_RIGHT)
+        if (x == 'f' || x == KEY_RIGHT)
             ++man_x;
-        else if (x == 'q')
+        else if (x == 'q' || (x == 24 && getch() == 3))
             break;
+
+        ++loop_count;
     }
 
     ret = 0;

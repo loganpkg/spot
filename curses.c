@@ -62,6 +62,9 @@
 #define DEFAULT_TABSIZE 8
 #define ESC 27
 
+#define INIT_UNREAD_MEM_SIZE 64
+
+#define CTRL_2 0
 
 #define mgoto(lb) do {                                                  \
     fprintf(stderr, "[%s:%d]: Error: " #lb "\n", __FILE__, __LINE__);   \
@@ -102,54 +105,59 @@ WINDOW *initscr(void)
      * The memory for the virtual screens will be allocated upon the first call
      * to erase_screen.
      */
-    stdscr->vs_c = NULL;
-    stdscr->vs_n = NULL;
-    stdscr->vs_s = 0;
     stdscr->tabsize = DEFAULT_TABSIZE;
     stdscr->clear = 1;
-    stdscr->centre = 0;
+
+    if ((stdscr->a = calloc(INIT_UNREAD_MEM_SIZE, 1)) == NULL)
+        mgoto(error);
+
+    stdscr->n = INIT_UNREAD_MEM_SIZE;
 
     /* Setup terminal */
 #ifdef _WIN32
     if (_setmode(_fileno(stdin), _O_BINARY) == -1)
-        mgoto(clean_up);
+        mgoto(error);
 
     if (_setmode(_fileno(stdout), _O_BINARY) == -1)
-        mgoto(clean_up);
+        mgoto(error);
 
     if (_setmode(_fileno(stderr), _O_BINARY) == -1)
-        mgoto(clean_up);
+        mgoto(error);
 
     if ((stdscr->term_handle =
          GetStdHandle(STD_OUTPUT_HANDLE)) == INVALID_HANDLE_VALUE)
-        mgoto(clean_up);
+        mgoto(error);
 
     if (!GetConsoleMode(stdscr->term_handle, &stdscr->term_orig))
-        mgoto(clean_up);
+        mgoto(error);
 
     stdscr->term_new =
         stdscr->term_orig | ENABLE_PROCESSED_OUTPUT |
         ENABLE_VIRTUAL_TERMINAL_PROCESSING;
 
     if (!SetConsoleMode(stdscr->term_handle, stdscr->term_new))
-        mgoto(clean_up);
+        mgoto(error);
 
 #else
 
     if (tcgetattr(STDIN_FILENO, &stdscr->term_orig))
-        mgoto(clean_up);
+        mgoto(error);
 
     stdscr->term_new = stdscr->term_orig;
 
     cfmakeraw(&stdscr->term_new);
 
+    /* Wait forever for 1 char */
+    stdscr->term_new.c_cc[VMIN] = 1;
+    stdscr->term_new.c_cc[VTIME] = 0;
+
     if (tcsetattr(STDIN_FILENO, TCSANOW, &stdscr->term_new))
-        mgoto(clean_up);
+        mgoto(error);
 #endif
 
     return stdscr;
 
-  clean_up:
+  error:
     free(stdscr);
     return NULL;
 }
@@ -170,10 +178,12 @@ int endwin(void)
 
     free(stdscr->vs_c);
     free(stdscr->vs_n);
+    free(stdscr->a);
     free(stdscr);
 
     return ret;
 }
+
 
 int set_tabsize(size_t size)
 {
@@ -181,86 +191,237 @@ int set_tabsize(size_t size)
     return OK;
 }
 
+
+#ifndef _WIN32
+static int _kbhit(void)
+{
+    fd_set read_fd_set;
+    struct timeval t_o = { 0 };
+
+    FD_ZERO(&read_fd_set);
+    FD_SET(STDIN_FILENO, &read_fd_set);
+    if (select(STDIN_FILENO + 1, &read_fd_set, NULL, NULL, &t_o) == -1) {
+        fprintf(stderr, "[%s:%d]: select: Error\n", __FILE__, __LINE__);
+        return 0;               /* Error */
+    }
+
+    if (FD_ISSET(STDIN_FILENO, &read_fd_set))
+        return 1;               /* Ready */
+
+    return 0;                   /* No keyboard hit */
+}
+#endif
+
+
+static int unread(unsigned char u)
+{
+    unsigned char *t;
+    size_t new_n;
+
+    if (stdscr->i == stdscr->n) {
+        /* Grow buffer */
+        if (aof(stdscr->n, 1, SIZE_MAX))
+            return ERR;
+
+        new_n = stdscr->n + 1;
+
+        if (mof(new_n, 2, SIZE_MAX))
+            return ERR;
+
+        new_n *= 2;
+
+        if ((t = realloc(stdscr->a, new_n)) == NULL)
+            return ERR;
+
+        stdscr->a = t;
+        stdscr->n = new_n;
+    }
+
+    *(stdscr->a + stdscr->i) = u;
+    ++stdscr->i;
+
+    return OK;
+}
+
+
+static int getch_raw(void)
+{
+
+#ifndef _WIN32
+    int num, x, k;
+    unsigned char t;
+    size_t s_i, e_i;
+#endif
+
+  top:
+    if (stdscr->i) {
+        stdscr->i--;
+        return *(stdscr->a + stdscr->i);
+    }
+
+    if (!stdscr->non_blocking)
+#ifdef _WIN32
+        return _getch();
+#else
+        return getchar();
+#endif
+
+    /* Non-blocking */
+
+    /* No chars ready */
+    if (!_kbhit())
+        return ERR;
+
+
+#ifdef _WIN32
+    return _getch();
+#else
+    /* See how many chars are waiting */
+    if (ioctl(STDIN_FILENO, FIONREAD, &num) == -1) {
+        fprintf(stderr, "[%s:%d]: ioctl: Error\n", __FILE__, __LINE__);
+        return ERR;
+    }
+
+    if (!num)
+        return ERR;
+
+    /*
+     * Need to read all characters that are waiting in stdin.
+     * Some keys send a multi-byte sequence, such as the arrow keys.
+     * If only the first byte is read, then select() will report that
+     * it is not ready until the next key is pressed, delaying the
+     * reading of the rest of the bytes in the original key.
+     */
+    for (k = 0; k < num; ++k) {
+        x = getchar();
+        unread(x);
+    }
+
+    /* Need to reverse chars */
+    s_i = stdscr->i - num;
+    e_i = stdscr->i - 1;
+    while (s_i < e_i) {
+        t = *(stdscr->a + s_i);
+        *(stdscr->a + s_i) = *(stdscr->a + e_i);
+        *(stdscr->a + e_i) = t;
+        ++s_i;
+        --e_i;
+    }
+
+    goto top;
+#endif
+}
+
+
 int getch(void)
 {
     int x, y;
 
 #ifdef _WIN32
-    while (1) {
-        x = _getch();
-        if (x == 0) {
-            y = _getch();
-            if (y == 3)
-                return 0;       /* Ctrl 2 */
-        } else if (x == 224) {
-            y = _getch();
-            switch (y) {
-            case 'K':
-                return KEY_LEFT;
-            case 'M':
-                return KEY_RIGHT;
-            case 'H':
-                return KEY_UP;
-            case 'P':
-                return KEY_DOWN;
-            case 'S':
-                return KEY_DC;
-            case 'G':
-                return KEY_HOME;
-            case 'O':
-                return KEY_END;
-            }
+    x = getch_raw();
+    if (x == 0) {
+        if ((y = getch_raw()) == ERR) {
+            unread(x);
+            return ERR;
+        }
+        if (y == 3) {
+            return CTRL_2;
         } else {
+            unread(y);
+            return x;
+        }
+    } else if (x == 224) {
+        if ((y = getch_raw()) == ERR) {
+            unread(x);
+            return ERR;
+        }
+        switch (y) {
+        case 'K':
+            return KEY_LEFT;
+        case 'M':
+            return KEY_RIGHT;
+        case 'H':
+            return KEY_UP;
+        case 'P':
+            return KEY_DOWN;
+        case 'S':
+            return KEY_DC;
+        case 'G':
+            return KEY_HOME;
+        case 'O':
+            return KEY_END;
+        default:
+            unread(y);
             return x;
         }
     }
+    return x;
 
 #else
 
     int z, w;
 
-    while (1) {
-        x = getchar();
-        if (x == ESC) {
-            y = getchar();
-            if (y == '[') {
-                z = getchar();
-                if (!isdigit(z)) {
-                    switch (z) {
-                    case 'D':
-                        return KEY_LEFT;
-                    case 'C':
-                        return KEY_RIGHT;
-                    case 'A':
-                        return KEY_UP;
-                    case 'B':
-                        return KEY_DOWN;
-                    case 'H':
-                        return KEY_HOME;
-                    case 'F':
-                        return KEY_END;
-                    }
-                } else {
-                    if (z == '3' && getchar() == '~') {
-                        return KEY_DC;
-                    } else {
-                        /* Eat to end */
-                        while ((w = getchar()) != '~'
-                               && (isdigit(w) || w == ';'));
-                    }
+    x = getch_raw();
+    if (x == C('x')) {
+        /*
+         * Control X is used as a multi-byte prefix. So need to wait until
+         * the next char is ready, otherwise they will be separated.
+         */
+        if ((y = getch_raw()) == ERR) {
+            unread(x);
+            return ERR;
+        }
+        unread(y);
+        return x;
+    } else if (x == ESC) {
+        if ((y = getch_raw()) == ERR) {
+            unread(x);
+            return ERR;
+        }
+        if (y == '[') {
+            if ((z = getch_raw()) == ERR) {
+                unread(y);
+                unread(x);
+                return ERR;
+            }
+            switch (z) {
+            case 'D':
+                return KEY_LEFT;
+            case 'C':
+                return KEY_RIGHT;
+            case 'A':
+                return KEY_UP;
+            case 'B':
+                return KEY_DOWN;
+            case 'H':
+                return KEY_HOME;
+            case 'F':
+                return KEY_END;
+            case '3':
+                if ((w = getch_raw()) == ERR) {
+                    unread(z);
+                    unread(y);
+                    unread(x);
+                    return ERR;
                 }
-            } else if (y == 'O') {
-                getchar();      /* Eat */
-            } else {
-                if (ungetc(y, stdin) == EOF)
-                    return EOF;
+                if (w == '~')
+                    return KEY_DC;
 
-                return ESC;
+                unread(w);
+                unread(z);
+                unread(y);
+                return x;
+            default:
+                unread(z);
+                unread(y);
+                return x;
             }
         } else {
+            unread(y);
             return x;
         }
     }
+    return x;
 #endif
 }
 
@@ -335,6 +496,7 @@ int erase(void)
 {
     return erase_screen(0);
 }
+
 
 int clear(void)
 {
@@ -431,6 +593,7 @@ int addnstr(const char *str, int n)
     return OK;
 }
 
+
 int move(int y, int x)
 {
     size_t new_v_i;
@@ -468,6 +631,7 @@ int standend(void)
     return OK;
 }
 
+
 int standout(void)
 {
     stdscr->v_hl = 1;
@@ -489,7 +653,7 @@ int noecho(void)
 }
 
 
-int keypad(WINDOW * win, bool bf)
+int keypad(WINDOW *win, bool bf)
 {
     /* Preformed by initscr() in this implementation */
     if (win == NULL)
@@ -497,6 +661,38 @@ int keypad(WINDOW * win, bool bf)
 
     if (bf != TRUE && bf != FALSE)
         return ERR;
+
+    return OK;
+}
+
+
+int nodelay(WINDOW *win, bool bf)
+{
+    if (win == NULL)
+        return ERR;
+
+    if (bf != TRUE && bf != FALSE)
+        return ERR;
+
+    /*
+       #ifndef _WIN32
+       if ((!win->non_blocking && bf == TRUE)
+       || (win->non_blocking && bf == FALSE)) {
+       if ((flags = fcntl(STDIN_FILENO, F_GETFL)) == -1)
+       return ERR;
+
+       if (bf == TRUE)
+       flags |= O_NONBLOCK;
+       else
+       flags &= ~O_NONBLOCK;
+
+       if (fcntl(STDIN_FILENO, F_SETFL, flags) == -1)
+       return ERR;
+       }
+       #endif
+     */
+
+    win->non_blocking = bf;
 
     return OK;
 }

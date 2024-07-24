@@ -1193,9 +1193,10 @@ static char *run_nfa(const char *text, size_t text_size, int sol,
 
     while (1) {
         /*
-         * sol is initially inherited from the function call, as it is internally unknown
-         * if text is at the start of the greater context line. This is because
-         * this function will be called repetitively by an advancing wrapper.
+         * sol is initially inherited from the function call, as it is
+         * internally unknown if text is at the start of the greater context
+         * line. This is because this function will be called repetitively
+         * by an advancing wrapper.
          */
 
         /*

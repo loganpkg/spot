@@ -65,7 +65,7 @@
     ms("Usage warning: ");                                  \
     fprintf(stderr, __VA_ARGS__);                           \
     if (m4->warn_to_error)                                  \
-        return USAGE_ERROR;                                   \
+        return USAGE_ERROR;                                 \
 } while (0)
 
 /* Syntax warning */
@@ -73,14 +73,14 @@
     ms("Syntax warning: ");                                 \
     fprintf(stderr, __VA_ARGS__);                           \
     if (m4->warn_to_error)                                  \
-        return SYNTAX_ERROR;                                  \
+        return SYNTAX_ERROR;                                \
 } while (0)
 
 /* Usage error */
 #define ue(...) do {                                        \
     ms("Usage error: ");                                    \
     fprintf(stderr, __VA_ARGS__);                           \
-    return USAGE_ERROR;                                       \
+    return USAGE_ERROR;                                     \
 } while (0)
 
 /* Syntax error, without using m4 struct */
@@ -88,13 +88,13 @@
     fprintf(stderr, "[%s:%d]: Syntax error: ",              \
         __FILE__, __LINE__);                                \
     fprintf(stderr, __VA_ARGS__);                           \
-    return SYNTAX_ERROR;                                      \
+    return SYNTAX_ERROR;                                    \
 } while (0)
 
 /* User overflow error */
 #define uofe do {                                           \
     ms("User overflow error\n");                            \
-    return USER_OVERFLOW_ERROR;                               \
+    return USER_OVERFLOW_ERROR;                             \
 } while (0)
 
 /* Location macro return - specifies location in file input */

@@ -15,7 +15,7 @@
 #
 
 CFLAGS = -ansi -g -Og -Wno-variadic-macros -Wall -Wextra -pedantic -I .
-apps = spot m4 bc freq
+apps = spot m4 bc freq tornado_dodge
 
 .PHONY: all
 
@@ -30,7 +30,7 @@ gb.o: toucanlib.h
 eval.o: toucanlib.h
 ht.o: toucanlib.h
 fs.o: toucanlib.h
-toco_regex.o:
+toco_regex.o: toucanlib.h
 
 toucanlib.o: gen.o num.o buf.o gb.o eval.o ht.o toco_regex.o fs.o
 	ld -r gen.o num.o buf.o gb.o eval.o ht.o toco_regex.o fs.o \
@@ -40,6 +40,7 @@ spot: spot.c curses.o toucanlib.o
 m4: m4.c toucanlib.o
 bc: bc.c toucanlib.o
 freq: freq.c toucanlib.o
+tornado_dodge: tornado_dodge.c curses.o toucanlib.o
 
 .PHONY: install
 install:

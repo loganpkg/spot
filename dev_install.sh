@@ -53,7 +53,7 @@ cd "$build_dir" || exit 1
 rm -f err
 
 find . -type f \( -name '*.h' -o -name '*.c' \) \
-    -exec "$indent" -nut -kr '{}' \; 2> err
+    -exec "$indent" -nut -kr -T WINDOW -T bool -T M4ptr -T Fptr '{}' \; 2> err
 
 if [ -s err ]
 then

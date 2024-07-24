@@ -61,13 +61,13 @@ int draw(struct gb *b, struct gb *cl, int cl_active, char **sb,
 
   start:
     if (*clr) {
-        if (clear() == ERROR)
+        if (clear() == ERR)
             return ERROR;
 
         *clr = 0;
 
     } else {
-        if (erase() == ERROR)
+        if (erase() == ERR)
             return ERROR;
     }
 
@@ -192,7 +192,7 @@ int draw(struct gb *b, struct gb *cl, int cl_active, char **sb,
 
         standout();
 
-        if (addnstr(*sb, w) == ERROR)
+        if (addnstr(*sb, w) == ERR)
             return ERROR;
 
         standend();
@@ -308,6 +308,9 @@ int main(int argc, char **argv)
         mgoto(clean_up);
 
     if (keypad(stdscr, TRUE) == ERR)
+        mgoto(clean_up);
+
+    if (nodelay(stdscr, FALSE) == ERR)
         mgoto(clean_up);
 
     if (set_tabsize(8) == ERR)

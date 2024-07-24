@@ -293,9 +293,10 @@ the output when it is called without arguments.
 ```m4
 changequote[(left_quote, right_quote)]
 ```
-Sets the left and right quote strings. Please note that they should be different,
-non-empty strings that should only contain graph, non-comma, non-parentheses
-characters, in order to function in a nice way with the m4 design.
+Sets the left and right quote strings. Please note that they should be
+different, non-empty strings that should only contain graph, non-comma,
+non-parentheses characters, in order to function in a nice way with the
+m4 design.
 It is normally a good idea to pick strings that are not a commonly
 used in any downstream programming language, such as `<[` and `]>`.
 When called without arguments, the default quotes of backtick and apostrophe
@@ -425,15 +426,15 @@ behaviour under the POSIX standard.
 ```m4
 warnerr
 ```
-This is an extension to the POSIX standard. `warnerr` treats warnings as errors,
-which will then be affected by `errexit` and `errok`.
+This is an extension to the POSIX standard. `warnerr` treats warnings
+as errors, which will then be affected by `errexit` and `errok`.
 
 ```m4
 warnok
 ```
 This is an extension to the POSIX standard. `warnok` makes warnings not to be
-teated as errors. This is the default mode, and the expected behaviour under the
-POSIX standard.
+teated as errors. This is the default mode, and the expected behaviour under
+the POSIX standard.
 
 ```m4
 traceon[(macro_name[, ... ])]

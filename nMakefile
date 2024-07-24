@@ -15,7 +15,7 @@
 #
 
 CFLAGS = /Od /Zi /MT /Qspectre /Wall /I .
-apps = spot.exe m4.exe bc.exe freq.exe
+apps = spot.exe m4.exe bc.exe freq.exe tornado_dodge.exe
 
 all: $(apps)
 
@@ -46,6 +46,9 @@ bc.exe: bc.c toucanlib.lib
 
 freq.exe: freq.c toucanlib.lib
 	cl $(CFLAGS) freq.c toucanlib.lib
+
+tornado_dodge.exe: tornado_dodge.c curses.obj toucanlib.lib
+	cl $(CFLAGS) tornado_dodge.c curses.obj toucanlib.lib
 
 install:
 	if not exist $(PREFIX)\bin mkdir $(PREFIX)\bin

@@ -51,9 +51,14 @@ struct screen {
     size_t vs_s;                /* Size of each virtual screen */
     size_t v_i;                 /* Virtual cursor index (print location) */
     int v_hl;                   /* Virtual highlight mode indicator */
+    int non_blocking;           /* Non-blocking getch */
     size_t tabsize;             /* Number of spaces printed for a Tab */
     int clear;                  /* Clear physical screen */
     int centre;                 /* Draw cursor on the centre row */
+    unsigned char *a;           /* Unread memory buffer */
+    /* Index of next unused space in unread memory buffer */
+    size_t i;
+    size_t n;                   /* Allocated size of unread memory buffer */
 };
 
 
@@ -78,6 +83,9 @@ typedef unsigned char bool;
 #ifndef TRUE
 #define TRUE (!FALSE)
 #endif
+
+
+#define C(l) ((l) - 'a' + 1)
 
 
 /* Set to Ctrl-H */
@@ -127,6 +135,7 @@ int standend(void);
 int standout(void);
 int raw(void);
 int noecho(void);
-int keypad(WINDOW * win, bool bf);
+int keypad(WINDOW *win, bool bf);
+int nodelay(WINDOW *win, bool bf);
 
 #endif
