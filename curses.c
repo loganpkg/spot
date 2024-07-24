@@ -364,8 +364,9 @@ int getch(void)
     x = getch_raw();
     if (x == C('x')) {
         /*
-         * Control X is used as a multi-byte prefix. So need to wait until
-         * the next char is ready, otherwise they will be separated.
+         * Control X is often used as the prefix in a multi-key sequence.
+         * So need to wait until the next char is ready, otherwise the
+         * sequence will be separated.
          */
         if ((y = getch_raw()) == ERR) {
             unread(x);
