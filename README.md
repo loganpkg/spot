@@ -1038,8 +1038,8 @@ flowchart LR
 A new end node is created, and is attached using an epsilon transition.
 This is required so that the end node has no transitions coming out of it
 (as each fragment must be a stand-alone valid NFA under this method).
-The epsilon is used so that no new filters (criteria) are introduced, that is,
-the logic remains the same.
+The epsilon is used so that no new filters (criteria) are introduced
+by adding this node.
 
 A *loop-back* is made allowing `a` to be matched more than once. Note that to
 get to the end, `a` must be traversed at least once, so zero length matches
@@ -1050,8 +1050,22 @@ changes will be made by this operator, as only the start and end node of
 the operand NFA fragment play a role in the extension of it.
 
 
+Zero or one operator `?`:
 
+```mermaid
+flowchart LR
+0 -- a --> 1
+1 -- e --> 3
+2 -- e --> 0
+2 -- e --> 3
+```
 
+New start and end nodes are created and the operand is connected in using
+epsilion transitions. Then a *bypass* epsilion transition is created from
+the new start to the new end node. This enables zero-length matches.
+
+A new start node is needed because (under this method) nodes can only have two
+transitions coming out of them when they are both epsilon.
 
 
 Running the NFA
