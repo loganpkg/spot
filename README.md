@@ -1153,6 +1153,65 @@ flowchart LR
 The *or* operator connects two operands in parallel. It creates new start and
 end nodes and connects in the operands using epsilon transitions.
 
+Now let's look at some more compicated regular expression, to see what the
+NFAs will look like.
+
+This is the NFA for the `a*|bc?` regular expression:
+
+```mermaid
+flowchart LR
+0 -- a --> 1
+1 -- e --> 3
+1 -- e --> 0
+2 -- e --> 0
+2 -- e --> 3
+3 -- e --> 10
+4 -- b --> 5
+5 -- e --> 6
+5 -- e --> 9
+6 -- c --> 7
+7 -- e --> 9
+8 -- e --> 2
+8 -- e --> 4
+9 -- e --> 10
+```
+
+The precedence of the operators is reflected in the generated NFA.
+From the operator table above, it is clear that `|` has the lowest
+precedence, and so the parallel connection occurs last.
+Likewise, `?` has higher precedence than the implicit concatenation
+between `b` and `c`, and hence, the `?` operator only affects `c`
+and not `b`.
+
+Parentesis could be used to change this. For example, the NFA for
+the `((a*|b)c)?` regular expression would be:
+
+```mermaid
+flowchart LR
+0 -- a --> 1
+1 -- e --> 3
+1 -- e --> 0
+2 -- e --> 0
+2 -- e --> 3
+3 -- e --> 7
+4 -- b --> 5
+5 -- e --> 7
+6 -- e --> 2
+6 -- e --> 4
+7 -- c --> 9
+8 -- e --> 6
+8 -- e --> 10
+9 -- e --> 10
+```
+
+The `*` operator has the highest precendece and applies only to `a`.
+The parenthesis cause the *or* operator to put `a*` and `b` in parallel.
+Then the concatenation with `c` is applied. Finally, `?` is applied
+to the whole NFA, creating a *bypass*. Notice how the structure differs
+from the previous example.
+
+
+
 
 Running the NFA
 ---------------
