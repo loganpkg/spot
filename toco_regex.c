@@ -1094,8 +1094,10 @@ static int compile_regex(const char *regex_str, int nl_ins,
     if ((ret = create_regex_chain(reg->find_eof, &reg->ri, reg->nl_ins)))
         mgoto(error);
 
-    if (verbose)
+    if (verbose) {
+        fprintf(stderr, "Infix:\n");
         print_regex_chain(reg->ri);
+    }
 
     shunting_yard(&reg->ri);
 
@@ -1109,8 +1111,10 @@ static int compile_regex(const char *regex_str, int nl_ins,
                                 &reg->nfa_end)))
         mgoto(error);
 
-    if (verbose)
+    if (verbose) {
+        fprintf(stderr, "NFA:\n");
         print_nfa(reg->ns);
+    }
 
     /* Allocate state tables */
     if ((reg->state = calloc(reg->ns->i, 1)) == NULL)

@@ -953,11 +953,44 @@ Thompson's construction
 -----------------------
 
 Next the nondeterministic finite automaton (NFA) is made using Thompson's
-construction. The posfix expression is "evaluated".
+construction. The posfix expression is "evaluated". This is analogous to
+an arithmetic expression, but instead of doing maths, the complete NFA is
+constructed by joining together NFA *fragments*.
 
-The operands are NFA "fragments". Please note that one of the very clever things
-about Thompson's construction is that every NFA "fragment" is, itself,
-a complete and valid NFA!
+These NFA *fragments* are the operands (analogous to numbers in an arithmetic
+expression). Please note that one of the very clever things about
+Thompson's construction is that every NFA "fragment" is, itself,
+a complete and valid NFA! This enables the regex operators to work on a
+generic NFA fragment, regardless of its internal structure.
+
+That brings us to another key point. Only the start and end node are required
+to define a NFA (well actually, only the start node is needed as the end node
+could be ascertained by traversing the NFA, but it is more convenient to retain
+this information during construction).
+
+NFAs can contain epsilon transitions, which are transitions that can occur
+without reading a text character. Epsilon transitions make it easier to
+construct the NFA in a generic fashion.
+
+A node can only have two transitions out of it when they are both epsilon.
+The end node must have no transitions coming out of it.
+
+When run in verbose mode, the transitions for a mermaid graph are printed
+to `stderr`. These are very useful for visualising your regex and help to
+create an intuitive understanding of them. This is how the mermaid graphs
+below were generated.
+
+The following characters have special meaning when displayed in the NFA
+verbose output:
+
+ * `e` epsilon transition.
+ * `^` start of line read status.
+ * `$` end of line read status.
+ * `-` range of characters in a character set.
+
+Literal versions of these charactes are displayed using hex escape sequence
+notation to avoid confusion.
+Please note that the `[` and `]` around character sets are not displayed.
 
 Character sets are converted into the following NFA fragments:
 
@@ -969,14 +1002,55 @@ flowchart LR
 Where `a` is the character set consisting of only `a`, and `0` is the start
 node and `1` is the end node.
 
-And the NFA fragment is placed onto the operand stack.
-binary
+As another example, the character set `[A-Za-z0-9]` would look like:
 
-unary
+```mermaid
+flowchart LR
+0 -- 0-9A-Za-z --> 1
+```
 
-When run in verbose mode, the transitions for a mermaid graph are printed
-to `stderr`. These are very useful for visualising your regex and help to
-create an intuitive understanding of them.
+The NFA fragment is then push onto the operand stack.
+
+When an operator is encountered, the operands (NFA fragments) are popped off the
+stack. This will be one operand for unary operators, or two operands for binary
+operators. The operator makes extensions to the operand, and joins together
+multiple operands in some configuration. The result will be a new NFA fragment,
+which is then pushed back into the stack.
+
+Please note that the start of line and end of line anchors are unique, in that
+they are unary operators by default, but if no operand is available in the
+stack, they create a NFA fragment in a similar as a character set.
+
+This process will continue, until the whole regex has be evaluated and a single
+NFA remains in the stack.
+
+The following graphs show the changes that are made by each of the operators.
+
+One or more operator `+`:
+
+```mermaid
+flowchart LR
+0 -- a --> 1
+1 -- e --> 0
+1 -- e --> 2
+```
+
+A new end node is created, and is attached using an epsilon transition.
+This is required so that the end node has no transitions coming out of it
+(as each fragment must be a stand-alone valid NFA under this method).
+The epsilon is used so that no new filters (criteria) are introduced, that is,
+the logic remains the same.
+
+A *loop-back* is made allowing `a` to be matched more than once. Note that to
+get to the end, `a` must be traversed at least once, so zero length matches
+will not occur with this NFA.
+
+It does not matter the structure of the operand, the same cookie-cutter
+changes will be made by this operator, as only the start and end node of
+the operand NFA fragment play a role in the extension of it.
+
+
+
 
 
 
