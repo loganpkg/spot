@@ -1,3 +1,4 @@
+
 <!--
 
 Copyright (c) 2023, 2024 Logan Ryan McLintock
@@ -1066,6 +1067,20 @@ the new start to the new end node. This enables zero-length matches.
 
 A new start node is needed because (under this method) nodes can only have two
 transitions coming out of them when they are both epsilon.
+
+Zero or more operator `*`:
+
+```mermaid
+flowchart LR
+0 -- a --> 1
+1 -- e --> 3
+1 -- e --> 0
+2 -- e --> 0
+2 -- e --> 3
+```
+
+This operator adds both the *loop-back* and *bypass* components to the operand.
+
 
 
 Running the NFA
