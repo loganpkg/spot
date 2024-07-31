@@ -947,8 +947,42 @@ order that can be processed sequentially.
 
 The precedence and associativity in the table above is used in this process.
 
-Running the engine with verbose mode on will display the posfix form
-to `stderr`.
+The shunting yard algorithm is used in this monorepo for both arithmetic
+and regular expressions.
+
+The algorithm reads the expression one object at a time.
+The following rules apply to output the expression in postfix form.
+Please note that the expression can be *evaluated* at the same time,
+however, this is not described here.
+
+ * An operand is passed immediate through to the output.
+ * If an operator is read, then it is compared with the operator on the
+   top of the operator stack (if any). Operators are continuously popped off
+   the stack and passed to the output until the top operator has a lower
+   precedence than the read operator (if the read operator is left
+   associative), or a lower or equal precedence (if the read operator is
+   right associative). If the top of the stack is a left parenthesis,
+   then it is popped and discarded and the popping ceases. Once the popping
+   stops, then the read operator is pushed onto the stack (to be processed
+   later).
+ * If a left parenthesis is read, then this is immediately pushed into the
+   stack, to server as a marker to stop stack popping.
+ * If a right parenthesis is read, then operators are popped and passed to the
+   output until the left parenthesis is popped and discarded. The read operator
+   (the right parenthesis) is discarded too.
+ * All remaining operands are popped and passed to the output when the end of
+   the expression is reached.
+
+With arithmetic expressions, another character is needed to distinguish between
+binary addition and subtraction and unary positive and negative signs. This
+must be distinguished before the context of the infix expression is lost.
+
+With regular expressions, the implicit concatenation operator needs to be
+explicitly introduced.
+
+Running the regex engine or eval with verbose mode on will display the posfix
+form to `stderr`.
+
 
 Thompson's construction
 -----------------------
