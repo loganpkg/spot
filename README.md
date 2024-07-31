@@ -1012,11 +1012,11 @@ flowchart LR
 
 The NFA fragment is then push onto the operand stack.
 
-When an operator is encountered, the operands (NFA fragments) are popped off the
-stack. This will be one operand for unary operators, or two operands for binary
-operators. The operator makes extensions to the operand, and joins together
-multiple operands in some configuration. The result will be a new NFA fragment,
-which is then pushed back into the stack.
+When an operator is encountered, the operands (NFA fragments) are popped off
+the stack. This will be one operand for unary operators, or two operands for
+binary operators. The operator makes extensions to the operand, and joins
+together multiple operands in some configuration. The result will be a new
+NFA fragment, which is then pushed back into the stack.
 
 Please note that the start of line and end of line anchors are unique, in that
 they are unary operators by default, but if no operand is available in the
@@ -1094,6 +1094,64 @@ The contents (which include the outbound transitions) of the start node
 of operand `b` are copied to the end node of operand `a` (this is OK,
 as end nodes always have no transitions coming out of them).
 Then the start node of operand `b` is deleted.
+
+Start of line anchor operator `^`:
+
+```mermaid
+flowchart LR
+0 -- a --> 1
+2 -- ^ --> 0
+```
+
+When an operand is available, this operator adds a new start node, and links to
+the operand using a *start of line read status* transition. This is similar to
+an epsilon transition, it that it can occur without reading a character,
+however, the read functionality is asked for the status.
+"Are we are the start of the line?"
+The transition can only be made if the read functionality validates the status.
+Please note that the read status cannot be known inside the NFA, it is related
+to the *read functionality* of the input text.
+
+When no operand is available, the NFA fragment looks similar to
+the NFA fragment made for a character set:
+
+```mermaid
+flowchart LR
+0 -- ^ --> 1
+```
+
+End of line anchor `$`:
+
+When an operand is available, it adds a new end node and links it using an
+*end of line read status* transition.
+
+```mermaid
+flowchart LR
+0 -- a --> 1
+1 -- $ --> 2
+```
+
+When no operand is available, the NFA fragment looks like this:
+
+```mermaid
+flowchart LR
+0 -- $ --> 1
+```
+
+Or (alternation) operator `|`:
+
+```mermaid
+flowchart LR
+0 -- a --> 1
+1 -- e --> 5
+2 -- b --> 3
+3 -- e --> 5
+4 -- e --> 0
+4 -- e --> 2
+```
+
+The *or* operator connects two operands in parallel. It creates new start and
+end nodes and connects in the operands using epsilon transitions.
 
 
 Running the NFA
