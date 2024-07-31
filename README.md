@@ -1081,6 +1081,19 @@ flowchart LR
 
 This operator adds both the *loop-back* and *bypass* components to the operand.
 
+Concatenation (displayed as `.`):
+
+```mermaid
+flowchart LR
+0 -- a --> 1
+1 -- b --> 2
+```
+
+Concatenation joins the two operands together in series.
+The contents (which include the outbound transitions) of the start node
+of operand `b` are copied to the end node of operand `a` (this is OK,
+as end nodes always have no transitions coming out of them).
+Then the start node of operand `b` is deleted.
 
 
 Running the NFA

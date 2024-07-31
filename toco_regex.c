@@ -757,8 +757,8 @@ static void shunting_yard(struct regex_item **ri_head)
                         && op_detail[operator_stack->operator].precedence <
                         op_detail[ri->operator].precedence)
                     || (op_detail[ri->operator].associativity == 'R'
-                        && op_detail[operator_stack->
-                                     operator].precedence <=
+                        && op_detail[operator_stack->operator].
+                        precedence <=
                         op_detail[ri->operator].precedence)) {
                     break;
                 } else {
