@@ -1211,13 +1211,91 @@ to the whole NFA, creating a *bypass*. Notice how the structure differs
 from the previous example.
 
 
-
-
 Running the NFA
 ---------------
 
+Each node in the NFA corresponds to a state. Two state tables are used to
+run the NFA. One table contains the current list of active states and the
+other table is used to store the next list of states as transitions occur.
+After transitions, the two tables are swapped, so that the *next* table
+becomes the *current*, and *current* becomes *next* (which get cleared before
+being used again).
+
+To commence, the start node of the NFA is set in the current state table.
+Then, without reading a character, epsilon and *start of line read status*
+and *end of line read status* transitions are made (if possible).
+In this phase, transitions are accumulative, analogous to water flowing
+(everywhere the water goes will be wet).
+If an epsilon transition is followed from node 4 to node 5, then both
+of these nodes will be marked as in-state. This process continues iteratively
+until there are no new states being added, that is, the current and next
+state tables have the same contents.
+
+A check is then made for matches. If the end node of the NFA is in-state,
+then a match has occurred. The pointer of the current read location in the text
+is recorded, called the *last match*.
+It is OK to overwrite this value, as the overall winning match is the longest
+match possible from the fixed starting point (the start of the text).
+
+The maximum match length (overall match winner), can only be determined when
+all the states have been eliminated. At this point, the length is the
+*last match* pointer minus the pointer to the start of the text.
+
+Please note that the way the end node was reached is irrelevant, and only the
+start of text pointer and last match pointer are need to obtain the location
+and length of the match.
+
+Next a character is read. The character is looked up in the character sets
+of the relevant in-state transitions. If the character is in the set, then
+the transition can be made, and the destination node is recorded in the next
+table. This is an elimination step. All source nodes, if not also a destination
+node, are eliminated. This is also not an iterative step. In a way, it is
+analogous musical chairs, when the music stops, if you don't have a chair
+(a destination node), you are out!
+
+Then, once again, a check is made for a winner. If there is
+no winner then the process repeats until all states are eliminated.
+
+The power of using a NFA for regular expression matching, is that the
+*journey* through the NFA does not matter. At any moment, all that matters
+is the current nodes that are in-state, not how those states were ascertained.
+This is why NFA regex engines are immune from pathological regular expressions
+(regexes that run inefficiently using the backtracking method).
 
 
+Regex search
+------------
+
+So far we have only discussed the NFA matching a text from the beginning of the
+text. But, if there is no match at the beginning, then there must be a way to
+advance the NFA.
+
+This is what the search function does. It runs the NFA from the start of the
+text. If there is a match, then it is returned. If not, then the NFA is run
+again, but this time starting from a pointer of `text + 1`. The starting
+pointer continues increment until a match is found, or the text is exhausted.
+
+As it advances it is important that the read functionality keeps track of
+the start of line status, as a given NFA run may be commencing mid-line.
+
+
+Regex replace
+-------------
+
+Regex replace leverages off regex search. If the search finds a match, then
+the text before the match is passed through to a buffer, and then the
+replacement text is added to the buffer. This process repeats, commencing
+the next search from the pointer of the match plus the match length.
+When no match is found, the remaining text (if any) is added to the buffer.
+
+This regex engine does not add the replacement text when there
+is a zero length match *and* the match commences at the end of the previous
+match.
+
+There needs to be a way to advance when a zero-length match is
+found. The simple thing to do is to jump one character and commence the
+next search from there. However, it is important to note, that the jumped
+character must be passed through to the output buffer.
 
 
 Enjoy,

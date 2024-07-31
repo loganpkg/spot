@@ -754,12 +754,11 @@ static void shunting_yard(struct regex_item **ri_head)
             while (operator_stack != NULL) {
                 if (operator_stack->operator == LEFT_PAREN
                     || (op_detail[ri->operator].associativity == 'L'
-                        && op_detail[operator_stack->operator].precedence <
-                        op_detail[ri->operator].precedence)
+                        && op_detail[operator_stack->operator].precedence
+                        < op_detail[ri->operator].precedence)
                     || (op_detail[ri->operator].associativity == 'R'
-                        && op_detail[operator_stack->operator].
-                        precedence <=
-                        op_detail[ri->operator].precedence)) {
+                        && op_detail[operator_stack->operator].precedence
+                        <= op_detail[ri->operator].precedence)) {
                     break;
                 } else {
                     pop_operator_to_output;
