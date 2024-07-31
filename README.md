@@ -840,15 +840,15 @@ the octal escape sequences are omitted. The recognised escape sequences are:
 Where `BE` can be any two hexadecimal digits. Other backslashes are passed
 through to the output, unchanged.
 
-Integer string
---------------
+Integer array
+-------------
 
-After preprocessing, the find string an integer "string" that is `EOF`
-terminated. This is so that it can handle the special escape sequences of `\0`
-or `\x00` above, and not become null-terminated early.
+After preprocessing, the find component becomes an array of integers that
+is `EOF` terminated. This is so that it can handle the special escape sequences
+of `\0` or `\x00` above, and not become null-terminated early.
 
-From here, the find integer string is converted into a chain with each link
-being either a character set or an operator.
+From here, the find integer array is converted into a *chain* (a linked list)
+with each link being either a character set or an operator.
 
 Character sets
 --------------
@@ -857,7 +857,7 @@ A character set is a selection of bytes from the 256 different bytes.
 Single characters are automatically converted to a character set
 containing only that character.
 
-A `.` is a character set containing every character except for `\n`
+A dot `.` denotes a character set containing every character except for `\n`
 (unless it is in newline insensitive mode, in which case `\n` is included too).
 
 Character sets can also be created using square brackets, with the following
@@ -871,7 +871,7 @@ syntax:
     used as the start of a range).
 * Character sets cannot be empty.
 * All other characters in the set are treated literally, including backslashes
-    and operators.
+    (the ones that still remain after preprocessing) and operators.
 
 ```
      End of character set
@@ -888,12 +888,13 @@ Start of character set
 For example:
 
 * `[]]` is the set of just `]`. The first `]` does not conclude the set because
-    the set would be empty.
+    the set would be empty, and empty sets are not allowed.
 * `[^]]` is the set of all characters except for `]`. The first `]` does not
-    conclude the set because the set would be empty, as the negation symbol
-    is not considered a character.
+    conclude the set because the set would be empty because the negation symbol
+    is not considered a *character*.
 * `[-A]` and `[A-]` are the sets containing only the two characters
-    `-` and `A`.
+    `-` and `A`. The hypen is not interpreted as a range if there is not
+    a character on either side of it.
 * `[^-Z]` and `[^Z-]` are the sets containing all of the characters except for
     `-` and `Z`.
 * `[^][^-]` is the set containing all of the characters except for
@@ -902,21 +903,25 @@ For example:
 Backslashes
 -----------
 
-Backslashes outside of a character set cause the following character to be
-treated literally. For example, `\*` would be interpreted as a character
-set containing only the character `*` and not the zero-or-many operator.
-Likewise `\[` would be treated as a character set containing just the
-character `[` and not the commencement of an explicit character set.
+Backslashes (that still remain after preprocessing) outside of a character set
+cause the following character to be treated literally. For example, `\*` would
+be interpreted as a character set containing only the character `*` and not the
+zero-or-many operator. Likewise `\[` would be treated as a character set
+containing just the character `[` and not the commencement of an explicit
+character set.
 
 Operators
 ---------
 
 If not escaped by a backslash or present inside a character set, the
 characters in the table below are interpreted as operators (or parentheses).
+
 Please note that the concatenation operator is implied, and not explicitly
-written in the original regular expression. The character `.` is used to
-denoted it when displaying internal information in verbose mode, not to be
-confused with the `.` character set (mentioned above).
+written in the original regular expression. This is analogous to how
+the multiplication operator of often not written when doing algebra.
+To visualise the concatenation operator, a dot `.` is used when *displaying*
+internal information in verbose mode. It is not to be confused with the `.`
+character set which can be a part of the orginal regular expression *input*.
 
 | Operator | Description | Precedence | Number of operands | Associativity |
 | :------- | :---------- | ---------: | -----------------: | :-----------: |
@@ -936,7 +941,8 @@ Shunting yard algorithm
 
 The regex chain of character sets and operators (or parentheses) goes into
 the shunting yard algorithm, which, rearranges the links in the chain, placing
-the expression into postfix form, removing parentheses.
+the expression into postfix form. This removes the parentheses and creates an
+order that can be processed sequentially.
 
 The precedence and associativity in the table above is used in this process.
 
@@ -949,19 +955,19 @@ Thompson's construction
 Next the nondeterministic finite automaton (NFA) is made using Thompson's
 construction. The posfix expression is "evaluated".
 
-The operands are NFA fragments. Please note that one of the very clever things
+The operands are NFA "fragments". Please note that one of the very clever things
 about Thompson's construction is that every NFA "fragment" is, itself,
 a complete and valid NFA!
 
 Character sets are converted into the following NFA fragments:
-```
-+---+                       +---+
-| S | === Character set ==> | E |
-+---+                       +---+
 
-S = Start node.
-E = End node.
+```mermaid
+flowchart LR
+0 -- a --> 1
 ```
+
+Where `a` is the character set consisting of only `a`, and `0` is the start
+node and `1` is the end node.
 
 And the NFA fragment is placed onto the operand stack.
 binary
