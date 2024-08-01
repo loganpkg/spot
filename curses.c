@@ -315,9 +315,8 @@ static int getch_raw(void)
 
 int getch(void)
 {
-    int x, y;
-
 #ifdef _WIN32
+    int x, y;
     x = getch_raw();
     if (x == 0) {
         if ((y = getch_raw()) == ERR) {
@@ -359,33 +358,46 @@ int getch(void)
 
 #else
 
-    int z, w;
+#define get_sb_ch() do {                                \
+    if (i == MAX_SEQ_LEN) {                              \
+        fprintf(stderr, "[%s:%d]: getch: Error: "       \
+            "Key sequence buffer is full\n",            \
+            __FILE__, __LINE__);                        \
+        goto top;                                       \
+    }                                                   \
+    if ((sb[i++] = getch_raw()) == ERR) {               \
+        while (i)                                       \
+            if (sb[--i] != ERR)                         \
+                unread(sb[i]);                          \
+                                                        \
+        return ERR;                                     \
+    }                                                   \
+} while (0)
 
-    x = getch_raw();
-    if (x == C('x')) {
+    /* Must be at least 4 */
+#define MAX_SEQ_LEN 10
+
+    int sb[MAX_SEQ_LEN];        /* Sequence buffer */
+    size_t i = 0;               /* Index of next write in sb */
+
+  top:
+
+    i = 0;
+    get_sb_ch();
+    if (sb[0] == C('x')) {
         /*
          * Control X is often used as the prefix in a multi-key sequence.
          * So need to wait until the next char is ready, otherwise the
          * sequence will be separated.
          */
-        if ((y = getch_raw()) == ERR) {
-            unread(x);
-            return ERR;
-        }
-        unread(y);
-        return x;
-    } else if (x == ESC) {
-        if ((y = getch_raw()) == ERR) {
-            unread(x);
-            return ERR;
-        }
-        if (y == '[') {
-            if ((z = getch_raw()) == ERR) {
-                unread(y);
-                unread(x);
-                return ERR;
-            }
-            switch (z) {
+        get_sb_ch();
+        unread(sb[1]);
+        return sb[0];
+    } else if (sb[0] == ESC) {
+        get_sb_ch();
+        if (sb[1] == '[') {
+            get_sb_ch();
+            switch (sb[2]) {
             case 'D':
                 return KEY_LEFT;
             case 'C':
@@ -399,32 +411,31 @@ int getch(void)
             case 'F':
                 return KEY_END;
             case '3':
-                if ((w = getch_raw()) == ERR) {
-                    unread(z);
-                    unread(y);
-                    unread(x);
-                    return ERR;
-                }
-                if (w == '~')
+                get_sb_ch();
+                if (sb[3] == '~')
                     return KEY_DC;
 
-                unread(w);
-                unread(z);
-                unread(y);
-                return x;
+              eat:
+                /* Eat to end of sequence */
+                while (1) {
+                    get_sb_ch();
+                    /* All of sequence has been eaten */
+                    if (!(isdigit(sb[i - 1]) || sb[i - 1] == ';'))
+                        goto top;
+                }
             default:
-                unread(z);
-                unread(y);
-                return x;
+                goto eat;
             }
         } else {
-            unread(y);
-            return x;
+            unread(sb[1]);
+            return sb[0];
         }
     }
-    return x;
+    return sb[0];
 #endif
 }
+
+#undef get_sb_ch
 
 
 static int get_phy_screen_size(void)
