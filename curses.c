@@ -317,18 +317,18 @@ int getch(void)
 {
 #ifdef _WIN32
     int x, y;
+
+  top:
     x = getch_raw();
     if (x == 0) {
         if ((y = getch_raw()) == ERR) {
             unread(x);
             return ERR;
         }
-        if (y == 3) {
+        if (y == 3)
             return CTRL_2;
-        } else {
-            unread(y);
-            return x;
-        }
+        else
+            goto top;           /* Eat */
     } else if (x == 224) {
         if ((y = getch_raw()) == ERR) {
             unread(x);
@@ -350,8 +350,7 @@ int getch(void)
         case 'O':
             return KEY_END;
         default:
-            unread(y);
-            return x;
+            goto top;           /* Eat */
         }
     }
     return x;
