@@ -374,7 +374,7 @@ int getch(void)
 } while (0)
 
     /* Must be at least 4 */
-#define MAX_SEQ_LEN 10
+#define MAX_SEQ_LEN 16
 
     int sb[MAX_SEQ_LEN];        /* Sequence buffer */
     size_t i = 0;               /* Index of next write in sb */
