@@ -35,7 +35,7 @@ to make maintenance easy. Currently, the modules include:
 * num: Number functions,
 * buf: Various buffers,
 * gb: Gap buffers,
-* eval: Evaluate arithmetic expression,
+* eval: Evaluate arithmetic expressions,
 * ht: Hash table,
 * curses: Curses (terminal graphics), and
 * fs: File system related functions.
@@ -43,10 +43,10 @@ to make maintenance easy. Currently, the modules include:
 Install
 -------
 
-This software is cross-platform and has been written in ANSI C with the minimum
+This cross-platform software has been written in ANSI C with the minimum
 use of non-standard libraries. To install, edit one of the scripts below
 (depending upon your operating system) to set `install_dir`.
-Then simply run:
+Then run:
 ```
 $ make
 $ PREFIX="$HOME" make install
@@ -84,7 +84,7 @@ The status bar displays `!` if the last command failed, followed by `*` if the
 buffer has been modified. The filename associated with the buffer is presented
 next, followed by the current row and column number in brackets. The hex value
 of the char under the cursor (which may be in the command line) is displayed.
-Finally, the if the last command included a shell command which succeeded (the
+Finally, if the last command included a shell command that succeeded (the
 process terminated normally), then the exit status is displayed.
 
 The command line is at the bottom of the window and is used for _two-step_
@@ -140,10 +140,10 @@ The keybindings are listed below. `^a` means pressing `Ctrl` plus `a`.
 
 
 `+` The _logical_ line under the cursor is formed by joining neighbouring lines
-that end in a backslash, to accommodate for long lines. These end-of-line
+that end in a backslash, to accommodate long lines. These end-of-line
 backslashes are removed from the logical line, as are `\n` characters.
 `2>&1` is added to the end of the logical line, to capture `stderr` under most
-situations. If some `stderr` text comes through uncaptured, then it can be
+situations. If some `stderr` text comes through uncaptured, it can be
 cleared by redrawing the screen (`^l`).
 
 `*` Regex replace region syntax is `_find_replace` where the first character
@@ -159,7 +159,7 @@ m4
 This version of m4 is cross-platform (runs natively) and complies to
 POSIX standard IEEE Std 1003.1-2017.
 
-m4 is a general purpose macro processor. It performs text replacement, similar
+m4 is a general-purpose macro processor. It performs text replacement, similar
 to the C preprocessor, although it is not tied to any specific language. It
 performs programmatic find-and-replace on text, but can also perform other
 tasks, such as executing shell commands.
@@ -183,8 +183,8 @@ How m4 works
 
 m4 has two classes of macros; built-in macros and user-defined macros.
 Built-in macros are written in C and can only be added or modified by editing
-the source code and recompiling. However you can undefine (remove) them and
-you can make renamed copies of them that behave exactly the same.
+the source code and recompiling. However, you can undefine (remove) them and
+you can make renamed copies of them that behave the same.
 If you undefine a built-in macro (and you don't have a renamed copy), then
 you cannot get it back.
 
@@ -197,9 +197,9 @@ a hash table to see if it is the name of a macro.
 If it is then the macro is pushed onto the stack. If the macro takes
 arguments, then these will be collected. When the macro is finished, for
 user-defined macros, the arguments are substituted into the placeholders in
-the macro definition and then the resultant text is pushed back into the
+the macro definition and the resultant text is pushed back into the
 input. Built-in macros usually perform some other operation on the arguments,
-and some of them also push the result back into the input.
+and some also push the result back into the input.
 
 Nested macro calls are handled by the macro call stack. While collecting the
 arguments of one macro, another macro may be encountered.
@@ -216,7 +216,7 @@ m4 also has flexible output. At any given time the _output_ is either the
 argument collection of a macro, or one of the eleven different diversions
 (output buffers). Diversion -1 is discarded and is useful when defining a lot
 of macros. Diversion 0 is regularly flushed to `stdout` and is the default.
-Diversions 1 to 9 are temporary storage. Diversions 1 to 9 can be written to
+Diversions 1 to 9 are temporary storage. Diversions 1 to 9 can be written to a
 file, which is very useful when writing dynamic code (this is an extension to
 the POSIX standard). They can also be undiverted into each other and will all
 be flushed to `stdout` if the program exits without error.
@@ -231,7 +231,7 @@ striped.
 m4 only checks for macros when reading from the _input_ in non-quote mode.
 During argument collection, quote mode prevents commas from being interpreted
 as argument separators (as do added parentheses). Once argument collection
-is finished, quotes have no effect on the substitution of collected arguments
+is finished, quotes do not affect on the substitution of collected arguments
 into their placeholders, this will occur irrespective of the depth of
 quotation.
 
@@ -288,7 +288,7 @@ Built-in macros
 ---------------
 
 I will now introduce the built-in macros. All built-in macros that *require*
-arguments exhibit pass-through, whereby the macro name is simply printed to
+arguments exhibit pass-through, whereby the macro name is printed to
 the output when it is called without arguments.
 
 ```m4
@@ -296,9 +296,9 @@ changequote[(left_quote, right_quote)]
 ```
 Sets the left and right quote strings. Please note that they should be
 different, non-empty strings that should only contain graph, non-comma,
-non-parentheses characters, in order to function in a nice way with the
+non-parentheses characters, to function nicely with the
 m4 design.
-It is normally a good idea to pick strings that are not a commonly
+It is normally a good idea to pick strings that are not commonly
 used in any downstream programming language, such as `<[` and `]>`.
 When called without arguments, the default quotes of backtick and apostrophe
 are restored.
@@ -310,7 +310,7 @@ changecom[(left_comment[, right_comment])]
 newline to the ones specified. If called with only one argument, then the right
 comment string defaults to the newline. When called without any arguments, then
 comments are disabled. Text inside comments, and the comments themselves, are
-passed though to the output. No interpretation is performed on text within
+passed through to the output. No interpretation is performed on text within
 comments, besides checking for the right comment string to know when to exit
 the comment.
 
@@ -319,14 +319,14 @@ define(macro_name, macro_def)
 ```
 `define` creates a new user-defined macro (if it does not already exist), or
 *updates* the current history of an existing macro, retaining any prior history
-that may exist (but not-preserving the current history).
+that may exist (but not preserve the current history).
 
 If the current history is a built-in macro, then it will still be updated, but
 the ability to bring back the built-in nature will be lost (unless you have
 another copy).
 
 You can make a renamed copy of a built-in macro, which then acts exactly the
-same as an orginal built-in macro. To do this you need to used `defn`,
+same as an original built-in macro. To do this you need to use `defn`,
 for example:
 
 ```m4
@@ -341,11 +341,11 @@ x
 This also works with `pushdef`.
 
 Please note that quotes are usually wanted when replacing a macro, as otherwise
-the macro will expand during argument collection, prior to the `define` macro
+the macro will expand during argument collection, before the `define` macro
 being executed.
 
 Macro names must start with an alpha character or underscore followed
-by none or more alpha, digit or underscore characters.
+by none or more alpha, digit, or underscore characters.
 
 The macro definition is the text that the macro will expand into.
 It can take argument placeholders, `$0` to `$9`. `$0` is the macro name.
@@ -353,14 +353,14 @@ It can take argument placeholders, `$0` to `$9`. `$0` is the macro name.
 A macro can take any number of arguments, but only the first 9 can be
 referenced individually. $# expands to the number of collected arguments,
 and $* to a comma-separated list of all collected arguments, and $@ to
-individually quotes, comma-separated list of all collected arguments.
+individually quotes, a comma-separated list of all collected arguments.
 
 ```m4
 pushdef(macro_name, macro_def)
 ```
 `pushdef` acts like `define`, except that if the macro already exists, then
 the new definition will be stacked onto the history stack for that macro.
-The current history will be preserved, and will become the macro definition
+The current history will be preserved and will become the macro definition
 immediately below the new definition in the history stack.
 
 `pushdef` can be used to make a renamed copy of a built-in macro by using
@@ -378,16 +378,16 @@ m4exit
 defn(macro_name)
 ```
 `defn` is often used to make a renamed copy of a macro.
-For user-defined macros it pushes the quoted definition into the input.
+For user-defined macros, it pushes the quoted definition into the input.
 For built-in macros, it passes back the C function pointer (its *definition*)
-to the parent macro, but only when it aligns to the second argument
+to the parent macro, but only when it aligns with the second argument
 of `define` or `pushdef` (or renamed copies of these).
 
 ```m4
 divert[(div_num)]
 ```
 `divert` changes the active diversion. m4 commences in diversion 0,
-which is regularly flushed to `stdout`. Diversion -1 is discarded,
+which is regularly flushed to `stdout`. Diversion -1 is discarded
 and is often used when defining multiple macros, as the remaining newline
 characters are typically not wanted in the output.
 
@@ -409,7 +409,7 @@ dumpdef[(macro_name[, ... ])]
 `dumpdef` prints the definition of the macros specified as arguments
 (which should be quoted) to `stderr`. Useful as a help command, as it gives
 the usage syntax for built-in macros. It lists all macros when called without
-arguments, which is very useful when debugging.
+arguments, which is useful when debugging.
 
 ```m4
 errexit
@@ -421,7 +421,7 @@ user-related error.
 errok
 ```
 This is an extension to the POSIX standard. It causes m4 to continue execution
-even when user-related errors occur. This is the default mode, and the expected
+even when user-related errors occur. This is the default mode and the expected
 behaviour under the POSIX standard.
 
 ```m4
@@ -434,16 +434,16 @@ as errors, which will then be affected by `errexit` and `errok`.
 warnok
 ```
 This is an extension to the POSIX standard. `warnok` makes warnings not to be
-teated as errors. This is the default mode, and the expected behaviour under
+treated as errors. This is the default mode and the expected behaviour under
 the POSIX standard.
 
 ```m4
 traceon[(macro_name[, ... ])]
 ```
-Prints to `stderr` the location in the input file, the name of macro, and the
+Prints to `stderr` the location in the input file, the name of the macro, and the
 macro stack depth after they are invoked. This is at the beginning of argument
-collection, not at the end when the macro is executed. The benefit in tracing
-the macros this way, is that they appear in the same order as they do in the
+collection, not at the end when the macro is executed. The benefit of tracing
+the macros this way is that they appear in the same order as they do in the
 source code, making debugging easier.
 
 When called without arguments, then all of the existing macros are added to
@@ -473,13 +473,13 @@ errprint(error_message)
 ```m4
 syscmd(shell_command)
 ```
-`syscmd` runs an operating system specific shell command. Nothing is returned
+`syscmd` runs an operating system-specific shell command. Nothing is returned
 (pushed back into the input). No redirection of standard streams is performed.
 
 ```m4
 esyscmd(shell_command)
 ```
-`esyscmd` runs an operating system specific shell command and reads the
+`esyscmd` runs an operating system-specific shell command and reads the
 `stdout` of that command into the input.
 
 ```m4
@@ -545,9 +545,9 @@ from expanding during argument collection. Also, importantly, macros will be
 expanded and processed immediately during argument collection, _before_ the
 branch in logic. So, the second and third arguments should also be quoted.
 
-For example, in the code below, `x` is defined, so we are expecting the result
+For example, in the code below, `x` is defined, so we expect the result
 of `great`. However, surprisingly, `y` is defined as `10` during argument
-collection (as quotes were not used), even through this was not the logical
+collection (as quotes were not used), even though this was not the logical
 branch taken at the final execution of the macro.
 
 ```m4
@@ -623,9 +623,9 @@ if `size` is not specified. Indices commence from zero.
 ```m4
 translit(str, from_chars, to_chars)
 ```
-`translit` performs character-wise replace on `str` and pushes the result into
-the input. A mapping of `from_chars` to `to_chars` is internally created in
-order to perform the replacement. Each specified character in `from_chars`
+`translit` performs character-wise replacement on `str` and pushes the result into
+the input. A mapping of `from_chars` to `to_chars` is internally created to perform
+the replacement. Each specified character in `from_chars`
 is swapped to the corresponding character in `to_chars`. If `from_chars`
 is longer than `to_chars`, then the characters without partners will be
 deleted.
@@ -649,7 +649,7 @@ m4wrap(code_to_include_at_end)
 (before the diversions are automatically undiverted).
 This code will then be evaluated as normal. Code will be evaluated in
 chronological order if `m4wrap` was called multiple times. This is
-useful for performing clean up.
+useful for performing clean-up.
 
 ```m4
 lsdir[(dir_name)]
@@ -666,7 +666,7 @@ m4exit[(exit_value)]
 _desired_ exit value in the first argument. The requested value must be between
 zero and `UCHAR_MAX`, inclusive. If called without arguments, then zero is the
 default value. Please note that a requested return value of zero will be
-overwritten if any errors occurred at any time during the operation of m4.
+overwritten if any errors occur during the operation of m4.
 However, if the macro is called successfully, then a non-zero requested return
 value will be used as the final return value of m4, regardless of other errors.
 
@@ -719,14 +719,14 @@ m4exit
 ```m4
 undefine(macro_name)
 ```
-`undefine` removes a macro and all of it history stack. Normally you should
+`undefine` removes a macro and all of its history stack. Normally you should
 quote the macro name to prevent it from expanding into its definition during
-argument collection. Built-in macros cannot be retrieved once undefined,
+argument collection. Built-in macros cannot be retrieved once undefined
 unless you have previously made a renamed copy of them.
 
 In the example below, `define` and `x` (via its inheritance) do not need to
 be quoted when "called" without arguments, as they exhibit pass-through
-behaviour (only certain built-in macro do this). The example clones
+behaviour (only certain built-in macros do this). The example clones
 `define` to `x`, deletes `define`, then restores it from `x`.
 
 ```m4
@@ -771,7 +771,7 @@ diversion to file. It creates missing directories in the file path.
 If append is 1, then it will append to the end of the file, otherwise the file
 will be overwritten.
 
-This macro is very useful for writing dynamic code. The code can be crafted
+This macro is useful for writing dynamic code. The code can be crafted
 into a diversion, then that diversion can be written to file using `writediv`,
 and then the file can be executed using `esyscmd`.
 
@@ -872,7 +872,7 @@ syntax:
     used as the start of a range).
 * Character sets cannot be empty.
 * All other characters in the set are treated literally, including backslashes
-    (the ones that still remain after preprocessing) and operators.
+    (the ones that remain after preprocessing) and operators.
 
 ```
      End of character set
@@ -894,7 +894,7 @@ For example:
     conclude the set because the set would be empty because the negation symbol
     is not considered a *character*.
 * `[-A]` and `[A-]` are the sets containing only the two characters
-    `-` and `A`. The hypen is not interpreted as a range if there is not
+    `-` and `A`. The hyphen is not interpreted as a range if there is not
     a character on either side of it.
 * `[^-Z]` and `[^Z-]` are the sets containing all of the characters except for
     `-` and `Z`.
@@ -904,7 +904,7 @@ For example:
 Backslashes
 -----------
 
-Backslashes (that still remain after preprocessing) outside of a character set
+Backslashes (that remain after preprocessing) outside of a character set
 cause the following character to be treated literally. For example, `\*` would
 be interpreted as a character set containing only the character `*` and not the
 zero-or-many operator. Likewise `\[` would be treated as a character set
@@ -919,10 +919,10 @@ characters in the table below are interpreted as operators (or parentheses).
 
 Please note that the concatenation operator is implied, and not explicitly
 written in the original regular expression. This is analogous to how
-the multiplication operator of often not written when doing algebra.
+the multiplication operator is often not written when doing algebra.
 To visualise the concatenation operator, a dot `.` is used when *displaying*
 internal information in verbose mode. It is not to be confused with the `.`
-character set which can be a part of the orginal regular expression *input*.
+character set which can be a part of the original regular expression *input*.
 
 | Operator | Description | Precedence | Number of operands | Associativity |
 | :------- | :---------- | ---------: | -----------------: | :-----------: |
@@ -945,7 +945,7 @@ the shunting yard algorithm, which, rearranges the links in the chain, placing
 the expression into postfix form. This removes the parentheses and creates an
 order that can be processed sequentially.
 
-The precedence and associativity in the table above is used in this process.
+The precedence and associativity in the table above are used in this process.
 
 The shunting yard algorithm is used in this monorepo for both arithmetic
 and regular expressions.
@@ -955,7 +955,7 @@ The following rules apply to output the expression in postfix form.
 Please note that the expression can be *evaluated* at the same time,
 however, this is not described here.
 
- * An operand is passed immediate through to the output.
+ * An operand is passed immediately through to the output.
  * If an operator is read, then it is compared with the operator on the
    top of the operator stack (if any). Operators are continuously popped off
    the stack and passed to the output until the top operator has a lower
@@ -987,10 +987,10 @@ form to `stderr`.
 Thompson's construction
 -----------------------
 
-Next the nondeterministic finite automaton (NFA) is made using Thompson's
+Next, the nondeterministic finite automaton (NFA) is made using Thompson's
 construction. The posfix expression is "evaluated". This is analogous to
 an arithmetic expression, but instead of doing maths, the complete NFA is
-constructed by joining together NFA *fragments*.
+constructed by joining NFA *fragments*.
 
 These NFA *fragments* are the operands (analogous to numbers in an arithmetic
 expression). Please note that one of the very clever things about
@@ -998,14 +998,14 @@ Thompson's construction is that every NFA "fragment" is, itself,
 a complete and valid NFA! This enables the regex operators to work on a
 generic NFA fragment, regardless of its internal structure.
 
-That brings us to another key point. Only the start and end node are required
-to define a NFA (well actually, only the start node is needed as the end node
+That brings us to another key point. Only the start and end nodes are required
+to define an NFA (well actually, only the start node is needed as the end node
 could be ascertained by traversing the NFA, but it is more convenient to retain
 this information during construction).
 
 NFAs can contain epsilon transitions, which are transitions that can occur
 without reading a text character. Epsilon transitions make it easier to
-construct the NFA in a generic fashion.
+construct the NFA generically.
 
 A node can only have two transitions out of it when they are both epsilon.
 The end node must have no transitions coming out of it.
@@ -1015,7 +1015,7 @@ to `stderr`. These are very useful for visualising your regex and help to
 create an intuitive understanding of them. This is how the mermaid graphs
 below were generated.
 
-The following characters have special meaning when displayed in the NFA
+The following characters have special meanings when displayed in the NFA
 verbose output:
 
  * `e` epsilon transition.
@@ -1023,7 +1023,7 @@ verbose output:
  * `$` end of line read status.
  * `-` range of characters in a character set.
 
-Literal versions of these charactes are displayed using hex escape sequence
+Literal versions of these characters are displayed using hex escape sequence
 notation to avoid confusion.
 Please note that the `[` and `]` around character sets are not displayed.
 
@@ -1044,19 +1044,19 @@ flowchart LR
 0 -- 0-9A-Za-z --> 1
 ```
 
-The NFA fragment is then push onto the operand stack.
+The NFA fragment is then pushed onto the operand stack.
 
 When an operator is encountered, the operands (NFA fragments) are popped off
-the stack. This will be one operand for unary operators, or two operands for
-binary operators. The operator makes extensions to the operand, and joins
+the stack. This will be one operand for unary operators or two operands for
+binary operators. The operator makes extensions to the operand and joins
 together multiple operands in some configuration. The result will be a new
 NFA fragment, which is then pushed back into the stack.
 
 Please note that the start of line and end of line anchors are unique, in that
 they are unary operators by default, but if no operand is available in the
-stack, they create a NFA fragment in a similar as a character set.
+stack, they create an NFA fragment like a character set.
 
-This process will continue, until the whole regex has be evaluated and a single
+This process will continue until the whole regex has been evaluated and a single
 NFA remains in the stack.
 
 The following graphs show the changes that are made by each of the operators.
@@ -1070,19 +1070,19 @@ flowchart LR
 1 -- e --> 2
 ```
 
-A new end node is created, and is attached using an epsilon transition.
+A new end node is created and is attached using an epsilon transition.
 This is required so that the end node has no transitions coming out of it
 (as each fragment must be a stand-alone valid NFA under this method).
 The epsilon is used so that no new filters (criteria) are introduced
 by adding this node.
 
 A *loop-back* is made allowing `a` to be matched more than once. Note that to
-get to the end, `a` must be traversed at least once, so zero length matches
+get to the end, `a` must be traversed at least once, so zero-length matches
 will not occur with this NFA.
 
 It does not matter the structure of the operand, the same cookie-cutter
-changes will be made by this operator, as only the start and end node of
-the operand NFA fragment play a role in the extension of it.
+changes will be made by this operator, as only the start and end nodes of
+the operand NFA fragment plays a role in the extension of it.
 
 
 Zero or one operator `?`:
@@ -1095,8 +1095,8 @@ flowchart LR
 2 -- e --> 3
 ```
 
-New start and end nodes are created and the operand is connected in using
-epsilion transitions. Then a *bypass* epsilion transition is created from
+New start and end nodes are created and the operand is connected using
+epsilon transitions. Then a *bypass* epsilon transition is created from
 the new start to the new end node. This enables zero-length matches.
 
 A new start node is needed because (under this method) nodes can only have two
@@ -1139,9 +1139,9 @@ flowchart LR
 
 When an operand is available, this operator adds a new start node, and links to
 the operand using a *start of line read status* transition. This is similar to
-an epsilon transition, it that it can occur without reading a character,
+an epsilon transition, in that it can occur without reading a character,
 however, the read functionality is asked for the status.
-"Are we are the start of the line?"
+"Are we at the start of the line?"
 The transition can only be made if the read functionality validates the status.
 Please note that the read status cannot be known inside the NFA, it is related
 to the *read functionality* of the input text.
@@ -1184,10 +1184,10 @@ flowchart LR
 4 -- e --> 2
 ```
 
-The *or* operator connects two operands in parallel. It creates new start and
+The *or* operator connects two operands in parallel. It creates a new start and
 end nodes and connects in the operands using epsilon transitions.
 
-Now let's look at some more compicated regular expression, to see what the
+Now let's look at some more complicated regular expression, to see what the
 NFAs will look like.
 
 This is the NFA for the `a*|bc?` regular expression:
@@ -1217,7 +1217,7 @@ Likewise, `?` has higher precedence than the implicit concatenation
 between `b` and `c`, and hence, the `?` operator only affects `c`
 and not `b`.
 
-Parentesis could be used to change this. For example, the NFA for
+Parenthesis could be used to change this. For example, the NFA for
 the `((a*|b)c)?` regular expression would be:
 
 ```mermaid
@@ -1238,8 +1238,8 @@ flowchart LR
 9 -- e --> 10
 ```
 
-The `*` operator has the highest precendece and applies only to `a`.
-The parenthesis cause the *or* operator to put `a*` and `b` in parallel.
+The `*` operator has the highest precedence and applies only to `a`.
+The parenthesis causes the *or* operator to put `a*` and `b` in parallel.
 Then the concatenation with `c` is applied. Finally, `?` is applied
 to the whole NFA, creating a *bypass*. Notice how the structure differs
 from the previous example.
@@ -1252,7 +1252,7 @@ Each node in the NFA corresponds to a state. Two state tables are used to
 run the NFA. One table contains the current list of active states and the
 other table is used to store the next list of states as transitions occur.
 After transitions, the two tables are swapped, so that the *next* table
-becomes the *current*, and *current* becomes *next* (which get cleared before
+becomes the *current*, and *current* becomes *next* (which gets cleared before
 being used again).
 
 To commence, the start node of the NFA is set in the current state table.
@@ -1262,7 +1262,7 @@ In this phase, transitions are accumulative, analogous to water flowing
 (everywhere the water goes will be wet).
 If an epsilon transition is followed from node 4 to node 5, then both
 of these nodes will be marked as in-state. This process continues iteratively
-until there are no new states being added, that is, the current and next
+until new states are added, that is, the current and next
 state tables have the same contents.
 
 A check is then made for matches. If the end node of the NFA is in-state,
@@ -1276,21 +1276,21 @@ all the states have been eliminated. At this point, the length is the
 *last match* pointer minus the pointer to the start of the text.
 
 Please note that the way the end node was reached is irrelevant, and only the
-start of text pointer and last match pointer are need to obtain the location
+start of the text pointer and the last match pointer are needed to obtain the location
 and length of the match.
 
-Next a character is read. The character is looked up in the character sets
+Next, a character is read. The character is looked up in the character sets
 of the relevant in-state transitions. If the character is in the set, then
 the transition can be made, and the destination node is recorded in the next
 table. This is an elimination step. All source nodes, if not also a destination
 node, are eliminated. This is also not an iterative step. In a way, it is
-analogous musical chairs, when the music stops, if you don't have a chair
+analogous to musical chairs, when the music stops, if you don't have a chair
 (a destination node), you are out!
 
 Then, once again, a check is made for a winner. If there is
 no winner then the process repeats until all states are eliminated.
 
-The power of using a NFA for regular expression matching, is that the
+The power of using an NFA for regular expression matching is that the
 *journey* through the NFA does not matter. At any moment, all that matters
 is the current nodes that are in-state, not how those states were ascertained.
 This is why NFA regex engines are immune from pathological regular expressions
@@ -1309,7 +1309,7 @@ text. If there is a match, then it is returned. If not, then the NFA is run
 again, but this time starting from a pointer of `text + 1`. The starting
 pointer continues increment until a match is found, or the text is exhausted.
 
-As it advances it is important that the read functionality keeps track of
+As it advances the read functionality must keep track of
 the start of line status, as a given NFA run may be commencing mid-line.
 
 
@@ -1323,7 +1323,7 @@ the next search from the pointer of the match plus the match length.
 When no match is found, the remaining text (if any) is added to the buffer.
 
 This regex engine does not add the replacement text when there
-is a zero length match *and* the match commences at the end of the previous
+is a zero-length match *and* the match commences at the end of the previous
 match.
 
 There needs to be a way to advance when a zero-length match is
