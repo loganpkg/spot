@@ -25,7 +25,7 @@
 
 /* For size_t */
 #include <stddef.h>
-
+#include <stdint.h>
 
 /* Success is 0 or: */
 #ifndef OK
@@ -63,7 +63,9 @@ struct screen {
 
 
 typedef struct screen WINDOW;
+typedef uint32_t chtype;
 
+#define A_CHARTEXT 0x000000FF
 
 #ifdef IN_CURSES_LIB
 /* In library, so external variable */
@@ -130,6 +132,7 @@ void refresh(void);
 int addch(unsigned char ch);
 int addnstr(const char *str, int n);
 int move(int y, int x);
+chtype inch(void);
 int clrtoeol(void);
 int standend(void);
 int standout(void);

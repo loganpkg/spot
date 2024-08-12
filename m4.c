@@ -591,7 +591,7 @@ int validate_macro_name(const char *macro_name)
     /* Check remaining characters */
     ++p;
     while ((ch = *p) != '\0') {
-        if (!isalnum(ch))
+        if (!isalnum(ch) && ch != '_')
             se("Invalid macro name: %s\n", macro_name);
 
         ++p;

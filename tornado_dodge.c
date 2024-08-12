@@ -54,10 +54,14 @@ int main(void)
     int x;
     size_t man_y = 0, man_x = 0;
     size_t cloud_y = 6, cloud_x = 0;
+    size_t cloud2_y = 16, cloud2_x = 8;
 
     char *man = " o \n" "<|>\n" "/\\ ";
     char *man_vert = " o \n" " V \n" " | ";
-    char *cloud = " /=========\\ \n" "|           |\n" " \\=========/";
+    char *cloud = "=============\n" "|           |\n" " \\=========/";
+    char ch, ch2;
+    size_t up = 0;
+    int on_floor = 0;
 
     size_t loop_count = 0;
 
@@ -83,6 +87,38 @@ int main(void)
         if (erase())
             mgoto(clean_up);
 
+        if (print_object(cloud_y, cloud_x, cloud))
+            mgoto(clean_up);
+
+        if (print_object(cloud2_y, cloud2_x, cloud))
+            mgoto(clean_up);
+
+        if (move(man_y + 3, man_x))
+            mgoto(clean_up);
+
+        ch = inch() & A_CHARTEXT;
+
+        if (move(man_y + 3, man_x + 1))
+            mgoto(clean_up);
+
+        ch2 = inch() & A_CHARTEXT;
+
+        if (ch != ' ' || ch2 != ' ')
+            on_floor = 1;
+        else
+            on_floor = 0;
+
+        if (up) {
+            if (loop_count % 10000 == 0) {
+                --man_y;
+                --up;
+            }
+        } else if (!on_floor) {
+            /* Fall */
+            if (loop_count % 10000 == 0)
+                ++man_y;
+        }
+
         if (man_x % 2) {
             if (print_object(man_y, man_x, man_vert))
                 mgoto(clean_up);
@@ -91,20 +127,22 @@ int main(void)
                 mgoto(clean_up);
         }
 
-        if (print_object(cloud_y, cloud_x, cloud))
-            mgoto(clean_up);
-
-        if (loop_count % 10000 == 0)
-            ++cloud_x;
+        move(0, 0);
 
         refresh();
 
         x = getch();
 
-        if (x == 'f' || x == KEY_RIGHT)
+        if (x == 'f' || x == KEY_RIGHT) {
             ++man_x;
-        else if (x == 'q' || (x == 24 && getch() == 3))
+        } else if (x == 'b' || x == KEY_LEFT) {
+            --man_x;
+        } else if (x == KEY_UP) {
+            if (on_floor)
+                up += 6;
+        } else if (x == 'q' || (x == 24 && getch() == 3)) {
             break;
+        }
 
         ++loop_count;
     }

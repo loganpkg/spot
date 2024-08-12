@@ -627,6 +627,10 @@ int move(int y, int x)
     return OK;
 }
 
+chtype inch(void)
+{
+    return *(stdscr->vs_n + stdscr->v_i);
+}
 
 int clrtoeol(void)
 {
