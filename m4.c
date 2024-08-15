@@ -310,12 +310,13 @@ int sub_args(M4ptr m4)
                 x = next_ch - '0';
                 accessed[x] = 'Y';
                 /* Can only access args that were collected */
-                if (x > num_args_collected)
+                if (x > num_args_collected) {
                     uw("Uncollected argument number %lu accessed\n",
                        (unsigned long) x);
-
-                if (put_str(m4->tmp, arg(x)))
-                    mreturn(ERROR);
+                } else {
+                    if (put_str(m4->tmp, arg(x)))
+                        mreturn(ERROR);
+                }
 
                 ++p;            /* Eat an extra char */
             } else if (next_ch == '#') {
