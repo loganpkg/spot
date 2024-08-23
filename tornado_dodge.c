@@ -23,15 +23,22 @@
 
 int print_object(size_t y, size_t x, const char *object)
 {
-    char ch;
+    char ch, v_ch;
     size_t c_y, c_x;
 
     if (move(y, x) == ERR)
         return ERROR;
 
     while ((ch = *object++) != '\0') {
-        if (addch(ch) == ERR)
-            return ERROR;
+        v_ch = inch() & A_CHARTEXT;
+        if (ch == ' ') {
+            /* Keep virtual char unchanged (do not print the space) */
+            if (addch(v_ch) == ERR)
+                return ERROR;
+        } else {
+            if (addch(ch) == ERR)
+                return ERROR;
+        }
 
         if (ch == '\n') {
             /* Indent */
@@ -59,6 +66,14 @@ int main(void)
     char *man = " o \n" "<|>\n" "/\\ ";
     char *man_vert = " o \n" " V \n" " | ";
     char *cloud = "=============\n" "|           |\n" " \\=========/";
+
+    char *tornado = "\\##########/\n"
+        " \\########/\n"
+        "  \\######/\n" "   \\####/\n" "    \\##/\n" "     \\/";
+
+    size_t tornado_y = 6, tornado_x;
+    size_t y;
+
     char ch, ch2;
     size_t up = 0;
     int on_floor = 0;
@@ -83,6 +98,13 @@ int main(void)
     if (set_tabsize(8) == ERR)
         mgoto(clean_up);
 
+
+    getmaxyx(stdscr, y, tornado_x);
+
+    fprintf(stderr, "x: %lu\n", tornado_x);
+
+    tornado_x -= 20;
+
     while (1) {
         if (erase())
             mgoto(clean_up);
@@ -91,6 +113,9 @@ int main(void)
             mgoto(clean_up);
 
         if (print_object(cloud2_y, cloud2_x, cloud))
+            mgoto(clean_up);
+
+        if (print_object(tornado_y, tornado_x, tornado))
             mgoto(clean_up);
 
         if (move(man_y + 3, man_x))
@@ -118,6 +143,9 @@ int main(void)
             if (loop_count % 10000 == 0)
                 ++man_y;
         }
+
+        if (loop_count % 10000 == 0)
+            --tornado_x;
 
         if (man_x % 2) {
             if (print_object(man_y, man_x, man_vert))

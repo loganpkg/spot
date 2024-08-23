@@ -103,8 +103,12 @@ WINDOW *initscr(void)
 
     /*
      * The memory for the virtual screens will be allocated upon the first call
-     * to erase_screen.
+     * to erase_screen (which is called by erase).
+     * This will also set the physical screen size.
      */
+    if (erase() == ERR)
+        mgoto(error);
+
     stdscr->tabsize = DEFAULT_TABSIZE;
     stdscr->clear = 1;
 

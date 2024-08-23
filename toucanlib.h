@@ -402,6 +402,7 @@ void left_word(struct gb *b);
 void right_word(struct gb *b, char transform);
 int goto_row(struct gb *b, struct gb *cl);
 int insert_hex(struct gb *b, struct gb *cl);
+void set_mark(struct gb *b);
 int swap_cursor_and_mark(struct gb *b);
 int exact_forward_search(struct gb *b, struct gb *cl);
 int regex_forward_search(struct gb *b, struct gb *cl);

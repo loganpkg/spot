@@ -105,7 +105,7 @@ The keybindings are listed below. `^a` means pressing `Ctrl` plus `a`.
 | `^h`    | Backspace character                                       |
 | `^a`    | Start of line                                             |
 | `^e`    | End of line                                               |
-| `^2`    | Set mark                                                  |
+| `^@`    | Set mark %                                                |
 | `^g`    | Clear mark, or exit command line                          |
 | `^l`    | Centre cursor on the screen and redraw graphics           |
 | `^w`    | Cut region                                                |
@@ -138,17 +138,19 @@ The keybindings are listed below. `^a` means pressing `Ctrl` plus `a`.
 | `^x LK` | Move left one gap buffer                                  |
 | `^x RK` | Move right one gap buffer                                 |
 
+`%` On most terminals, control spacebar and `^2` send 0 (which is `^@`).
+    `^[ @` and `^[ 2` are also mapped so that this works in *all* terminals.
 
 `+` The _logical_ line under the cursor is formed by joining neighbouring lines
-that end in a backslash, to accommodate long lines. These end-of-line
-backslashes are removed from the logical line, as are `\n` characters.
-`2>&1` is added to the end of the logical line, to capture `stderr` under most
-situations. If some `stderr` text comes through uncaptured, it can be
-cleared by redrawing the screen (`^l`).
+    that end in a backslash, to accommodate long lines. These end-of-line
+    backslashes are removed from the logical line, as are `\n` characters.
+    `2>&1` is added to the end of the logical line, to capture `stderr` under
+    most situations. If some `stderr` text comes through uncaptured, it can be
+    cleared by redrawing the screen (`^l`).
 
 `*` Regex replace region syntax is `_find_replace` where the first character
-(in this example, `_`) is the delimiter. The anchors, `^` and `$` are relative
-to the region, not the buffer.
+    (in this example, `_`) is the delimiter. The anchors, `^` and `$` are
+    relative to the region, not the buffer.
 
 `^` Text editor will exit if it is the last gap buffer.
 

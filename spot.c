@@ -387,8 +387,7 @@ int main(int argc, char **argv)
             end_of_line(z);
             break;
         case 0:
-            z->m_set = 1;
-            z->m = z->c;
+            set_mark(z);
             break;
         case C('g'):
             if (z->m_set) {
@@ -443,6 +442,10 @@ int main(int argc, char **argv)
         case ESC:
             y = getch();
             switch (y) {
+            case '2':
+            case '@':
+                set_mark(z);
+                break;
             case 'b':
                 left_word(z);
                 break;

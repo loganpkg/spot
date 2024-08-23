@@ -450,6 +450,12 @@ int insert_hex(struct gb *b, struct gb *cl)
     return 0;
 }
 
+void set_mark(struct gb *b)
+{
+    b->m_set = 1;
+    b->m = b->c;
+}
+
 int swap_cursor_and_mark(struct gb *b)
 {
     size_t m_orig, g_orig;
