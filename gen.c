@@ -157,7 +157,7 @@ FILE *fopen_w(const char *fn, int append)
     return fopen(fn, mode);
 }
 
-int tty_check(FILE * stream, int *is_tty)
+int tty_check(FILE *stream, int *is_tty)
 {
     int fd;
     int r, e;

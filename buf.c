@@ -123,7 +123,7 @@ int unget_str(struct ibuf *b, const char *str)
     return 0;
 }
 
-int unget_stream(struct ibuf **b, FILE * fp, const char *nm)
+int unget_stream(struct ibuf **b, FILE *fp, const char *nm)
 {
     /*
      * Creates a new struct head. *b can be NULL.
@@ -164,7 +164,7 @@ int unget_file(struct ibuf **b, const char *fn)
     return 0;
 }
 
-int append_stream(struct ibuf **b, FILE * fp, const char *nm)
+int append_stream(struct ibuf **b, FILE *fp, const char *nm)
 {
     /* Links a new stream in at the tail of the list. *b can be NULL. */
     struct ibuf *t = NULL;
@@ -569,7 +569,7 @@ int put_file(struct obuf *b, const char *fn)
     return ret;
 }
 
-int put_stream(struct obuf *b, FILE * fp)
+int put_stream(struct obuf *b, FILE *fp)
 {
     size_t i_backup, rs;
 
