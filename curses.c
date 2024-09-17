@@ -102,10 +102,10 @@ WINDOW *initscr(void)
 {
     /* Already initialised, so fail */
     if (stdscr != NULL)
-        return NULL;
+        mreturn(NULL);
 
     if ((stdscr = calloc(1, sizeof(WINDOW))) == NULL)
-        return NULL;
+        mreturn(NULL);
 
     /*
      * The memory for the virtual screens will be allocated upon the first call
@@ -169,7 +169,7 @@ WINDOW *initscr(void)
 
   error:
     free(stdscr);
-    return NULL;
+    mreturn(NULL);
 }
 
 
@@ -231,17 +231,17 @@ static int unread(unsigned char u)
     if (stdscr->i == stdscr->n) {
         /* Grow buffer */
         if (aof(stdscr->n, 1, SIZE_MAX))
-            return ERR;
+            mreturn(ERR);
 
         new_n = stdscr->n + 1;
 
         if (mof(new_n, 2, SIZE_MAX))
-            return ERR;
+            mreturn(ERR);
 
         new_n *= 2;
 
         if ((t = realloc(stdscr->a, new_n)) == NULL)
-            return ERR;
+            mreturn(ERR);
 
         stdscr->a = t;
         stdscr->n = new_n;
@@ -453,7 +453,7 @@ static int get_phy_screen_size(void)
     CONSOLE_SCREEN_BUFFER_INFO si;
 
     if (!GetConsoleScreenBufferInfo(stdscr->term_handle, &si))
-        return ERR;
+        mreturn(ERR);
 
     stdscr->h = si.srWindow.Bottom - si.srWindow.Top + 1;
     stdscr->w = si.srWindow.Right - si.srWindow.Left + 1;
@@ -461,7 +461,7 @@ static int get_phy_screen_size(void)
     struct winsize ws;
 
     if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1)
-        return ERR;
+        mreturn(ERR);
 
     stdscr->h = ws.ws_row;
     stdscr->w = ws.ws_col;
