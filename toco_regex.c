@@ -235,7 +235,7 @@ static int issue_node(struct nfa_storage *ns, size_t *node)
     return 0;
 
   error:
-    return ERROR;
+    return GEN_ERROR;
 }
 
 static int delete_node(struct nfa_storage *ns, size_t node)
@@ -255,7 +255,7 @@ static int delete_node(struct nfa_storage *ns, size_t node)
     return 0;
 
   error:
-    return ERROR;
+    return GEN_ERROR;
 }
 
 static void fill_hole(struct nfa_storage *ns)
@@ -350,14 +350,14 @@ static int push_operand_stack(struct operand_stack *z, size_t nfa_start,
     return 0;
 
   error:
-    return ERROR;
+    return GEN_ERROR;
 }
 
 static int pop_operand_stack(struct operand_stack *z, size_t *nfa_start,
                              size_t *nfa_end)
 {
     if (!z->i)
-        return ERROR;
+        return GEN_ERROR;
 
     --z->i;
     *nfa_start = (*(z->a + z->i)).start;
@@ -449,7 +449,7 @@ static int interpret_escaped_chars(const char *input_str, char **output,
     return 0;
 
   error:
-    ret = ERROR;
+    ret = GEN_ERROR;
 
   syntax_error:
     if (!ret)
@@ -485,7 +485,7 @@ static int char_to_int_eof_term(const char *input, size_t input_size,
 
   error:
     free(imem);
-    return ERROR;
+    return GEN_ERROR;
 }
 
 static void print_cs_ch(unsigned char u)
@@ -688,7 +688,7 @@ static int create_regex_chain(const int *find_eof,
     return 0;
 
   error:
-    ret = ERROR;
+    ret = GEN_ERROR;
 
   syntax_error:
     if (!ret)
@@ -1025,7 +1025,7 @@ static int thompsons_construction(const struct regex_item *ri_head,
     return 0;
 
   error:
-    ret = ERROR;
+    ret = GEN_ERROR;
 
   syntax_error:
     if (!ret)
@@ -1069,7 +1069,7 @@ static void print_nfa(struct nfa_storage *ns)
 static int compile_regex(const char *regex_str, int nl_ins,
                          struct regex **regex_st, int verbose)
 {
-    int ret = ERROR;
+    int ret = GEN_ERROR;
     struct regex *reg = NULL;
 
     if (regex_str == NULL || *regex_str == '\0')
@@ -1348,7 +1348,7 @@ int regex_search(const char *text, size_t text_size, int sol,
                  const char *regex_str, int nl_ins, size_t *match_offset,
                  size_t *match_len, int verbose)
 {
-    int ret = ERROR;
+    int ret = GEN_ERROR;
     struct regex *reg = NULL;
     char *m;
     size_t ml;
@@ -1389,7 +1389,7 @@ int regex_replace(const char *text, size_t text_size,
      * is provide in result_len (excluding the final added \0 char).
      * However, the result might have embedded \0 chars.
      */
-    int ret = ERROR;
+    int ret = GEN_ERROR;
     struct regex *reg = NULL;
     char *replace_esc = NULL;
     size_t replace_esc_size;

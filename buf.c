@@ -55,7 +55,7 @@ int free_ibuf(struct ibuf *b)
 
         if (b->fp != NULL && b->fp != stdin)
             if (fclose(b->fp))
-                ret = ERROR;    /* Continue */
+                ret = GEN_ERROR;        /* Continue */
 
         free(b->a);
         free(b);
@@ -71,17 +71,17 @@ static int grow_ibuf(struct ibuf *b, size_t will_use)
     size_t new_n;
 
     if (aof(b->n, will_use, SIZE_MAX))
-        mreturn(ERROR);
+        mreturn(GEN_ERROR);
 
     new_n = b->n + will_use;
 
     if (mof(new_n, 2, SIZE_MAX))
-        mreturn(ERROR);
+        mreturn(GEN_ERROR);
 
     new_n *= 2;
 
     if ((t = realloc(b->a, new_n)) == NULL)
-        mreturn(ERROR);
+        mreturn(GEN_ERROR);
 
     b->a = t;
     b->n = new_n;
@@ -91,7 +91,7 @@ static int grow_ibuf(struct ibuf *b, size_t will_use)
 int unget_ch(struct ibuf *b, char ch)
 {
     if (b->i == b->n && grow_ibuf(b, 1))
-        mreturn(ERROR);
+        mreturn(GEN_ERROR);
 
     *(b->a + b->i) = ch;
     ++b->i;
@@ -109,7 +109,7 @@ int unget_str(struct ibuf *b, const char *str)
         return 0;
 
     if (len > b->n - b->i && grow_ibuf(b, len))
-        mreturn(ERROR);
+        mreturn(GEN_ERROR);
 
     p = b->a + b->i + len - 1;
     j = len;
@@ -132,11 +132,11 @@ int unget_stream(struct ibuf **b, FILE *fp, const char *nm)
     struct ibuf *t = NULL;
 
     if ((t = init_ibuf(INIT_BUF_SIZE)) == NULL)
-        mreturn(ERROR);
+        mreturn(GEN_ERROR);
 
     if ((t->nm = strdup(nm)) == NULL) {
         free_ibuf(t);
-        mreturn(ERROR);
+        mreturn(GEN_ERROR);
     }
 
     /* Success */
@@ -154,11 +154,11 @@ int unget_file(struct ibuf **b, const char *fn)
 {
     FILE *fp = NULL;
     if ((fp = fopen(fn, "rb")) == NULL)
-        mreturn(ERROR);
+        mreturn(GEN_ERROR);
 
     if (unget_stream(b, fp, fn)) {
         fclose(fp);
-        mreturn(ERROR);
+        mreturn(GEN_ERROR);
     }
 
     return 0;
@@ -171,11 +171,11 @@ int append_stream(struct ibuf **b, FILE *fp, const char *nm)
     struct ibuf *w = NULL;
 
     if ((t = init_ibuf(INIT_BUF_SIZE)) == NULL)
-        mreturn(ERROR);
+        mreturn(GEN_ERROR);
 
     if ((t->nm = strdup(nm)) == NULL) {
         free_ibuf(t);
-        mreturn(ERROR);
+        mreturn(GEN_ERROR);
     }
 
     /* Success */
@@ -200,11 +200,11 @@ int append_file(struct ibuf **b, const char *fn)
 {
     FILE *fp = NULL;
     if ((fp = fopen(fn, "rb")) == NULL)
-        mreturn(ERROR);
+        mreturn(GEN_ERROR);
 
     if (append_stream(b, fp, fn)) {
         fclose(fp);
-        mreturn(ERROR);
+        mreturn(GEN_ERROR);
     }
 
     return 0;
@@ -225,14 +225,14 @@ int get_ch(struct ibuf **input, char *ch)
     if ((*input)->fp != NULL) {
         if ((x = getc((*input)->fp)) == EOF) {
             if (ferror((*input)->fp))
-                mreturn(ERROR);
+                mreturn(GEN_ERROR);
             else if (feof((*input)->fp)) {
                 if ((*input)->next != NULL) {
                     t = (*input)->next;
                     /* Isolate old head */
                     (*input)->next = NULL;
                     if (free_ibuf(*input))
-                        mreturn(ERROR);
+                        mreturn(GEN_ERROR);
 
                     /* Update head */
                     *input = t;
@@ -245,7 +245,7 @@ int get_ch(struct ibuf **input, char *ch)
                      * on each subsequent read after the first EOF char.
                      */
                     if (fclose((*input)->fp))
-                        mreturn(ERROR);
+                        mreturn(GEN_ERROR);
 
                     (*input)->fp = NULL;
                     return EOF;
@@ -276,14 +276,14 @@ int eat_whitespace(struct ibuf **input)
 
     while (1) {
         r = get_ch(input, &ch);
-        if (r == ERROR)
-            mreturn(ERROR);
+        if (r == GEN_ERROR)
+            mreturn(GEN_ERROR);
         else if (r == EOF)
             break;
 
         if (!(isspace(ch) || ch == '\0')) {
             if (unget_ch(*input, ch))
-                mreturn(ERROR);
+                mreturn(GEN_ERROR);
 
             break;
         }
@@ -299,8 +299,8 @@ int delete_to_nl(struct ibuf **input)
 
     while (1) {
         r = get_ch(input, &ch);
-        if (r == ERROR)
-            mreturn(ERROR);
+        if (r == GEN_ERROR)
+            mreturn(GEN_ERROR);
         else if (r == EOF)
             break;
 
@@ -315,7 +315,7 @@ int eat_str_if_match(struct ibuf **input, const char *str)
     /*
      * Checks for str at the start of input and eats it if there is a match.
      * Cannot check the buffer directly as stdin may not have been read yet.
-     * Returns MATCH, NO_MATCH, or ERROR.
+     * Returns MATCH, NO_MATCH, or GEN_ERROR.
      * (EOF is considered as NO_MATCH).
      */
     int r;
@@ -332,14 +332,14 @@ int eat_str_if_match(struct ibuf **input, const char *str)
             break;
 
         r = get_ch(input, &ch);
-        if (r == ERROR)
-            mreturn(ERROR);
+        if (r == GEN_ERROR)
+            mreturn(GEN_ERROR);
         else if (r == EOF)
             goto no_match;
 
         if (x != ch) {
             if (unget_ch(*input, ch))
-                mreturn(ERROR);
+                mreturn(GEN_ERROR);
 
             goto no_match;
         }
@@ -353,7 +353,7 @@ int eat_str_if_match(struct ibuf **input, const char *str)
     /* Return the read characters */
     while (i) {
         if (unget_ch(*input, *(str + i - 1)))
-            mreturn(ERROR);
+            mreturn(GEN_ERROR);
 
         --i;
     }
@@ -373,7 +373,7 @@ int get_word(struct ibuf **input, struct obuf *token, int interpret_hex)
         return r;
 
     if (put_ch(token, ch))
-        mreturn(ERROR);
+        mreturn(GEN_ERROR);
 
     if (isdigit(ch))
         type = 'd';             /* Decimal (or octal) number */
@@ -385,8 +385,8 @@ int get_word(struct ibuf **input, struct obuf *token, int interpret_hex)
     second_ch = 1;
     while (1) {
         r = get_ch(input, &ch);
-        if (r == ERROR)
-            mreturn(ERROR);
+        if (r == GEN_ERROR)
+            mreturn(GEN_ERROR);
         else if (r == EOF)      /* Ignore, as not the first char */
             goto end;
 
@@ -399,10 +399,10 @@ int get_word(struct ibuf **input, struct obuf *token, int interpret_hex)
             || (type == 'w' && (isalnum(ch) || ch == '_'))
             || (type == 'h' && (second_ch || isxdigit(ch)))) {
             if (put_ch(token, ch))
-                mreturn(ERROR);
+                mreturn(GEN_ERROR);
         } else {
             if (unget_ch(*input, ch))
-                mreturn(ERROR);
+                mreturn(GEN_ERROR);
 
             goto end;
         }
@@ -412,7 +412,7 @@ int get_word(struct ibuf **input, struct obuf *token, int interpret_hex)
 
   end:
     if (put_ch(token, '\0')) {  /* Terminate string */
-        mreturn(ERROR);
+        mreturn(GEN_ERROR);
     }
 
     return 0;
@@ -459,17 +459,17 @@ static int grow_obuf(struct obuf *b, size_t will_use)
     size_t new_n;
 
     if (aof(b->n, will_use, SIZE_MAX))
-        mreturn(ERROR);
+        mreturn(GEN_ERROR);
 
     new_n = b->n + will_use;
 
     if (mof(new_n, 2, SIZE_MAX))
-        mreturn(ERROR);
+        mreturn(GEN_ERROR);
 
     new_n *= 2;
 
     if ((t = realloc(b->a, new_n)) == NULL)
-        mreturn(ERROR);
+        mreturn(GEN_ERROR);
 
     b->a = t;
     b->n = new_n;
@@ -479,7 +479,7 @@ static int grow_obuf(struct obuf *b, size_t will_use)
 int put_ch(struct obuf *b, char ch)
 {
     if (b->i == b->n && grow_obuf(b, 1))
-        mreturn(ERROR);
+        mreturn(GEN_ERROR);
 
     *(b->a + b->i) = ch;
     ++b->i;
@@ -494,7 +494,7 @@ int put_str(struct obuf *b, const char *str)
     while ((ch = *str++) != '\0') {
         if (b->i == b->n && grow_obuf(b, 1)) {
             b->i = i_backup;    /* Restore */
-            mreturn(ERROR);
+            mreturn(GEN_ERROR);
         }
 
         *(b->a + b->i++) = ch;
@@ -506,7 +506,7 @@ int put_str(struct obuf *b, const char *str)
 int put_mem(struct obuf *b, const char *mem, size_t mem_len)
 {
     if (mem_len > b->n - b->i && grow_obuf(b, mem_len))
-        mreturn(ERROR);
+        mreturn(GEN_ERROR);
 
     memcpy(b->a + b->i, mem, mem_len);
     b->i += mem_len;
@@ -517,7 +517,7 @@ int put_obuf(struct obuf *b, struct obuf *t)
 {
     /* Empties t onto the end of b */
     if (put_mem(b, t->a, t->i))
-        mreturn(ERROR);
+        mreturn(GEN_ERROR);
 
     t->i = 0;
     return 0;
@@ -525,35 +525,35 @@ int put_obuf(struct obuf *b, struct obuf *t)
 
 int put_file(struct obuf *b, const char *fn)
 {
-    int ret = ERROR;
+    int ret = GEN_ERROR;
     FILE *fp = NULL;
     size_t fs;
 
     if (fn == NULL || *fn == '\0')
-        mreturn(ERROR);
+        mreturn(GEN_ERROR);
 
     if ((fp = fopen(fn, "rb")) == NULL) {
-        ret = ERROR;
+        ret = GEN_ERROR;
         mgoto(clean_up);
     }
 
     if (get_file_size(fn, &fs)) {
-        ret = ERROR;
+        ret = GEN_ERROR;
         mgoto(clean_up);
     }
 
     if (!fs) {
-        ret = ERROR;
+        ret = GEN_ERROR;
         mgoto(done);
     }
 
     if (fs > b->n - b->i && grow_obuf(b, fs)) {
-        ret = ERROR;
+        ret = GEN_ERROR;
         mgoto(clean_up);
     }
 
     if (fread(b->a + b->i, 1, fs, fp) != fs) {
-        ret = ERROR;
+        ret = GEN_ERROR;
         mgoto(clean_up);
     }
 
@@ -564,7 +564,7 @@ int put_file(struct obuf *b, const char *fn)
   clean_up:
     if (fp != NULL)
         if (fclose(fp))
-            ret = ERROR;
+            ret = GEN_ERROR;
 
     return ret;
 }
@@ -574,7 +574,7 @@ int put_stream(struct obuf *b, FILE *fp)
     size_t i_backup, rs;
 
     if (fp == NULL)
-        mreturn(ERROR);
+        mreturn(GEN_ERROR);
 
     i_backup = b->i;
 
@@ -596,7 +596,7 @@ int put_stream(struct obuf *b, FILE *fp)
 
   error:
     b->i = i_backup;
-    return ERROR;
+    return GEN_ERROR;
 }
 
 int write_obuf(struct obuf *b, const char *fn, int append)
@@ -605,17 +605,17 @@ int write_obuf(struct obuf *b, const char *fn, int append)
     FILE *fp;
 
     if (fn == NULL || *fn == '\0')
-        mreturn(ERROR);
+        mreturn(GEN_ERROR);
 
     if ((fp = fopen_w(fn, append)) == NULL)
-        mreturn(ERROR);
+        mreturn(GEN_ERROR);
 
     if (fwrite(b->a, 1, b->i, fp) != b->i) {
         fclose(fp);
-        mreturn(ERROR);
+        mreturn(GEN_ERROR);
     }
     if (fclose(fp))
-        mreturn(ERROR);
+        mreturn(GEN_ERROR);
 
     b->i = 0;
     return 0;
@@ -667,11 +667,11 @@ int flush_obuf(struct obuf *b, int tty_output)
         }
     } else {
         if (fwrite(b->a, 1, b->i, stdout) != b->i)
-            mreturn(ERROR);
+            mreturn(GEN_ERROR);
     }
 
     if (fflush(stdout))
-        mreturn(ERROR);
+        mreturn(GEN_ERROR);
 
     b->i = 0;
     return 0;
@@ -729,20 +729,20 @@ static int grow_lbuf(struct lbuf *b, size_t will_use)
     size_t new_n;
 
     if (aof(b->n, will_use, SIZE_MAX))
-        mreturn(ERROR);
+        mreturn(GEN_ERROR);
 
     new_n = b->n + will_use;
 
     if (mof(new_n, 2, SIZE_MAX))
-        mreturn(ERROR);
+        mreturn(GEN_ERROR);
 
     new_n *= 2;
 
     if (mof(new_n, sizeof(long), SIZE_MAX))
-        mreturn(ERROR);
+        mreturn(GEN_ERROR);
 
     if ((t = realloc(b->a, new_n * sizeof(long))) == NULL)
-        mreturn(ERROR);
+        mreturn(GEN_ERROR);
 
     b->a = t;
     b->n = new_n;
@@ -752,7 +752,7 @@ static int grow_lbuf(struct lbuf *b, size_t will_use)
 int add_l(struct lbuf *b, long x)
 {
     if (b->i == b->n && grow_lbuf(b, 1))
-        mreturn(ERROR);
+        mreturn(GEN_ERROR);
 
     *(b->a + b->i) = x;
     ++b->i;
@@ -798,20 +798,20 @@ static int grow_sbuf(struct sbuf *b, size_t will_use)
     size_t new_n;
 
     if (aof(b->n, will_use, SIZE_MAX))
-        mreturn(ERROR);
+        mreturn(GEN_ERROR);
 
     new_n = b->n + will_use;
 
     if (mof(new_n, 2, SIZE_MAX))
-        mreturn(ERROR);
+        mreturn(GEN_ERROR);
 
     new_n *= 2;
 
     if (mof(new_n, sizeof(size_t), SIZE_MAX))
-        mreturn(ERROR);
+        mreturn(GEN_ERROR);
 
     if ((t = realloc(b->a, new_n * sizeof(size_t))) == NULL)
-        mreturn(ERROR);
+        mreturn(GEN_ERROR);
 
     b->a = t;
     b->n = new_n;
@@ -821,7 +821,7 @@ static int grow_sbuf(struct sbuf *b, size_t will_use)
 int add_s(struct sbuf *b, size_t x)
 {
     if (b->i == b->n && grow_sbuf(b, 1))
-        mreturn(ERROR);
+        mreturn(GEN_ERROR);
 
     *(b->a + b->i) = x;
     ++b->i;
@@ -867,20 +867,20 @@ static int grow_pbuf(struct pbuf *b, size_t will_use)
     size_t new_n;
 
     if (aof(b->n, will_use, SIZE_MAX))
-        mreturn(ERROR);
+        mreturn(GEN_ERROR);
 
     new_n = b->n + will_use;
 
     if (mof(new_n, 2, SIZE_MAX))
-        mreturn(ERROR);
+        mreturn(GEN_ERROR);
 
     new_n *= 2;
 
     if (mof(new_n, sizeof(void *), SIZE_MAX))
-        mreturn(ERROR);
+        mreturn(GEN_ERROR);
 
     if ((t = realloc(b->a, new_n * sizeof(void *))) == NULL)
-        mreturn(ERROR);
+        mreturn(GEN_ERROR);
 
     b->a = t;
     b->n = new_n;
@@ -890,7 +890,7 @@ static int grow_pbuf(struct pbuf *b, size_t will_use)
 int add_p(struct pbuf *b, void *x)
 {
     if (b->i == b->n && grow_pbuf(b, 1))
-        mreturn(ERROR);
+        mreturn(GEN_ERROR);
 
     *(b->a + b->i) = x;
     ++b->i;

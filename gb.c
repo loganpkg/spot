@@ -92,17 +92,17 @@ static int grow_gap(struct gb *b, size_t will_use)
     s = b->e + 1;               /* OK as in memory already */
 
     if (aof(s, will_use, SIZE_MAX))
-        return ERROR;
+        return GEN_ERROR;
 
     new_s = s + will_use;
 
     if (mof(new_s, 2, SIZE_MAX))
-        return ERROR;
+        return GEN_ERROR;
 
     new_s *= 2;
 
     if ((t = realloc(b->a, new_s)) == NULL)
-        return ERROR;
+        return GEN_ERROR;
 
     b->a = t;
     increase = new_s - s;
@@ -121,7 +121,7 @@ int insert_ch(struct gb *b, char ch)
 {
     b->sc_set = 0;
     if (b->g == b->c && grow_gap(b, 1))
-        return ERROR;
+        return GEN_ERROR;
 
     *(b->a + b->g) = ch;
     ++b->g;
@@ -144,7 +144,7 @@ int insert_str(struct gb *b, const char *str)
 
     while ((ch = *str++) != '\0')
         if (insert_ch(b, ch))
-            return ERROR;
+            return GEN_ERROR;
 
     return 0;
 }
@@ -153,7 +153,7 @@ int insert_mem(struct gb *b, const char *mem, size_t mem_len)
 {
     while (mem_len) {
         if (insert_ch(b, *mem++))
-            return ERROR;
+            return GEN_ERROR;
 
         --mem_len;
     }
@@ -163,7 +163,7 @@ int insert_mem(struct gb *b, const char *mem, size_t mem_len)
 
 int insert_file(struct gb *b, const char *fn)
 {
-    int ret = ERROR;
+    int ret = GEN_ERROR;
     FILE *fp = NULL;
     size_t fs;
 
@@ -174,7 +174,7 @@ int insert_file(struct gb *b, const char *fn)
         if (errno == ENOENT)    /* File does not exist */
             return 2;
         else
-            return ERROR;
+            return GEN_ERROR;
     }
 
     if (get_file_size(fn, &fs))
@@ -199,7 +199,7 @@ int insert_file(struct gb *b, const char *fn)
   clean_up:
     if (fp != NULL)
         if (fclose(fp))
-            ret = ERROR;
+            ret = GEN_ERROR;
 
     return ret;
 }
@@ -209,7 +209,7 @@ int delete_ch(struct gb *b)
     b->sc_set = 0;
 
     if (b->c == b->e)
-        return ERROR;
+        return GEN_ERROR;
 
     ++b->c;
     b->m_set = 0;
@@ -225,7 +225,7 @@ int left_ch(struct gb *b)
     b->sc_set = 0;
 
     if (!b->g)
-        return ERROR;
+        return GEN_ERROR;
 
     --b->g;
     --b->c;
@@ -266,7 +266,7 @@ int right_ch(struct gb *b)
     b->sc_set = 0;
 
     if (b->c == b->e)
-        return ERROR;
+        return GEN_ERROR;
 
     u = *(b->a + b->c);
     if (u == '\n') {
@@ -290,7 +290,7 @@ int right_ch(struct gb *b)
 int backspace_ch(struct gb *b)
 {
     if (left_ch(b))
-        return ERROR;
+        return GEN_ERROR;
 
     return delete_ch(b);
 }
@@ -318,7 +318,7 @@ int up_line(struct gb *b)
 
     /* Row number starts from 1, not 0 */
     if (b->r == 1)
-        return ERROR;
+        return GEN_ERROR;
 
     while (b->r == r_orig)
         left_ch(b);
@@ -348,7 +348,7 @@ int down_line(struct gb *b)
             while (b->col != target_col)
                 left_ch(b);
 
-            return ERROR;
+            return GEN_ERROR;
         }
     }
 
@@ -420,12 +420,12 @@ int goto_row(struct gb *b, struct gb *cl)
 
     start_of_gb(cl);
     if (str_to_size_t((const char *) cl->a + cl->c, &x))
-        return ERROR;
+        return GEN_ERROR;
 
     start_of_gb(b);
     while (b->r != x)
         if (right_ch(b))
-            return ERROR;
+            return GEN_ERROR;
 
     return 0;
 }
@@ -439,13 +439,13 @@ int insert_hex(struct gb *b, struct gb *cl)
     str = cl->a + cl->c;
     while ((h1 = *str++) != '\0') {
         if ((h0 = *str++) == '\0')
-            return ERROR;
+            return GEN_ERROR;
 
         if (hex_to_val(h1, h0, &x))
-            return ERROR;
+            return GEN_ERROR;
 
         if (insert_ch(b, x))
-            return ERROR;
+            return GEN_ERROR;
     }
     return 0;
 }
@@ -461,7 +461,7 @@ int swap_cursor_and_mark(struct gb *b)
     size_t m_orig, g_orig;
 
     if (!b->m_set)
-        return ERROR;
+        return GEN_ERROR;
 
     if (b->c > b->m) {
         m_orig = b->m;
@@ -488,12 +488,12 @@ int exact_forward_search(struct gb *b, struct gb *cl)
     start_of_gb(cl);
 
     if (b->c == b->e)
-        return ERROR;
+        return GEN_ERROR;
 
     if ((q =
          quick_search(b->a + b->c + 1, b->e - (b->c + 1), cl->a + cl->c,
                       cl->e - cl->c)) == NULL)
-        return ERROR;
+        return GEN_ERROR;
 
     num = q - (b->a + b->c);
     while (num--)
@@ -510,14 +510,14 @@ int regex_forward_search(struct gb *b, struct gb *cl)
     start_of_gb(cl);
 
     if (b->c == b->e)
-        return ERROR;
+        return GEN_ERROR;
 
     if (regex_search
         ((char *) b->a + b->c + 1,
          b->e - (b->c + 1),
          *(b->a + b->c) == '\n' ? 1 : 0,
          (char *) cl->a + cl->c, 0, &match_offset, &match_len, 0))
-        return ERROR;
+        return GEN_ERROR;
 
     move = 1 + match_offset + match_len;
     while (move) {
@@ -530,7 +530,7 @@ int regex_forward_search(struct gb *b, struct gb *cl)
 
 int regex_replace_region(struct gb *b, struct gb *cl)
 {
-    int ret = ERROR;
+    int ret = GEN_ERROR;
     char delim, *find, *sep, *replace, *res = NULL;
     size_t res_len;
 
@@ -612,7 +612,7 @@ int match_bracket(struct gb *b)
         target = '(';
         break;
     default:
-        return ERROR;
+        return GEN_ERROR;
     }
     depth = 1;
     while (1) {
@@ -643,7 +643,7 @@ int match_bracket(struct gb *b)
         while (b->c != c_orig)
             right_ch(b);
 
-    return ERROR;
+    return GEN_ERROR;
 }
 
 void trim_clean(struct gb *b)
@@ -708,7 +708,7 @@ int copy_region(struct gb *b, struct gb *p, int cut)
     b->sc_set = 0;
 
     if (!b->m_set)
-        return ERROR;
+        return GEN_ERROR;
 
     delete_gb(p);
 
@@ -718,7 +718,7 @@ int copy_region(struct gb *b, struct gb *p, int cut)
     if (b->m < b->c) {
         for (i = b->m; i < b->g; ++i)
             if (insert_ch(p, *(b->a + i)))
-                return ERROR;
+                return GEN_ERROR;
 
         if (cut) {
             num = b->g - b->m;
@@ -728,7 +728,7 @@ int copy_region(struct gb *b, struct gb *p, int cut)
     } else {
         for (i = b->c; i < b->m; ++i)
             if (insert_ch(p, *(b->a + i)))
-                return ERROR;
+                return GEN_ERROR;
 
         if (cut) {
             num = b->m - b->c;
@@ -771,11 +771,11 @@ int word_under_cursor(struct gb *b, struct gb *tmp)
     delete_gb(tmp);
 
     if ((u = *p) == ' ' || u == '\t')
-        return ERROR;           /* Invalid character */
+        return GEN_ERROR;       /* Invalid character */
 
     while ((u = *p) != ' ' && u != '\n' && u != '\t' && p != p_stop) {
         if (u && insert_ch(tmp, u))     /* Skip embedded \0 chars */
-            return ERROR;
+            return GEN_ERROR;
 
         ++p;
     }
@@ -788,10 +788,10 @@ int word_under_cursor(struct gb *b, struct gb *tmp)
                 if (u) {
                     /* Skip embedded \0 chars */
                     if (insert_ch(tmp, u))
-                        return ERROR;
+                        return GEN_ERROR;
 
                     if (left_ch(tmp))
-                        return ERROR;
+                        return GEN_ERROR;
                 }
             } else {
                 break;
@@ -825,7 +825,7 @@ int copy_logical_line(struct gb *b, struct gb *tmp)
         right_ch(b);
 
     if (copy_region(b, tmp, 0))
-        return ERROR;
+        return GEN_ERROR;
 
     /* Delete backslash at the end of lines and combine lines */
     start_of_gb(tmp);
@@ -857,27 +857,27 @@ int insert_shell_cmd(struct gb *b, const char *cmd, int *es)
 
     /* Open a new line */
     if (insert_ch(b, '\n'))
-        return ERROR;
+        return GEN_ERROR;
 
     if ((fp = popen(cmd, "r")) == NULL)
-        return ERROR;
+        return GEN_ERROR;
 
     while ((x = getc(fp)) != EOF) {
         if ((isprint(x) || x == '\t' || x == '\n') && insert_ch(b, x)) {
             pclose(fp);
-            return ERROR;
+            return GEN_ERROR;
         }
     }
     if (ferror(fp) || !feof(fp)) {
         pclose(fp);
-        return ERROR;
+        return GEN_ERROR;
     }
     if ((st = pclose(fp)) == -1)
-        return ERROR;
+        return GEN_ERROR;
 
 #ifndef _WIN32
     if (!WIFEXITED(st))
-        return ERROR;
+        return GEN_ERROR;
 
     st = WEXITSTATUS(st);
 #endif
@@ -890,17 +890,17 @@ int insert_shell_cmd(struct gb *b, const char *cmd, int *es)
 int shell_line(struct gb *b, struct gb *tmp, int *es)
 {
     if (copy_logical_line(b, tmp))
-        return ERROR;
+        return GEN_ERROR;
 
     end_of_gb(tmp);
     if (insert_str(tmp, " 2>&1"))
-        return ERROR;
+        return GEN_ERROR;
 
     /* Embedded \0 will terminate string early */
     start_of_gb(tmp);
 
     if (insert_shell_cmd(b, (const char *) tmp->a + tmp->c, es))
-        return ERROR;
+        return GEN_ERROR;
 
     return 0;
 }
@@ -911,12 +911,12 @@ int paste(struct gb *b, struct gb *p)
 
     for (i = 0; i < p->g; ++i)
         if (insert_ch(b, *(p->a + i)))
-            return ERROR;
+            return GEN_ERROR;
 
     /* Cursor should be at end of gap buffer, but just in case */
     for (i = p->c; i < p->e; ++i)
         if (insert_ch(b, *(p->a + i)))
-            return ERROR;
+            return GEN_ERROR;
 
     return 0;
 }
@@ -928,21 +928,21 @@ int save(struct gb *b)
     b->sc_set = 0;
 
     if (b->fn == NULL || *b->fn == '\0')
-        return ERROR;
+        return GEN_ERROR;
 
     if ((fp = fopen_w(b->fn, 0)) == NULL)
-        return ERROR;
+        return GEN_ERROR;
 
     if (fwrite(b->a, 1, b->g, fp) != b->g) {
         fclose(fp);
-        return ERROR;
+        return GEN_ERROR;
     }
     if (fwrite(b->a + b->c, 1, b->e - b->c, fp) != b->e - b->c) {
         fclose(fp);
-        return ERROR;
+        return GEN_ERROR;
     }
     if (fclose(fp))
-        return ERROR;
+        return GEN_ERROR;
 
     b->mod = 0;
 
@@ -956,10 +956,10 @@ int rename_gb(struct gb *b, const char *fn)
     b->sc_set = 0;
 
     if (fn == NULL)
-        return ERROR;
+        return GEN_ERROR;
 
     if ((new_fn = strdup(fn)) == NULL)
-        return ERROR;
+        return GEN_ERROR;
 
     free(b->fn);
     b->fn = new_fn;
@@ -972,17 +972,17 @@ int new_gb(struct gb **b, const char *fn, size_t s)
     struct gb *t = NULL;
 
     if ((t = init_gb(s)) == NULL)
-        return ERROR;
+        return GEN_ERROR;
 
     if (fn != NULL && *fn != '\0') {
         /* OK for file to not exist */
         if (insert_file(t, fn) == 1) {
             free_gb(t);
-            return ERROR;
+            return GEN_ERROR;
         }
         if (rename_gb(t, fn)) {
             free_gb(t);
-            return ERROR;
+            return GEN_ERROR;
         }
         t->mod = 0;
     }

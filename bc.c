@@ -30,22 +30,22 @@
 
 int main(void)
 {
-    int ret = ERROR;
+    int ret = GEN_ERROR;
     struct ibuf *input = NULL;
     long x;
 
     if (binary_io())
-        mreturn(ERROR);
+        mreturn(GEN_ERROR);
 
     if (unget_stream(&input, stdin, "stdin"))
-        mreturn(ERROR);
+        mreturn(GEN_ERROR);
 
     while (1) {
         ret = eval_ibuf(&input, &x, 0);
 
         if (!ret)
             printf("%ld\n", x);
-        else if (ret == ERROR || ret == EOF)
+        else if (ret == GEN_ERROR || ret == EOF)
             break;
         else
             fprintf(stderr, "%s:%lu: Math error\n", input->nm, input->rn);

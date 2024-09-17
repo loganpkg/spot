@@ -141,7 +141,7 @@
 #define OK 0
 
 /* System related error. Terminates execution (after clean up). */
-#define ERROR 1
+#define GEN_ERROR 1
 
 /*
  * User related errors.

@@ -27,27 +27,27 @@ int print_object(size_t y, size_t x, const char *object)
     size_t c_y, c_x;
 
     if (move(y, x) == ERR)
-        return ERROR;
+        return GEN_ERROR;
 
     while ((ch = *object++) != '\0') {
         v_ch = inch() & A_CHARTEXT;
         if (ch == ' ') {
             /* Keep virtual char unchanged (do not print the space) */
             if (addch(v_ch) == ERR)
-                return ERROR;
+                return GEN_ERROR;
         } else {
             if (addch(ch) == ERR)
-                return ERROR;
+                return GEN_ERROR;
         }
 
         if (ch == '\n') {
             /* Indent */
             getyx(stdscr, c_y, c_x);
             if (c_x)
-                return ERROR;
+                return GEN_ERROR;
 
             if (move(c_y, x) == ERR)
-                return ERROR;
+                return GEN_ERROR;
         }
     }
 
@@ -57,7 +57,7 @@ int print_object(size_t y, size_t x, const char *object)
 
 int main(void)
 {
-    int ret = ERROR;
+    int ret = GEN_ERROR;
     int x;
     size_t man_y = 0, man_x = 0;
     size_t cloud_y = 6, cloud_x = 0;
@@ -179,7 +179,7 @@ int main(void)
 
   clean_up:
     if (endwin() == ERR)
-        ret = ERROR;
+        ret = GEN_ERROR;
 
     return ret;
 }

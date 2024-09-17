@@ -21,7 +21,7 @@
 
 int main(int argc, char **argv)
 {
-    int ret = ERROR;
+    int ret = GEN_ERROR;
     void *mem;
     unsigned char *p = NULL, u;
     size_t fs, i, y;
@@ -30,14 +30,14 @@ int main(int argc, char **argv)
 
     if (argc != 2) {
         fprintf(stderr, "Usage: freq file\n");
-        return ERROR;
+        return GEN_ERROR;
     }
 
     if (binary_io())
-        return ERROR;
+        return GEN_ERROR;
 
     if (mmap_file_ro(*(argv + 1), &mem, &fs))
-        return ERROR;
+        return GEN_ERROR;
 
     /* Empty file. Nothing to do. */
     if (mem == NULL)
@@ -73,7 +73,7 @@ int main(int argc, char **argv)
 
   clean_up:
     if (p != NULL && un_mmap(p, fs))
-        ret = ERROR;
+        ret = GEN_ERROR;
 
     return ret;
 }

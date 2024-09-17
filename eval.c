@@ -62,7 +62,7 @@ struct math_operator
 
 static int process_operator(struct lbuf *x, unsigned char h, int verbose)
 {
-    int ret = ERROR;
+    int ret = GEN_ERROR;
 
     if (x->i < oper[h].num_operands) {
         fprintf(stderr, "%s:%d: Syntax Error: Insufficient operands\n",
@@ -94,8 +94,8 @@ static int process_operator(struct lbuf *x, unsigned char h, int verbose)
 
 int eval_ibuf(struct ibuf **input, long *res, int verbose)
 {
-    /* res is OK to use if return value is not ERROR (EOF is OK) */
-    int ret = ERROR;
+    /* res is OK to use if return value is not GEN_ERROR (EOF is OK) */
+    int ret = GEN_ERROR;
     int r = 0;
     struct obuf *token = NULL;
     struct obuf *next_token = NULL;
@@ -114,29 +114,29 @@ int eval_ibuf(struct ibuf **input, long *res, int verbose)
     char ch;
 
     if ((token = init_obuf(INIT_BUF_SIZE)) == NULL) {
-        ret = ERROR;
+        ret = GEN_ERROR;
         mgoto(clean_up);
     }
 
     if ((next_token = init_obuf(INIT_BUF_SIZE)) == NULL) {
-        ret = ERROR;
+        ret = GEN_ERROR;
         mgoto(clean_up);
     }
 
     if ((x = init_lbuf(INIT_BUF_SIZE)) == NULL) {
-        ret = ERROR;
+        ret = GEN_ERROR;
         mgoto(clean_up);
     }
 
     if ((y = init_obuf(INIT_BUF_SIZE)) == NULL) {
-        ret = ERROR;
+        ret = GEN_ERROR;
         mgoto(clean_up);
     }
 
     while (1) {
         r = get_word(input, token, 1);
-        if (r == ERROR) {
-            ret = ERROR;
+        if (r == GEN_ERROR) {
+            ret = GEN_ERROR;
             mgoto(clean_up);
         }
         if (r == EOF && first_read) {
@@ -189,8 +189,8 @@ int eval_ibuf(struct ibuf **input, long *res, int verbose)
              * Some operators are two characters long.
              */
             r = get_word(input, next_token, 1);
-            if (r == ERROR) {
-                ret = ERROR;
+            if (r == GEN_ERROR) {
+                ret = GEN_ERROR;
                 mgoto(clean_up);
             } else if (r == EOF) {
                 ret = SYNTAX_ERROR;
@@ -222,7 +222,7 @@ int eval_ibuf(struct ibuf **input, long *res, int verbose)
 
             /* Return second char if only one char operator */
             if (ch == '\0' && unget_str(*input, next_token->a)) {
-                ret = ERROR;
+                ret = GEN_ERROR;
                 mgoto(clean_up);
             }
 
@@ -237,7 +237,7 @@ int eval_ibuf(struct ibuf **input, long *res, int verbose)
             switch (op) {
             case LEFT_PARENTHESIS:
                 if (put_ch(y, op)) {
-                    ret = ERROR;
+                    ret = GEN_ERROR;
                     mgoto(clean_up);
                 }
                 u = 1;
@@ -284,7 +284,7 @@ int eval_ibuf(struct ibuf **input, long *res, int verbose)
                     --y->i;
                 }
                 if (put_ch(y, op)) {
-                    ret = ERROR;
+                    ret = GEN_ERROR;
                     mgoto(clean_up);
                 }
                 u = 1;
@@ -316,7 +316,7 @@ int eval_ibuf(struct ibuf **input, long *res, int verbose)
     if (ret) {
         /* Eat the rest of the line if not already at the end of the line */
         if (r != EOF && *token->a != '\n' && delete_to_nl(input))
-            ret = ERROR;
+            ret = GEN_ERROR;
     }
 
     free_obuf(token);
@@ -333,7 +333,7 @@ int eval_ibuf(struct ibuf **input, long *res, int verbose)
 
 int eval_str(const char *math_str, long *res, int verbose)
 {
-    int ret = ERROR;
+    int ret = GEN_ERROR;
     struct ibuf *input = NULL;
 
     if ((input = init_ibuf(INIT_BUF_SIZE)) == NULL)

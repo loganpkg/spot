@@ -62,13 +62,13 @@ int draw(struct gb *b, struct gb *cl, int cl_active, char **sb,
   start:
     if (*clr) {
         if (clear() == ERR)
-            return ERROR;
+            return GEN_ERROR;
 
         *clr = 0;
 
     } else {
         if (erase() == ERR)
-            return ERROR;
+            return GEN_ERROR;
     }
 
     getmaxyx(stdscr, h, w);
@@ -162,7 +162,7 @@ int draw(struct gb *b, struct gb *cl, int cl_active, char **sb,
         if (es_set) {
             r = snprintf(num_str, NUM_BUF_SIZE, "%d", es);
             if (r < 0 || r >= NUM_BUF_SIZE)
-                return ERROR;
+                return GEN_ERROR;
         } else {
             *num_str = '\0';
         }
@@ -171,7 +171,7 @@ int draw(struct gb *b, struct gb *cl, int cl_active, char **sb,
 
         if (*sb_s < w) {
             if ((tmp = realloc(*sb, w + 1)) == NULL)
-                return ERROR;
+                return GEN_ERROR;
 
             *sb = tmp;
             *sb_s = w + 1;
@@ -183,7 +183,7 @@ int draw(struct gb *b, struct gb *cl, int cl_active, char **sb,
                        cl_active ? *(cl->a + cl->c) : *(b->a + b->c),
                        num_str);
         if (len < 0)
-            return ERROR;
+            return GEN_ERROR;
 
         if ((size_t) len < *sb_s) {
             memset(*sb + len, ' ', w - len);
@@ -193,7 +193,7 @@ int draw(struct gb *b, struct gb *cl, int cl_active, char **sb,
         standout();
 
         if (addnstr(*sb, w) == ERR)
-            return ERROR;
+            return GEN_ERROR;
 
         standend();
     }
@@ -616,7 +616,7 @@ int main(int argc, char **argv)
 
   clean_up:
     if (endwin() == ERR)
-        ret = ERROR;
+        ret = GEN_ERROR;
 
     free(sb);
 

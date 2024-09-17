@@ -26,13 +26,13 @@ int binary_io(void)
 {
 #ifdef _WIN32
     if (_setmode(_fileno(stdin), _O_BINARY) == -1)
-        return ERROR;
+        return GEN_ERROR;
 
     if (_setmode(_fileno(stdout), _O_BINARY) == -1)
-        return ERROR;
+        return GEN_ERROR;
 
     if (_setmode(_fileno(stderr), _O_BINARY) == -1)
-        return ERROR;
+        return GEN_ERROR;
 #endif
     return 0;
 }
@@ -163,14 +163,14 @@ int tty_check(FILE *stream, int *is_tty)
     int r, e;
 
     if ((fd = fileno(stream)) == -1)
-        return ERROR;
+        return GEN_ERROR;
 
     errno = 0;
     r = isatty(fd);
     e = errno;
 
     if (!r && e == EBADF)
-        return ERROR;
+        return GEN_ERROR;
 
     *is_tty = r;
 
