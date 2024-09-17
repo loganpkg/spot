@@ -107,14 +107,6 @@ WINDOW *initscr(void)
     if ((stdscr = calloc(1, sizeof(WINDOW))) == NULL)
         mreturn(NULL);
 
-    /*
-     * The memory for the virtual screens will be allocated upon the first call
-     * to erase_screen (which is called by erase).
-     * This will also set the physical screen size.
-     */
-    if (erase() == ERR)
-        mgoto(error);
-
     stdscr->tabsize = DEFAULT_TABSIZE;
     stdscr->clear = 1;
 
@@ -164,6 +156,14 @@ WINDOW *initscr(void)
     if (tcsetattr(STDIN_FILENO, TCSANOW, &stdscr->term_new))
         mgoto(error);
 #endif
+
+    /*
+     * The memory for the virtual screens will be allocated upon the first call
+     * to erase_screen (which is called by erase).
+     * This will also set the physical screen size.
+     */
+    if (erase() == ERR)
+        mgoto(error);
 
     return stdscr;
 
@@ -261,9 +261,11 @@ static int getch_raw(void)
     int num, x, k;
     unsigned char t;
     size_t s_i, e_i;
-#endif
 
   top:
+
+#endif
+
     if (stdscr->i) {
         stdscr->i--;
         return *(stdscr->a + stdscr->i);
