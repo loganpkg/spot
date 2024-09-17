@@ -66,6 +66,12 @@
 
 #define CTRL_2 0
 
+
+#define mreturn(rv) do {                                                \
+    fprintf(stderr, "[%s:%d]: Error: " #rv "\n", __FILE__, __LINE__);   \
+    return (rv);                                                        \
+} while (0)
+
 #define mgoto(lb) do {                                                  \
     fprintf(stderr, "[%s:%d]: Error: " #lb "\n", __FILE__, __LINE__);   \
     goto lb;                                                            \
@@ -470,15 +476,15 @@ static int erase_screen(int clear)
     unsigned char *t;
 
     if (get_phy_screen_size() == ERR)
-        return ERR;
+        mreturn(ERR);
 
     if (mof(stdscr->h, stdscr->w, SIZE_MAX))
-        return ERR;
+        mreturn(ERR);
 
     new_s_s = stdscr->h * stdscr->w;    /* New screen size */
 
     if (!new_s_s)               /* No screen size */
-        return ERR;
+        mreturn(ERR);
 
     if (clear || new_s_s != stdscr->vs_s) {
         if (new_s_s != stdscr->vs_s) {
@@ -487,11 +493,11 @@ static int erase_screen(int clear)
              * zero, and stdscr->vs_c and stdscr->vs_n are initially NULL.
              */
             if ((t = realloc(stdscr->vs_c, new_s_s)) == NULL)
-                return ERR;
+                mreturn(ERR);
 
             stdscr->vs_c = t;
             if ((t = realloc(stdscr->vs_n, new_s_s)) == NULL)
-                return ERR;
+                mreturn(ERR);
 
             stdscr->vs_n = t;
             stdscr->vs_s = new_s_s;
