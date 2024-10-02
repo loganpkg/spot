@@ -1199,7 +1199,7 @@ int econc(m4_, NM) (void *v) {
     p = arg(1);
     q = NULL;
     while ((ch = *p) != '\0') {
-        if (ch == '\n') {
+        if (ch == '\n' || ch == '\r') {
             if (q == NULL)
                 q = p;
         } else {

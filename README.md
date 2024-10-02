@@ -702,6 +702,7 @@ tnl(str)
 ```
 This is an extension to the POSIX standard. `tnl` trims trailing newline
 characters from the end of the first argument.
+Both trailing Line Feeds `\n` and Carriage Returns `\r` are removed.
 This is useful in conjunction with `esyscmd` as trailing newline characters
 are not stripped, as users are normally accustomed to with POSIX sh command
 substitution.
