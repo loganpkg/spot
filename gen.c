@@ -176,3 +176,27 @@ int tty_check(FILE *stream, int *is_tty)
 
     return 0;
 }
+
+int milli_sleep(long milliseconds)
+{
+#ifndef _WIN32
+    struct timespec ts;
+#endif
+
+    if (milliseconds < 0)
+        return GEN_ERROR;
+
+#ifdef _WIN32
+    Sleep(milliseconds);
+    return 0;
+#else
+
+    ts.tv_sec = milliseconds / 1000;
+    ts.tv_nsec = (milliseconds % 1000) * 1000000;
+
+    if (nanosleep(&ts, NULL))
+        return GEN_ERROR;
+
+    return 0;
+#endif
+}

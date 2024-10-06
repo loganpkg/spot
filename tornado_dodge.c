@@ -125,7 +125,8 @@ int main(void)
                 mgoto(clean_up);
         }
 
-        sleep(1);
+        if (milli_sleep(100))
+            mgoto(clean_up);
 
         if (move(man_y + 3, man_x))
             mgoto(clean_up);
