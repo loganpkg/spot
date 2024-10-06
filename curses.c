@@ -527,7 +527,7 @@ int clear(void)
 }
 
 
-void refresh(void)
+int refresh(void)
 {
     size_t k;
     unsigned char *t, ch;
@@ -546,10 +546,15 @@ void refresh(void)
     }
     phy_move(stdscr->v_i);
 
+    if (fflush(stdout))
+        mreturn(ERR);
+
     /* Swap */
     t = stdscr->vs_c;
     stdscr->vs_c = stdscr->vs_n;
     stdscr->vs_n = t;
+
+    return OK;
 }
 
 

@@ -31,23 +31,25 @@ int print_object(size_t y, size_t x, const char *object)
 
     while ((ch = *object++) != '\0') {
         v_ch = inch() & A_CHARTEXT;
-        if (ch == ' ') {
+        switch (ch) {
+        case ' ':
             /* Keep virtual char unchanged (do not print the space) */
             if (addch(v_ch) == ERR)
                 return GEN_ERROR;
-        } else {
-            if (addch(ch) == ERR)
-                return GEN_ERROR;
-        }
 
-        if (ch == '\n') {
+            break;
+        case '\n':
             /* Indent */
             getyx(stdscr, c_y, c_x);
-            if (c_x)
+            if (move(c_y + 1, x) == ERR)
                 return GEN_ERROR;
 
-            if (move(c_y, x) == ERR)
+            break;
+        default:
+            if (addch(ch) == ERR)
                 return GEN_ERROR;
+
+            break;
         }
     }
 
@@ -65,7 +67,7 @@ int main(void)
 
     char *man = " o \n" "<|>\n" "/\\ ";
     char *man_vert = " o \n" " V \n" " | ";
-    char *cloud = "=============\n" "|           |\n" " \\=========/";
+    char *cloud = "============\n";
 
     char *tornado = "\\##########/\n"
         " \\########/\n"
@@ -76,9 +78,8 @@ int main(void)
 
     char ch, ch2;
     size_t up = 0;
+    int move_left, move_right;
     int on_floor = 0;
-
-    size_t loop_count = 0;
 
     if (initscr() == NULL)
         mgoto(clean_up);
@@ -101,8 +102,6 @@ int main(void)
 
     getmaxyx(stdscr, y, tornado_x);
 
-    fprintf(stderr, "x: %lu\n", tornado_x);
-
     tornado_x -= 20;
 
     while (1) {
@@ -118,6 +117,16 @@ int main(void)
         if (print_object(tornado_y, tornado_x, tornado))
             mgoto(clean_up);
 
+        if (man_x % 2) {
+            if (print_object(man_y, man_x, man_vert))
+                mgoto(clean_up);
+        } else {
+            if (print_object(man_y, man_x, man))
+                mgoto(clean_up);
+        }
+
+        sleep(1);
+
         if (move(man_y + 3, man_x))
             mgoto(clean_up);
 
@@ -128,52 +137,56 @@ int main(void)
 
         ch2 = inch() & A_CHARTEXT;
 
-        if (ch != ' ' || ch2 != ' ')
+        if (ch == '=' || ch2 == '=')
             on_floor = 1;
         else
             on_floor = 0;
 
         if (up) {
-            if (loop_count % 10000 == 0) {
-                --man_y;
-                --up;
-            }
+            --man_y;
+            --up;
         } else if (!on_floor) {
             /* Fall */
-            if (loop_count % 10000 == 0)
-                ++man_y;
+            ++man_y;
         }
 
-        if (loop_count % 10000 == 0)
-            --tornado_x;
-
-        if (man_x % 2) {
-            if (print_object(man_y, man_x, man_vert))
-                mgoto(clean_up);
-        } else {
-            if (print_object(man_y, man_x, man))
-                mgoto(clean_up);
-        }
+        --tornado_x;
 
         move(0, 0);
 
-        refresh();
+        if (refresh())
+            mgoto(clean_up);
 
-        x = getch();
+        move_left = 0;
+        move_right = 0;
 
-        if (x == 'f' || x == KEY_RIGHT) {
-            ++man_x;
-        } else if (x == 'b' || x == KEY_LEFT) {
-            --man_x;
-        } else if (x == KEY_UP) {
-            if (on_floor)
-                up += 6;
-        } else if (x == 'q' || (x == 24 && getch() == 3)) {
-            break;
+        while ((x = getch()) != ERR) {
+            /*
+             * Consume all keyboard input that accumulated while the process
+             * was asleep.
+             */
+            if (x == 'f' || x == KEY_RIGHT) {
+                move_left = 0;
+                move_right = 1;
+            } else if (x == 'b' || x == KEY_LEFT) {
+                move_right = 0;
+                move_left = 1;
+            } else if (x == KEY_UP) {
+                if (on_floor)
+                    up += 6;
+            } else if (x == 'q' || (x == 24 && getch() == 3)) {
+                goto quit;
+            }
         }
 
-        ++loop_count;
+        if (move_right)
+            ++man_x;
+        else if (move_left)
+            --man_x;
     }
+
+
+  quit:
 
     ret = 0;
 

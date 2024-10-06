@@ -128,7 +128,7 @@ int set_tabsize(size_t size);
 int getch(void);
 int erase(void);
 int clear(void);
-void refresh(void);
+int refresh(void);
 int addch(unsigned char ch);
 int addnstr(const char *str, int n);
 int move(int y, int x);
