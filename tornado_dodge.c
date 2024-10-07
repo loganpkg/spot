@@ -21,7 +21,7 @@
 #include <curses.h>
 
 
-int print_object(size_t y, size_t x, const char *object)
+int print_object(size_t y, size_t x, const char *object, int *on_tornado)
 {
     char ch, v_ch;
     size_t c_y, c_x;
@@ -46,6 +46,9 @@ int print_object(size_t y, size_t x, const char *object)
 
             break;
         default:
+            if (v_ch == '\\' || v_ch == '#' || v_ch == '/')
+                *on_tornado = 1;
+
             if (addch(ch) == ERR)
                 return GEN_ERROR;
 
@@ -73,6 +76,19 @@ int main(void)
         " \\########/\n"
         "  \\######/\n" "   \\####/\n" "    \\##/\n" "     \\/";
 
+
+    /*
+     * figlet -f standard 'GAME OVER' \
+     * | sed -E -e 's_\\_\\\\_g' -e 's_^_"_' -e 's_$_\\n"_'
+     */
+    char *game_over =
+        "  ____    _    __  __ _____    _____     _______ ____  \n"
+        " / ___|  / \\  |  \\/  | ____|  / _ \\ \\   / / ____|  _ \\ \n"
+        "| |  _  / _ \\ | |\\/| |  _|   | | | \\ \\ / /|  _| | |_) |\n"
+        "| |_| |/ ___ \\| |  | | |___  | |_| |\\ V / | |___|  _ < \n"
+        " \\____/_/   \\_\\_|  |_|_____|  \\___/  \\_/  |_____|_| \\_\\\n"
+        "                                                       \n";
+
     size_t tornado_y = 6, tornado_x;
     size_t y;
 
@@ -80,6 +96,8 @@ int main(void)
     size_t up = 0;
     int move_left, move_right;
     int on_floor = 0;
+
+    int i, health = 1, on_tornado;
 
     if (initscr() == NULL)
         mgoto(clean_up);
@@ -108,22 +126,46 @@ int main(void)
         if (erase())
             mgoto(clean_up);
 
-        if (print_object(cloud_y, cloud_x, cloud))
+        if (!health) {
+            if (print_object(0, 0, game_over, &on_tornado))
+                mgoto(clean_up);
+
+            move(0, 0);
+
+            if (refresh())
+                mgoto(clean_up);
+
+            if (milli_sleep(2000))
+                mgoto(clean_up);
+
+            goto quit;
+        }
+
+        for (i = 0; i < health; ++i)
+            if (addch('*') == ERR)
+                mgoto(clean_up);
+
+        if (print_object(cloud_y, cloud_x, cloud, &on_tornado))
             mgoto(clean_up);
 
-        if (print_object(cloud2_y, cloud2_x, cloud))
+        if (print_object(cloud2_y, cloud2_x, cloud, &on_tornado))
             mgoto(clean_up);
 
-        if (print_object(tornado_y, tornado_x, tornado))
+        if (print_object(tornado_y, tornado_x, tornado, &on_tornado))
             mgoto(clean_up);
+
+        on_tornado = 0;
 
         if (man_x % 2) {
-            if (print_object(man_y, man_x, man_vert))
+            if (print_object(man_y, man_x, man_vert, &on_tornado))
                 mgoto(clean_up);
         } else {
-            if (print_object(man_y, man_x, man))
+            if (print_object(man_y, man_x, man, &on_tornado))
                 mgoto(clean_up);
         }
+
+        if (on_tornado)
+            --health;
 
         if (milli_sleep(100))
             mgoto(clean_up);
