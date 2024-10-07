@@ -57,6 +57,7 @@
 #include <process.h>
 #else
 #include <sys/mman.h>
+#include <sys/random.h>
 #include <sys/wait.h>
 #include <dirent.h>
 #include <fcntl.h>
@@ -343,6 +344,7 @@ void *quick_search(const void *mem, size_t mem_len, const void *find,
 FILE *fopen_w(const char *fn, int append);
 int tty_check(FILE *stream, int *is_tty);
 int milli_sleep(long milliseconds);
+int random_uint(unsigned int *x);
 int str_to_num(const char *str, unsigned long max_val, unsigned long *res);
 int str_to_size_t(const char *str, size_t *res);
 int str_to_uint(const char *str, unsigned int *res);

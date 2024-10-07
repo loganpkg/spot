@@ -70,7 +70,9 @@ int main(void)
 
     char *man = " o \n" "<|>\n" "/\\ ";
     char *man_vert = " o \n" " V \n" " | ";
-    char *cloud = "============\n";
+    char *cloud = "  .~~~~~~.  \n"
+        " (        ) \n"
+        "(          )\n" " (        ) \n" "  `~~~~~~`  \n";
 
     char *tornado = "\\##########/\n"
         " \\########/\n"
@@ -90,14 +92,14 @@ int main(void)
         "                                                       \n";
 
     size_t tornado_y = 6, tornado_x;
-    size_t y;
+    int h, w;
 
     char ch, ch2;
     size_t up = 0;
     int move_left, move_right;
     int on_floor = 0;
 
-    int i, health = 1, on_tornado;
+    int i, health = 10, on_tornado;
 
     if (initscr() == NULL)
         mgoto(clean_up);
@@ -118,13 +120,15 @@ int main(void)
         mgoto(clean_up);
 
 
-    getmaxyx(stdscr, y, tornado_x);
+    getmaxyx(stdscr, h, w);
 
-    tornado_x -= 20;
+    tornado_x = w - 20;
 
     while (1) {
         if (erase())
             mgoto(clean_up);
+
+        getmaxyx(stdscr, h, w);
 
         if (!health) {
             if (print_object(0, 0, game_over, &on_tornado))
@@ -167,23 +171,54 @@ int main(void)
         if (on_tornado)
             --health;
 
-        if (milli_sleep(100))
-            mgoto(clean_up);
 
-        if (move(man_y + 3, man_x))
-            mgoto(clean_up);
+        ch = '\0';
+        if (man_x % 2) {
+            /* Under back foot */
+            if (move(man_y + 3, man_x))
+                mgoto(clean_up);
 
-        ch = inch() & A_CHARTEXT;
+            ch = inch() & A_CHARTEXT;
+        }
 
+        /* Under front foot, or feet together */
         if (move(man_y + 3, man_x + 1))
             mgoto(clean_up);
 
         ch2 = inch() & A_CHARTEXT;
 
-        if (ch == '=' || ch2 == '=')
-            on_floor = 1;
-        else
-            on_floor = 0;
+        move(0, 0);
+
+        if (refresh())
+            mgoto(clean_up);
+
+        if (milli_sleep(100))
+            mgoto(clean_up);
+
+        on_floor = 0;
+
+        if (ch != '\0') {
+            switch (ch) {
+            case '~':
+            case '(':
+            case ')':
+            case '.':
+            case '`':
+                on_floor = 1;
+                break;
+            }
+        }
+
+        if (!on_floor)
+            switch (ch2) {
+            case '~':
+            case '(':
+            case ')':
+            case '.':
+            case '`':
+                on_floor = 1;
+                break;
+            };
 
         if (up) {
             --man_y;
@@ -195,10 +230,6 @@ int main(void)
 
         --tornado_x;
 
-        move(0, 0);
-
-        if (refresh())
-            mgoto(clean_up);
 
         move_left = 0;
         move_right = 0;
@@ -208,17 +239,31 @@ int main(void)
              * Consume all keyboard input that accumulated while the process
              * was asleep.
              */
-            if (x == 'f' || x == KEY_RIGHT) {
+            switch (x) {
+            case 'f':
+            case KEY_RIGHT:
                 move_left = 0;
                 move_right = 1;
-            } else if (x == 'b' || x == KEY_LEFT) {
+                break;
+            case 'b':
+            case KEY_LEFT:
                 move_right = 0;
                 move_left = 1;
-            } else if (x == KEY_UP) {
+                break;
+            case KEY_UP:
                 if (on_floor)
                     up += 6;
-            } else if (x == 'q' || (x == 24 && getch() == 3)) {
+                break;
+            case 'q':
                 goto quit;
+            case 'p':
+                /* Pause/play toggle */
+                while (1)
+                    if (getch() == 'p')
+                        break;
+                    else if (getch() == 'q')
+                        goto quit;
+                break;
             }
         }
 

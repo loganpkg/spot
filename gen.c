@@ -200,3 +200,16 @@ int milli_sleep(long milliseconds)
     return 0;
 #endif
 }
+
+int random_uint(unsigned int *x)
+{
+#ifdef _WIN32
+    if (rand_s(x))
+        return GEN_ERROR;
+#else
+    if (getrandom(x, sizeof(unsigned int), GRND_NONBLOCK) !=
+        sizeof(unsigned int))
+        return GEN_ERROR;
+#endif
+    return 0;
+}
