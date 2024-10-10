@@ -213,3 +213,26 @@ int random_uint(unsigned int *x)
 #endif
     return 0;
 }
+
+int random_num(unsigned int max_inclusive, unsigned int *x)
+{
+    unsigned int set_size, redraw, y;
+
+    if (max_inclusive == UINT_MAX)
+        return random_uint(x);
+
+    set_size = max_inclusive + 1;
+
+    redraw = (UINT_MAX / set_size) * set_size;
+
+    while (1) {
+        if (random_uint(&y))
+            return GEN_ERROR;
+
+        if (y < redraw)
+            break;
+    }
+
+    *x = y % set_size;
+    return 0;
+}

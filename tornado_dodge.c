@@ -68,11 +68,10 @@ int main(void)
     size_t cloud_y = 6, cloud_x = 0;
     size_t cloud2_y = 16, cloud2_x = 8;
 
-    char *man = " o \n" "<|>\n" "/\\ ";
-    char *man_vert = " o \n" " V \n" " | ";
-    char *cloud = "  .~~~~~~.  \n"
-        " (        ) \n"
-        "(          )\n" " (        ) \n" "  `~~~~~~`  \n";
+    char *man = " o\n" "<|>\n" "/\\";
+    char *man_vert = " o\n" " V\n" " |";
+    char *cloud = "  .~~~~~~.\n"
+        " (        )\n" "(          )\n" " (        )\n" "  `~~~~~~`\n";
 
     char *tornado = "\\##########/\n"
         " \\########/\n"
@@ -81,7 +80,7 @@ int main(void)
 
     /*
      * figlet -f standard 'GAME OVER' \
-     * | sed -E -e 's_\\_\\\\_g' -e 's_^_"_' -e 's_$_\\n"_'
+     *     | sed -E -e 's_\\_\\\\_g' -e 's_^_"_' -e 's_$_\\n"_'
      */
     char *game_over =
         "  ____    _    __  __ _____    _____     _______ ____  \n"
@@ -91,7 +90,7 @@ int main(void)
         " \\____/_/   \\_\\_|  |_|_____|  \\___/  \\_/  |_____|_| \\_\\\n"
         "                                                       \n";
 
-    size_t tornado_y = 6, tornado_x;
+    unsigned int tornado_y, tornado_x;
     int h, w;
 
     char ch, ch2;
@@ -121,6 +120,8 @@ int main(void)
 
 
     getmaxyx(stdscr, h, w);
+
+    random_num(h - 1, &tornado_y);
 
     tornado_x = w - 20;
 
