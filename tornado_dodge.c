@@ -20,7 +20,19 @@
 #include "toucanlib.h"
 #include <curses.h>
 
+#define MILLISECONDS_PER_INTERVAL 50
 
+#define PROB_MAX_INCLUSIVE 999
+#define CLOUD_PROB 30
+#define GROUND_CLOUD_PROB 30
+#define TORNADO_PROB 30
+
+#define CLOUD_HEIGHT 5
+#define CLOUD_WIDTH 12
+#define TORNADO_HEIGHT 6
+#define TORNADO_WIDTH 12
+
+int health = 10;
 
 char *jump_traj = "dddddddd__d__d__d____d____i__i__i__iiiiI";
 char *fall_traj = "____i__i__i__iiiiI";
@@ -100,26 +112,41 @@ void free_obj_list(struct obj *b)
     }
 }
 
-
-#define CLOUD_HEIGHT 5
-#define CLOUD_WIDTH 12
-
-
-int spawn_obj(struct obj **head, int obj_h, int obj_w, int h, int w)
+int spawn_obj(struct obj **head, int h, int w, char type)
 {
     struct obj *b;
+    int obj_h, obj_w;
 
     if (head == NULL || !h || !w)
         mreturn(GEN_ERROR);
 
+    if (type == 'c' || type == 'g') {
+        obj_h = CLOUD_HEIGHT;
+        obj_w = CLOUD_WIDTH;
+    } else if (type == 't') {
+        obj_h = TORNADO_HEIGHT;
+        obj_w = TORNADO_WIDTH;
+    } else {
+        mreturn(GEN_ERROR);
+    }
+
     if ((b = init_obj()) == NULL)
         mreturn(GEN_ERROR);
 
-    if (random_num(h - obj_h, &b->y))
-        mreturn(GEN_ERROR);
+    if (type == 'g') {
+        /* Ground cloud */
+        b->y = h - obj_h;
+    } else {
+        if (random_num(h - obj_h, &b->y))
+            mreturn(GEN_ERROR);
+    }
 
-    if (random_num(w - obj_w, &b->x))
-        mreturn(GEN_ERROR);
+    if (type == 't') {
+        b->x = w - obj_w - 1;
+    } else {
+        if (random_num(w - obj_w - 1, &b->x))
+            mreturn(GEN_ERROR);
+    }
 
     /* Link in as the new head */
     if (*head != NULL) {
@@ -168,7 +195,8 @@ int process_trajectory(char **traj, size_t *index, unsigned int *coordin)
 }
 
 
-void print_obj_list(struct obj **head, char type, int *on_tornado)
+void print_obj_list(struct obj **head, char type, int *on_tornado,
+                    int *new_screen)
 {
     char *cloud_str = "  .~~~~~~.\n"
         " (        )\n" "(          )\n" " (        )\n" "  `~~~~~~`";
@@ -200,14 +228,35 @@ void print_obj_list(struct obj **head, char type, int *on_tornado)
     while (b != NULL) {
         remove = 0;
         if (print_object(b->y, b->x, obj_str, on_tornado)) {
-            remove = 1;
+            if (type == 'm') {
+                /* Off right-hand side of screen. Start new screen. */
+                b->x = 0;
+                *new_screen = 1;
+                return;
+            } else {
+                remove = 1;
+            }
         } else {
             /* Move */
-            if (process_trajectory(&b->y_traj, &b->y_ti, &b->y))
-                remove = 1;
+            if (process_trajectory(&b->y_traj, &b->y_ti, &b->y)) {
+                /* Hit top of screen, so fall */
+                if (type == 'm') {
+                    b->y_traj = fall_traj;
+                    b->y_ti = 0;
+                } else {
+                    remove = 1;
+                }
+            }
 
-            if (process_trajectory(&b->x_traj, &b->x_ti, &b->x))
-                remove = 1;
+            if (process_trajectory(&b->x_traj, &b->x_ti, &b->x)) {
+                /* Cannot move left off the screen */
+                if (type == 'm') {
+                    b->x_traj = NULL;
+                    b->x_ti = 0;
+                } else {
+                    remove = 1;
+                }
+            }
         }
 
         if (remove) {
@@ -241,9 +290,7 @@ int main(void)
     struct obj *tornado_head = NULL;
     struct obj *man = NULL;
 
-#define TORNADO_HEIGHT 6
-#define TORNADO_WIDTH 12
-
+    unsigned int roll;
 
     /*
      * figlet -f standard 'GAME OVER' \
@@ -263,7 +310,7 @@ int main(void)
     int move_up, move_left, move_right;
     int on_floor = 0;
 
-    int i, health = 10, on_tornado;
+    int i, on_tornado, new_screen;
 
     if (initscr() == NULL)
         mgoto(clean_up);
@@ -286,33 +333,49 @@ int main(void)
 
     getmaxyx(stdscr, h, w);
 
-    spawn_obj(&cloud_head, CLOUD_HEIGHT, CLOUD_WIDTH, h, w);
-    spawn_obj(&cloud_head, CLOUD_HEIGHT, CLOUD_WIDTH, h, w);
-    spawn_obj(&cloud_head, CLOUD_HEIGHT, CLOUD_WIDTH, h, w);
-    spawn_obj(&cloud_head, CLOUD_HEIGHT, CLOUD_WIDTH, h, w);
-    spawn_obj(&cloud_head, CLOUD_HEIGHT, CLOUD_WIDTH, h, w);
-    spawn_obj(&cloud_head, CLOUD_HEIGHT, CLOUD_WIDTH, h, w);
-    spawn_obj(&cloud_head, CLOUD_HEIGHT, CLOUD_WIDTH, h, w);
-    spawn_obj(&cloud_head, CLOUD_HEIGHT, CLOUD_WIDTH, h, w);
-    spawn_obj(&cloud_head, CLOUD_HEIGHT, CLOUD_WIDTH, h, w);
-    spawn_obj(&cloud_head, CLOUD_HEIGHT, CLOUD_WIDTH, h, w);
-
-    spawn_obj(&tornado_head, TORNADO_HEIGHT, TORNADO_WIDTH, h, w);
-    tornado_head->x_traj = tornado_traj;
-    spawn_obj(&tornado_head, TORNADO_HEIGHT, TORNADO_WIDTH, h, w);
-    tornado_head->x_traj = tornado_traj;
-    spawn_obj(&tornado_head, TORNADO_HEIGHT, TORNADO_WIDTH, h, w);
-    tornado_head->x_traj = tornado_traj;
-    spawn_obj(&tornado_head, TORNADO_HEIGHT, TORNADO_WIDTH, h, w);
-    tornado_head->x_traj = tornado_traj;
-
 
     if ((man = init_obj()) == NULL)
         mgoto(clean_up);
 
     man->y_traj = fall_traj;
+    man->y_ti = 0;
+
+  set_up_screen:
+
+    free_obj_list(cloud_head);
+    cloud_head = NULL;
+    free_obj_list(tornado_head);
+    tornado_head = NULL;
+
+    /* To make it easier */
+    spawn_obj(&cloud_head, h, CLOUD_WIDTH + 1, 'c');
+
+    spawn_obj(&cloud_head, h, w, 'c');
+    spawn_obj(&cloud_head, h, w, 'c');
+    spawn_obj(&cloud_head, h, w, 'c');
+    spawn_obj(&cloud_head, h, w, 'c');
+    spawn_obj(&cloud_head, h, w, 'c');
+    spawn_obj(&cloud_head, h, w, 'c');
+    spawn_obj(&cloud_head, h, w, 'c');
+    spawn_obj(&cloud_head, h, w, 'c');
+    spawn_obj(&cloud_head, h, w, 'c');
+
+    spawn_obj(&tornado_head, h, w, 't');
+    tornado_head->x_traj = tornado_traj;
+    tornado_head->x_ti = 0;
+    spawn_obj(&tornado_head, h, w, 't');
+    tornado_head->x_traj = tornado_traj;
+    tornado_head->x_ti = 0;
+    spawn_obj(&tornado_head, h, w, 't');
+    tornado_head->x_traj = tornado_traj;
+    tornado_head->x_ti = 0;
+    spawn_obj(&tornado_head, h, w, 't');
+    tornado_head->x_traj = tornado_traj;
+    tornado_head->x_ti = 0;
+
 
     while (1) {
+      top:
         if (!health) {
           game_over:
             if (print_object(0, 0, game_over, &on_tornado))
@@ -338,13 +401,18 @@ int main(void)
             if (addch('*') == ERR)
                 mgoto(clean_up);
 
-        print_obj_list(&cloud_head, 'c', &on_tornado);
+        print_obj_list(&cloud_head, 'c', &on_tornado, &new_screen);
 
-        print_obj_list(&tornado_head, 't', &on_tornado);
+        print_obj_list(&tornado_head, 't', &on_tornado, &new_screen);
 
         on_tornado = 0;
+        new_screen = 0;
 
-        print_obj_list(&man, 'm', &on_tornado);
+        print_obj_list(&man, 'm', &on_tornado, &new_screen);
+        if (new_screen) {
+            new_screen = 0;
+            goto set_up_screen;
+        }
 
         if (man == NULL)
             goto game_over;
@@ -356,14 +424,14 @@ int main(void)
         if (man->x % 2) {
             /* Under back foot */
             if (move(man->y + 3, man->x))
-                goto game_over;
+                goto off_bottom_of_screen;
 
             ch = inch() & A_CHARTEXT;
         }
 
         /* Under front foot, or feet together */
         if (move(man->y + 3, man->x + 1))
-            goto game_over;
+            goto off_bottom_of_screen;
 
         ch2 = inch() & A_CHARTEXT;
 
@@ -371,8 +439,6 @@ int main(void)
 
         if (refresh())
             mgoto(clean_up);
-
-#define MILLISECONDS_PER_INTERVAL 50
 
         if (milli_sleep(MILLISECONDS_PER_INTERVAL))
             mgoto(clean_up);
@@ -407,8 +473,10 @@ int main(void)
             man->y_traj = NULL;
             man->y_ti = 0;
         } else {
-            if (man->y_traj == NULL)
+            if (man->y_traj == NULL) {
                 man->y_traj = fall_traj;
+                man->y_ti = 0;
+            }
         }
 
         move_up = 0;
@@ -447,14 +515,54 @@ int main(void)
             }
         }
 
-        if (move_right)
+        if (move_right) {
             ++man->x;
-        else if (move_left)
-            --man->x;
+        } else if (move_left) {
+            if (man->x)
+                --man->x;
+        }
 
-        if (move_up && on_floor)
+        if (move_up && on_floor) {
             man->y_traj = jump_traj;
+            man->y_ti = 0;
+        }
 
+
+        /* Spawn new objects */
+        if (random_num(PROB_MAX_INCLUSIVE, &roll))
+            mgoto(clean_up);
+
+        if (roll < CLOUD_PROB)
+            spawn_obj(&cloud_head, h, w, 'c');
+
+        if (random_num(PROB_MAX_INCLUSIVE, &roll))
+            mgoto(clean_up);
+
+        if (roll < GROUND_CLOUD_PROB)
+            spawn_obj(&cloud_head, h, w, 'g');
+
+        if (random_num(PROB_MAX_INCLUSIVE, &roll))
+            mgoto(clean_up);
+
+        if (roll < TORNADO_PROB) {
+            spawn_obj(&tornado_head, h, w, 't');
+            tornado_head->x_traj = tornado_traj;
+            tornado_head->x_ti = 0;
+        }
+
+        goto top;
+
+      off_bottom_of_screen:
+        /* Man off the bottom of the screen */
+        if (health > 4)
+            health -= 4;
+        else
+            health = 0;
+
+        /* Move to the top */
+        man->y = 0;
+        man->y_traj = fall_traj;
+        man->y_ti = 0;
     }
 
 
