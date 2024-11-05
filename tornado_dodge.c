@@ -21,8 +21,10 @@
 #include <curses.h>
 
 /* These can be adjusted to make the game easier or harder */
-#define INIT_MAN_HEALTH 60
 #define INIT_ZOMBIE_HEALTH 10
+#define INIT_BIRD_HEALTH 10
+#define INIT_MAN_HEALTH 60
+
 #define LAST_LEVEL 3
 
 #define FALL_THROUGH_DAMAGE 4
@@ -36,6 +38,7 @@
 #define TORNADO_PROB 10
 #define BIRD_PROB 10
 #define ZOMBIE_PROB 10
+#define COIN_PROB 2
 /* Out of */
 #define PROB_MAX_INCLUSIVE 999
 
@@ -49,10 +52,11 @@
 #define BIRD_WIDTH 3
 #define ZOMBIE_HEIGHT 3
 #define ZOMBIE_WIDTH 4
-
 #define MAN_HEIGHT 3
 /* The width of the man varies */
 #define MAN_MAX_WIDTH 3
+#define COIN_HEIGHT 1
+#define COIN_WIDTH 1
 #define GAME_OVER_STR_WIDTH 56
 
 
@@ -75,7 +79,10 @@ struct obj {
     size_t y_ti;                /* Index in the vertical trajectory */
     char *x_traj;               /* Horizontal trajectory */
     size_t x_ti;                /* Index in the horizontal trajectory */
-    /* 'c' = cloud, 't' = tornado, 'b' = bird, 'z' = zombie, 'm' = man */
+    /*
+     * 'c' = cloud, 't' = tornado, 'b' = bird, 'z' = zombie, 'i' = coin,
+     * 'm' = man.
+     */
     char type;
     int health;                 /* Health level. 0 is the lowest. */
     struct obj *prev;           /* Link to previous node */
@@ -124,6 +131,9 @@ int spawn_obj(struct obj **head, int h, int w, char type)
     } else if (type == 'm') {
         obj_h = MAN_HEIGHT;
         obj_w = MAN_MAX_WIDTH;
+    } else if (type == 'i') {
+        obj_h = COIN_HEIGHT;
+        obj_w = COIN_WIDTH;
     } else {
         mreturn(GEN_ERROR);
     }
@@ -164,6 +174,8 @@ int spawn_obj(struct obj **head, int h, int w, char type)
         b->x_traj = zombie_traj;
 
     /* Set health */
+    if (type == 'b')
+        b->health = INIT_BIRD_HEALTH;
     if (type == 'z')
         b->health = INIT_ZOMBIE_HEALTH;
     else
@@ -245,10 +257,17 @@ int print_object(size_t y, size_t x, const char *object, int *health)
 
             break;
         default:
+            /*
+             * Coins restore the man to full health.
+             * Only the man can get the coins.
+             */
+            if (v_ch == '$')
+                *health = INIT_MAN_HEALTH;
             /* Objects besides clouds and the health indicator reduce health */
-            if (!
-                (v_ch == ' ' || v_ch == '*' || v_ch == '.' || v_ch == '`'
-                 || v_ch == '~' || v_ch == '(' || v_ch == ')') && *health)
+            else if (!
+                     (v_ch == ' ' || v_ch == '*' || v_ch == '.'
+                      || v_ch == '`' || v_ch == '~' || v_ch == '('
+                      || v_ch == ')') && *health)
                 -- * health;
 
             if (addch(ch) == ERR)
@@ -275,6 +294,8 @@ void print_obj_list(struct obj **head, char type, int *new_screen)
     char *zombie_str = "[:]\n" " |==\n" "/\\";
     char *zombie_vert_str = "[:]\n" " |==\n" " |";
 
+    char *coin_str = "$";
+
     char *man_str = " o\n" "<|>\n" "/\\";
     char *man_vert_str = " o\n" " V\n" " |";
 
@@ -298,6 +319,8 @@ void print_obj_list(struct obj **head, char type, int *new_screen)
             obj_str = zombie_vert_str;
         else
             obj_str = zombie_str;
+    } else if (type == 'i') {
+        obj_str = coin_str;
     } else if (type == 'm') {
         if (b->x % 2)
             obj_str = man_vert_str;
@@ -341,7 +364,7 @@ void print_obj_list(struct obj **head, char type, int *new_screen)
             }
         }
 
-        if (!b->health)
+        if (!b->health && (type == 'b' || type == 'z' || type == 'm'))
             remove = 1;
 
         if (!remove && (type == 'z' || type == 'm')) {
@@ -439,6 +462,45 @@ void print_obj_list(struct obj **head, char type, int *new_screen)
     }
 }
 
+int remove_used_coins(struct obj **coin_head)
+{
+    char ch;
+    struct obj *b, *t;
+
+    b = *coin_head;
+
+    if (*coin_head == NULL)
+        return 0;               /* Nothing to do */
+
+    while (b != NULL) {
+        if (move(b->y, b->x) == ERR)
+            mreturn(GEN_ERROR);
+
+        ch = inch() & A_CHARTEXT;
+
+        if (ch != '$') {
+            /* Remove from list */
+            if (b->prev != NULL)
+                b->prev->next = b->next;
+
+            if (b->next != NULL)
+                b->next->prev = b->prev;
+
+            /* Replace the head if it was the head */
+            if (b == *coin_head)
+                *coin_head = b->next;
+
+            t = b;
+            b = b->next;
+
+            free(t);
+        } else {
+            b = b->next;
+        }
+    }
+    return 0;
+}
+
 int main(void)
 {
     int ret = GEN_ERROR;
@@ -448,6 +510,7 @@ int main(void)
     struct obj *tornado_head = NULL;
     struct obj *bird_head = NULL;
     struct obj *zombie_head = NULL;
+    struct obj *coin_head = NULL;
     struct obj *man = NULL;
 
     int tmp;
@@ -523,6 +586,8 @@ int main(void)
     bird_head = NULL;
     free_obj_list(zombie_head);
     zombie_head = NULL;
+    free_obj_list(coin_head);
+    coin_head = NULL;
 
     init_num_clouds = w / (CLOUD_WIDTH + 6);
     if (!init_num_clouds)
@@ -547,7 +612,6 @@ int main(void)
     for (i = 0; i < init_num_tornadoes; ++i)
         if (spawn_obj(&tornado_head, h, w, 't'))
             mgoto(clean_up);
-
 
     while (1) {
         if (!man->health) {
@@ -585,10 +649,15 @@ int main(void)
         print_obj_list(&tornado_head, 't', &new_screen);
         print_obj_list(&bird_head, 'b', &new_screen);
         print_obj_list(&zombie_head, 'z', &new_screen);
+        print_obj_list(&coin_head, 'i', &new_screen);
 
         new_screen = 0;
 
         print_obj_list(&man, 'm', &new_screen);
+
+        if (man == NULL)
+            goto game_over;
+
         if (new_screen) {
             new_screen = 0;
             if (level == LAST_LEVEL) {
@@ -611,8 +680,9 @@ int main(void)
             goto set_up_screen;
         }
 
-        if (man == NULL)
-            goto game_over;
+        /* Check for used coins, and remove them */
+        if (remove_used_coins(&coin_head))
+            mgoto(clean_up);
 
         move(0, 0);
 
@@ -707,6 +777,12 @@ int main(void)
             if (roll < ZOMBIE_PROB && spawn_obj(&zombie_head, h, w, 'z'))
                 mgoto(clean_up);
         }
+
+        if (random_num(PROB_MAX_INCLUSIVE, &roll))
+            mgoto(clean_up);
+
+        if (roll < COIN_PROB && spawn_obj(&coin_head, h, w, 'i'))
+            mgoto(clean_up);
     }
 
 
@@ -718,6 +794,7 @@ int main(void)
     free_obj_list(tornado_head);
     free_obj_list(bird_head);
     free_obj_list(zombie_head);
+    free_obj_list(coin_head);
     free_obj_list(man);
 
   clean_up:
