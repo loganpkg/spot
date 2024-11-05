@@ -21,11 +21,12 @@
 #include <curses.h>
 
 /* These can be adjusted to make the game easier or harder */
+#define INIT_DRONE_HEALTH 20
 #define INIT_ZOMBIE_HEALTH 10
 #define INIT_BIRD_HEALTH 10
 #define INIT_MAN_HEALTH 60
 
-#define LAST_LEVEL 3
+#define LAST_LEVEL 4
 
 #define FALL_THROUGH_DAMAGE 4
 
@@ -36,9 +37,10 @@
 #define CLOUD_PROB 30
 #define GROUND_CLOUD_PROB 30
 #define TORNADO_PROB 10
+#define DRONE_PROB 10
 #define BIRD_PROB 10
 #define ZOMBIE_PROB 10
-#define COIN_PROB 2
+#define COIN_PROB 10
 /* Out of */
 #define PROB_MAX_INCLUSIVE 999
 
@@ -48,6 +50,8 @@
 #define CLOUD_WIDTH 12
 #define TORNADO_HEIGHT 6
 #define TORNADO_WIDTH 12
+#define DRONE_HEIGHT 3
+#define DRONE_WIDTH 9
 #define BIRD_HEIGHT 3
 #define BIRD_WIDTH 3
 #define ZOMBIE_HEIGHT 3
@@ -70,6 +74,9 @@ char *tornado_traj = "___d___d___dL";
 char *bird_traj = "ddddL";
 char *zombie_traj = "___i___i___iL";
 
+char *drone_y_traj = "___i___i___i___i___iL";
+char *drone_x_traj = "___i___i___i___i___iL";
+
 
 /* Object in game */
 struct obj {
@@ -80,8 +87,8 @@ struct obj {
     char *x_traj;               /* Horizontal trajectory */
     size_t x_ti;                /* Index in the horizontal trajectory */
     /*
-     * 'c' = cloud, 't' = tornado, 'b' = bird, 'z' = zombie, 'i' = coin,
-     * 'm' = man.
+     * 'c' = cloud, 't' = tornado, 'd' = drone, 'b' = bird, 'z' = zombie,
+     * 'i' = coin, 'm' = man.
      */
     char type;
     int health;                 /* Health level. 0 is the lowest. */
@@ -122,6 +129,9 @@ int spawn_obj(struct obj **head, int h, int w, char type)
     } else if (type == 't') {
         obj_h = TORNADO_HEIGHT;
         obj_w = TORNADO_WIDTH;
+    } else if (type == 'd') {
+        obj_h = DRONE_HEIGHT;
+        obj_w = DRONE_WIDTH;
     } else if (type == 'b') {
         obj_h = BIRD_HEIGHT;
         obj_w = BIRD_WIDTH;
@@ -145,7 +155,7 @@ int spawn_obj(struct obj **head, int h, int w, char type)
     if (type == 'g') {
         /* Ground cloud */
         b->y = h - obj_h;
-    } else if (type == 'z' || type == 'm') {
+    } else if (type == 'd' || type == 'z' || type == 'm') {
         /* Spawn at the top of the sreen */
         b->y = 0;
     } else {
@@ -165,22 +175,38 @@ int spawn_obj(struct obj **head, int h, int w, char type)
             mreturn(GEN_ERROR);
     }
 
-    /* Default horizontal trajectories */
-    if (type == 't')
+    /* Default trajectories */
+    switch (type) {
+    case 't':
         b->x_traj = tornado_traj;
-    else if (type == 'b')
+        break;
+    case 'd':
+        b->y_traj = drone_y_traj;
+        b->x_traj = drone_x_traj;
+        break;
+    case 'b':
         b->x_traj = bird_traj;
-    else if (type == 'z')
+        break;
+    case 'z':
         b->x_traj = zombie_traj;
+        break;
+    }
 
     /* Set health */
-    if (type == 'b')
+    switch (type) {
+    case 'd':
+        b->health = INIT_DRONE_HEALTH;
+        break;
+    case 'b':
         b->health = INIT_BIRD_HEALTH;
-    if (type == 'z')
+        break;
+    case 'z':
         b->health = INIT_ZOMBIE_HEALTH;
-    else
+        break;
+    case 'm':
         b->health = INIT_MAN_HEALTH;
-
+        break;
+    }
 
     /* Link in as the new head */
     if (*head != NULL) {
@@ -289,6 +315,8 @@ void print_obj_list(struct obj **head, char type, int *new_screen)
         " \\########/\n"
         "  \\######/\n" "   \\####/\n" "    \\##/\n" "     \\/";
 
+    char *drone_str = "x x   x x\n" "|_|___|_|\n" "   |_|";
+
     char *bird_str = " /\n" "<-K\n" " \\";
 
     char *zombie_str = "[:]\n" " |==\n" "/\\";
@@ -310,24 +338,38 @@ void print_obj_list(struct obj **head, char type, int *new_screen)
     if (*head == NULL)
         return;
 
-    if (type == 't') {
+    switch (type) {
+    case 'c':
+        obj_str = cloud_str;
+        break;
+    case 't':
         obj_str = tornado_str;
-    } else if (type == 'b') {
+        break;
+    case 'd':
+        obj_str = drone_str;
+        break;
+    case 'b':
         obj_str = bird_str;
-    } else if (type == 'z') {
+        break;
+    case 'z':
         if (b->x % 2)
             obj_str = zombie_vert_str;
         else
             obj_str = zombie_str;
-    } else if (type == 'i') {
+
+        break;
+    case 'i':
         obj_str = coin_str;
-    } else if (type == 'm') {
+        break;
+    case 'm':
         if (b->x % 2)
             obj_str = man_vert_str;
         else
             obj_str = man_str;
-    } else {
-        obj_str = cloud_str;    /* Default */
+
+        break;
+    default:
+        return;
     }
 
     while (b != NULL) {
@@ -364,7 +406,8 @@ void print_obj_list(struct obj **head, char type, int *new_screen)
             }
         }
 
-        if (!b->health && (type == 'b' || type == 'z' || type == 'm'))
+        if (!b->health
+            && (type == 'd' || type == 'b' || type == 'z' || type == 'm'))
             remove = 1;
 
         if (!remove && (type == 'z' || type == 'm')) {
@@ -508,6 +551,7 @@ int main(void)
 
     struct obj *cloud_head = NULL;
     struct obj *tornado_head = NULL;
+    struct obj *drone_head = NULL;
     struct obj *bird_head = NULL;
     struct obj *zombie_head = NULL;
     struct obj *coin_head = NULL;
@@ -582,6 +626,8 @@ int main(void)
     cloud_head = NULL;
     free_obj_list(tornado_head);
     tornado_head = NULL;
+    free_obj_list(drone_head);
+    drone_head = NULL;
     free_obj_list(bird_head);
     bird_head = NULL;
     free_obj_list(zombie_head);
@@ -647,6 +693,7 @@ int main(void)
 
         print_obj_list(&cloud_head, 'c', &new_screen);
         print_obj_list(&tornado_head, 't', &new_screen);
+        print_obj_list(&drone_head, 'd', &new_screen);
         print_obj_list(&bird_head, 'b', &new_screen);
         print_obj_list(&zombie_head, 'z', &new_screen);
         print_obj_list(&coin_head, 'i', &new_screen);
@@ -769,14 +816,20 @@ int main(void)
 
             if (roll < BIRD_PROB && spawn_obj(&bird_head, h, w, 'b'))
                 mgoto(clean_up);
-        }
-        if (level == 3) {
+        } else if (level == 3) {
             if (random_num(PROB_MAX_INCLUSIVE, &roll))
                 mgoto(clean_up);
 
             if (roll < ZOMBIE_PROB && spawn_obj(&zombie_head, h, w, 'z'))
                 mgoto(clean_up);
+        } else if (level == 4) {
+            if (random_num(PROB_MAX_INCLUSIVE, &roll))
+                mgoto(clean_up);
+
+            if (roll < DRONE_PROB && spawn_obj(&drone_head, h, w, 'd'))
+                mgoto(clean_up);
         }
+
 
         if (random_num(PROB_MAX_INCLUSIVE, &roll))
             mgoto(clean_up);
@@ -792,6 +845,7 @@ int main(void)
 
     free_obj_list(cloud_head);
     free_obj_list(tornado_head);
+    free_obj_list(drone_head);
     free_obj_list(bird_head);
     free_obj_list(zombie_head);
     free_obj_list(coin_head);
