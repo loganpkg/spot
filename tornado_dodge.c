@@ -26,7 +26,7 @@
 #define INIT_BIRD_HEALTH 10
 #define INIT_MAN_HEALTH 60
 
-#define LAST_LEVEL 4
+#define LAST_LEVEL 3
 
 #define FALL_THROUGH_DAMAGE 4
 
@@ -52,6 +52,7 @@
 #define TORNADO_WIDTH 12
 #define DRONE_HEIGHT 3
 #define DRONE_WIDTH 9
+#define DRONE_TORCH_X_OFFSET 7
 #define BIRD_HEIGHT 3
 #define BIRD_WIDTH 3
 #define ZOMBIE_HEIGHT 3
@@ -254,21 +255,32 @@ int process_trajectory(char **traj, size_t *index, unsigned int *coordin)
     return 0;
 }
 
-int print_object(size_t y, size_t x, const char *object, int *health)
+int print_object(size_t y, size_t x, const char *object, char type,
+                 int *health)
 {
+    chtype z, v_hl;
     char ch, v_ch;
-    size_t c_y, c_x;
+    size_t c_y, c_x, torch_y;
 
     if (move(y, x) == ERR)
         return GEN_ERROR;
 
     while ((ch = *object++) != '\0') {
-        v_ch = inch() & A_CHARTEXT;
+        z = inch();
+        v_ch = z & A_CHARTEXT;
+        v_hl = (z & A_ATTRIBUTES) & A_STANDOUT;
+
         switch (ch) {
         case ' ':
             /* Keep virtual char unchanged (do not print the space) */
+            if (v_hl)
+                standout();
+
             if (addch(v_ch) == ERR)
                 return GEN_ERROR;
+
+            if (v_hl)
+                standend();
 
             break;
         case '\n':
@@ -287,20 +299,49 @@ int print_object(size_t y, size_t x, const char *object, int *health)
              * Coins restore the man to full health.
              * Only the man can get the coins.
              */
-            if (v_ch == '$')
+            if (type == 'm' && v_ch == '$')
                 *health = INIT_MAN_HEALTH;
-            /* Objects besides clouds and the health indicator reduce health */
-            else if (!
-                     (v_ch == ' ' || v_ch == '*' || v_ch == '.'
-                      || v_ch == '`' || v_ch == '~' || v_ch == '('
-                      || v_ch == ')') && *health)
+
+            /*
+             * Highlighting or objects besides clouds and the health indicator
+             * reduce health.
+             */
+            if (*health && (v_hl || !
+                            (v_ch == ' ' || v_ch == '*' || v_ch == '.'
+                             || v_ch == '`' || v_ch == '~' || v_ch == '('
+                             || v_ch == ')')))
                 -- * health;
+
+            if (v_hl)
+                standout();
 
             if (addch(ch) == ERR)
                 return GEN_ERROR;
 
+            if (v_hl)
+                standend();
+
             break;
         }
+    }
+
+    if (type == 'd') {
+        /* Draw search light */
+        getyx(stdscr, c_y, c_x);
+        torch_y = c_y;
+        standout();
+        while (1) {
+            v_ch = inch() & A_CHARTEXT;
+
+            /* Keep virtual char unchanged (just highlight) */
+            if (addch(v_ch) == ERR)
+                return GEN_ERROR;
+
+            getyx(stdscr, c_y, c_x);
+            if (c_y != torch_y)
+                break;
+        }
+        standend();
     }
 
     return OK;
@@ -374,7 +415,7 @@ void print_obj_list(struct obj **head, char type, int *new_screen)
 
     while (b != NULL) {
         remove = 0;
-        if (print_object(b->y, b->x, obj_str, &b->health)) {
+        if (print_object(b->y, b->x, obj_str, type, &b->health)) {
             if (type == 'm') {
                 /* Off right-hand side of screen. Start new screen. */
                 b->x = 0;
@@ -609,6 +650,8 @@ int main(void)
     if (set_tabsize(8) == ERR)
         mgoto(clean_up);
 
+    if (curs_set(0) == ERR)
+        mgoto(clean_up);
 
     getmaxyx(stdscr, h, w);
 
@@ -668,10 +711,8 @@ int main(void)
             if (clrtoeol())
                 mgoto(clean_up);
 
-            if (print_object(0, 0, game_over_str, &tmp))
+            if (print_object(0, 0, game_over_str, '_', &tmp))
                 mgoto(clean_up);
-
-            move(0, 0);
 
             if (refresh())
                 mgoto(clean_up);
@@ -709,10 +750,8 @@ int main(void)
             new_screen = 0;
             if (level == LAST_LEVEL) {
                 /* Win */
-                if (print_object(0, 0, win_str, &tmp))
+                if (print_object(0, 0, win_str, '_', &tmp))
                     mgoto(clean_up);
-
-                move(0, 0);
 
                 if (refresh())
                     mgoto(clean_up);
@@ -730,8 +769,6 @@ int main(void)
         /* Check for used coins, and remove them */
         if (remove_used_coins(&coin_head))
             mgoto(clean_up);
-
-        move(0, 0);
 
         if (refresh())
             mgoto(clean_up);
@@ -810,26 +847,27 @@ int main(void)
         if (roll < TORNADO_PROB && spawn_obj(&tornado_head, h, w, 't'))
             mgoto(clean_up);
 
-        if (level == 2) {
+        if (level == 1) {
             if (random_num(PROB_MAX_INCLUSIVE, &roll))
                 mgoto(clean_up);
 
             if (roll < BIRD_PROB && spawn_obj(&bird_head, h, w, 'b'))
                 mgoto(clean_up);
-        } else if (level == 3) {
-            if (random_num(PROB_MAX_INCLUSIVE, &roll))
-                mgoto(clean_up);
-
-            if (roll < ZOMBIE_PROB && spawn_obj(&zombie_head, h, w, 'z'))
-                mgoto(clean_up);
-        } else if (level == 4) {
+        }
+        if (level == 2) {
             if (random_num(PROB_MAX_INCLUSIVE, &roll))
                 mgoto(clean_up);
 
             if (roll < DRONE_PROB && spawn_obj(&drone_head, h, w, 'd'))
                 mgoto(clean_up);
         }
+        if (level == 3) {
+            if (random_num(PROB_MAX_INCLUSIVE, &roll))
+                mgoto(clean_up);
 
+            if (roll < ZOMBIE_PROB && spawn_obj(&zombie_head, h, w, 'z'))
+                mgoto(clean_up);
+        }
 
         if (random_num(PROB_MAX_INCLUSIVE, &roll))
             mgoto(clean_up);

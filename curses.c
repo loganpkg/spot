@@ -97,6 +97,9 @@
 
 #define phy_clear() printf("\x1B[2J\x1B[1;1H")
 
+#define phy_invisible_cursor() printf("\x1B[?25l")
+#define phy_visible_cursor() printf("\x1B[?25h")
+
 
 WINDOW *initscr(void)
 {
@@ -178,6 +181,7 @@ int endwin(void)
     int ret = OK;
     phy_hl_off();
     phy_clear();
+    phy_visible_cursor();
 #ifdef _WIN32
     if (!SetConsoleMode(stdscr->term_handle, stdscr->term_orig))
         ret = ERR;
@@ -725,6 +729,25 @@ int nodelay(WINDOW *win, bool bf)
      */
 
     win->non_blocking = bf;
+
+    return OK;
+}
+
+#define INVISIBLE 0
+#define VISIBLE 1
+
+int curs_set(int visibility)
+{
+    switch (visibility) {
+    case INVISIBLE:
+        phy_invisible_cursor();
+        break;
+    case VISIBLE:
+        phy_visible_cursor();
+        break;
+    default:
+        return ERR;
+    }
 
     return OK;
 }

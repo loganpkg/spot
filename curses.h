@@ -63,9 +63,18 @@ struct screen {
 
 
 typedef struct screen WINDOW;
-typedef uint32_t chtype;
+typedef char chtype;
 
-#define A_CHARTEXT 0x000000FF
+/*
+ * Only ASCII characters are supported, and the highest order bit is used
+ * for the attributes component.
+ */
+#define A_CHARTEXT 0x7F
+#define A_ATTRIBUTES 0x80
+
+/* Highlighting is the only attribute that is implemented */
+#define A_STANDOUT 0x80
+
 
 #ifdef IN_CURSES_LIB
 /* In library, so external variable */
@@ -140,5 +149,6 @@ int raw(void);
 int noecho(void);
 int keypad(WINDOW *win, bool bf);
 int nodelay(WINDOW *win, bool bf);
+int curs_set(int visibility);
 
 #endif
