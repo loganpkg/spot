@@ -14,7 +14,21 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-/* Tornado Dodge -- console video game */
+/*
+ * Tornado Dodge -- console video game.
+ *
+ * For my son, Willam. I simply programmed his imagination.
+ * I love you so much, Papai.
+ *
+ *
+ * Glory be to the Father,
+ * and to the Son,
+ * and to the Holy Spirit.
+ * As it was in the beginning, is now,
+ * and ever shall be,
+ * world without end.
+ *
+ */
 
 
 #include "toucanlib.h"
@@ -787,16 +801,17 @@ int main(void)
              * was asleep.
              */
             switch (k) {
-            case 'f':
+            case 'l':
             case KEY_RIGHT:
                 move_left = 0;
                 move_right = 1;
                 break;
-            case 'b':
+            case 'h':
             case KEY_LEFT:
                 move_right = 0;
                 move_left = 1;
                 break;
+            case 'k':
             case KEY_UP:
                 move_up = 1;
                 break;

@@ -27,7 +27,8 @@ The applications are:
 * [spot](#spot): The text editor,
 * [m4](#m4): A POSIX compliant implementation of the m4 macro processor,
 * [bc](#bc): A basic calculator, and
-* [freq](#freq): Determines the character frequency in a file.
+* [freq](#freq): Determines the character frequency in a file, and
+* [tornado_dodge](#tornado_dodge): A console video game.
 
 toucanlib has a monolithic interface to make usage easy, but multiple modules
 to make maintenance easy. Currently, the modules include:
@@ -1333,6 +1334,24 @@ There needs to be a way to advance when a zero-length match is
 found. The simple thing to do is to jump one character and commence the
 next search from there. However, it is important to note, that the jumped
 character must be passed through to the output buffer.
+
+
+tornado_dodge
+=============
+
+Tornado Dodge is a console video game, in which the *man* needs to dodge
+tornadoes ... and other things (I won't spoil the surprises), in order to
+make it to the end. Obtaining a coin restores the man to full health.
+
+The following commands are used in the game:
+
+| Keys              | Command                               |
+| :---------------- | :------------------------------------ |
+| `q` or `Q`        | Quit the game                         |
+| `p` or `P`        | Toggle between pause and play         |
+| `h` or Left Key   | Move left (can move in the air)       |
+| `l` or Right Key  | Move right (can move in the air)      |
+| `k` or Up Key     | Jump (can only jump when on a cloud)  |
 
 
 Enjoy,
