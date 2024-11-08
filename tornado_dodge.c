@@ -45,7 +45,11 @@
 #define FALL_THROUGH_DAMAGE 4
 
 /* Changes the speed of the game */
+#ifdef _WIN32
+#define MILLISECONDS_PER_INTERVAL 38
+#else
 #define MILLISECONDS_PER_INTERVAL 50
+#endif
 
 /* Spawn probabilities */
 #define CLOUD_PROB 30
