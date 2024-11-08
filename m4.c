@@ -1110,7 +1110,7 @@ int econc(m4_, NM) (void *v) {
     r = make_stemp(arg(1), &temp_fn);
 
     if (r)
-        return ERROR_CONTINUE;
+        return ERROR_BUT_CONTIN;
 
     if (unget_str(m4->input, temp_fn)) {
         free(temp_fn);

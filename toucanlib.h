@@ -159,7 +159,7 @@
  * System or user related error whereby execution continutes.
  * Exit status will be non-zero.
  */
-#define ERROR_CONTINUE 7
+#define ERROR_BUT_CONTIN 7
 
 
 #ifdef _WIN32
