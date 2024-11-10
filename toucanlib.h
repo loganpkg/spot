@@ -57,7 +57,6 @@
 #include <process.h>
 #else
 #include <sys/mman.h>
-#include <sys/random.h>
 #include <sys/wait.h>
 #include <dirent.h>
 #include <fcntl.h>

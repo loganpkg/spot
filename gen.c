@@ -207,9 +207,21 @@ int random_uint(unsigned int *x)
     if (rand_s(x))
         return GEN_ERROR;
 #else
-    if (getrandom(x, sizeof(unsigned int), GRND_NONBLOCK) !=
-        sizeof(unsigned int))
+    FILE *fp;
+    unsigned int z;
+
+    if ((fp = fopen("/dev/urandom", "rb")) == NULL)
         return GEN_ERROR;
+
+    if (fread(&z, sizeof(unsigned int), 1, fp) != 1) {
+        fclose(fp);
+        return GEN_ERROR;
+    }
+
+    if (fclose(fp))
+        return GEN_ERROR;
+
+    *x = z;
 #endif
     return 0;
 }
