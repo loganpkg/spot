@@ -25,8 +25,8 @@ set -x
 #################
 install_dir="$HOME"/bin
 flags='-ansi -g -Og -Wno-variadic-macros -Wall -Wextra -pedantic'
-# Change to 'N' to use ncurses
-use_built_in_curses='Y'
+# Change to N to use ncurses
+use_built_in_curses=Y
 #################
 
 
@@ -37,8 +37,8 @@ else
     indent=gindent
 fi
 
-repo_dir="$(pwd)"
-build_dir="$(mktemp -d)"
+repo_dir=$(pwd)
+build_dir=$(mktemp -d)
 
 # Fix permissions
 find . -type d ! -path '*.git*' -exec chmod 700 '{}' \;
@@ -76,10 +76,10 @@ find . -type f ! -path '*.git*' -name '*.h' \
     -exec cc $flags '{}' \;
 
 find . -type f ! -path '*.git*' -name '*.c' \
-    ! -name 'spot.c' ! -name 'tornado_dodge.c' \
+    ! -name spot.c ! -name tornado_dodge.c \
     -exec cc -c $flags '{}' \;
 
-if [ "$use_built_in_curses" = 'Y' ]
+if [ "$use_built_in_curses" = Y ]
 then
     # To look in the current working directory for <curses.h>
     cc -c $flags -I . spot.c
@@ -93,7 +93,7 @@ ld -r gen.o num.o buf.o gb.o eval.o ht.o toco_regex.o fs.o -o toucanlib.o
 
 cc $flags -o m4 m4.o toucanlib.o
 
-if [ "$use_built_in_curses" = 'Y' ]
+if [ "$use_built_in_curses" = Y ]
 then
     cc $flags -o spot spot.o curses.o toucanlib.o
     cc $flags -o tornado_dodge tornado_dodge.o curses.o toucanlib.o
