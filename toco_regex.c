@@ -240,6 +240,10 @@ static int issue_node(struct nfa_storage *ns, size_t *node)
 
 static int delete_node(struct nfa_storage *ns, size_t node)
 {
+    /*
+     * A simple delete like this only works for nodes that are not referenced
+     * by other nodes (such as start nodes).
+     */
     if (ns->i && node == ns->i - 1) {
         ns->i--;
         return 0;
@@ -247,19 +251,21 @@ static int delete_node(struct nfa_storage *ns, size_t node)
 
     /* There can only be one node marked for reuse at a time */
     if (ns->reuse_set)
-        d_mgoto(error, "Node reuse already set");
+        d_mreturn("Node reuse already set", GEN_ERROR);
 
     ns->reuse = node;
     ns->reuse_set = 1;
 
     return 0;
-
-  error:
-    return GEN_ERROR;
 }
 
-static void fill_hole(struct nfa_storage *ns)
+static void fill_hole(struct nfa_storage *ns, size_t *start_node,
+                      size_t *end_node)
 {
+    /*
+     * Fills hole with the last node in the array, and patches the links.
+     * Updates start_node and end_node if they were the old last node.
+     */
     size_t old_node, i;
 
     if (!ns->i) {
@@ -282,6 +288,13 @@ static void fill_hole(struct nfa_storage *ns)
         if (lk(i).link1 == old_node)
             lk(i).link1 = ns->reuse;
     }
+
+    /* Update start and end nodes */
+    if (old_node == *start_node)
+        *start_node = ns->reuse;
+
+    if (old_node == *end_node)
+        *end_node = ns->reuse;
 
     ns->reuse_set = 0;
 }
@@ -903,7 +916,11 @@ static int thompsons_construction(const struct regex_item *ri_head,
             /* Copy contents */
             copy_node(end_a, start_b);
 
-            /* Remove unneeded node */
+            /*
+             * Remove unneeded node.
+             * Only concatenation removes a node.
+             * OK, as start nodes are not referenced by other nodes.
+             */
             if (delete_node(ns, start_b))
                 mgoto(error);
 
@@ -1015,7 +1032,8 @@ static int thompsons_construction(const struct regex_item *ri_head,
         d_mgoto(syntax_error, "%lu operands left on the stack\n",
                 (unsigned long) z->i);
 
-    fill_hole(ns);
+    /* Fill the last hole (if any) */
+    fill_hole(ns, &start_b, &end_b);
 
     *nfa_start = start_b;
     *nfa_end = end_b;
@@ -1184,8 +1202,12 @@ static char *run_nfa(const char *text, size_t text_size, int sol,
     p = text;
     s = text_size;
 
-    if (verbose)
+    if (verbose) {
         fprintf(stderr, "=== Start of NFA run ===\n");
+        fprintf(stderr, "Start node: %lu\nEnd node: %lu\n", reg->nfa_start,
+                reg->nfa_end);
+    }
+
 
     /* Clear state tables */
     clear_state_table(reg->state);
@@ -1286,12 +1308,23 @@ static char *run_nfa(const char *text, size_t text_size, int sol,
     }
 
   report:
+
+
+
     /* End of text */
-    if (last_match == NULL)
-        return NULL;            /* No match */
+    if (last_match == NULL) {
+        if (verbose)
+            fprintf(stderr, " => NO MATCH\n");
+
+        return NULL;
+    }
 
     *match_len = last_match - text;
-    return (char *) text;       /* Match */
+
+    if (verbose)
+        fprintf(stderr, " => MATCH\n");
+
+    return (char *) text;
 }
 
 #undef swap_state_tables
