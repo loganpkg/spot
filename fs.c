@@ -415,7 +415,6 @@ int mmap_file_ro(const char *fn, void **mem, size_t *fs)
         *fs = 0;
         return 0;
     }
-
 #ifdef _WIN32
 
     /* Open existing file read only */
@@ -452,7 +451,6 @@ int mmap_file_ro(const char *fn, void **mem, size_t *fs)
             UnmapViewOfFile(p);
         mreturn(GEN_ERROR);
     }
-
 #else
 
     if ((fd = open(fn, O_RDONLY)) == -1)
@@ -467,7 +465,6 @@ int mmap_file_ro(const char *fn, void **mem, size_t *fs)
         munmap(p, s);
         mreturn(GEN_ERROR);
     }
-
 #endif
 
     *mem = p;
