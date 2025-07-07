@@ -37,6 +37,8 @@ else
     indent=gindent
 fi
 
+# lint=splint
+
 repo_dir=$(pwd)
 build_dir=$(mktemp -d)
 
@@ -67,6 +69,10 @@ then
     cat err
     exit 1
 fi
+
+# find . -type f \( -name '*.h' -o -name '*.c' \) \
+#    -exec "$lint" -predboolint '{}' \;
+
 
 # Max of 79 chars per line plus the \n, making a total of 80.
 # So 80 non-newline chars is too long.
