@@ -316,7 +316,10 @@ int up_line(struct gb *b)
     else
         target_col = b->col;
 
-    /* Row number starts from 1, not 0 */
+    /*
+     * Row number starts from 1, not 0.
+     * sc will still be set as left_ch has not been called yet.
+     */
     if (b->r == 1)
         return GEN_ERROR;
 
@@ -335,6 +338,7 @@ int up_line(struct gb *b)
 
 int down_line(struct gb *b)
 {
+    int ret = 0;
     size_t r_orig = b->r, target_col;
 
     if (b->sc_set)
@@ -342,25 +346,29 @@ int down_line(struct gb *b)
     else
         target_col = b->col;
 
-    while (b->r == r_orig) {
+    while (b->r == r_orig)
         if (right_ch(b)) {
-            /* Go back */
-            while (b->col != target_col)
+            /*
+             * Trying to exceed end of buffer which is on the same line.
+             * Go back.
+             */
+            while (b->col > target_col)
                 left_ch(b);
 
-            return GEN_ERROR;
+            ret = GEN_ERROR;
+            goto end;
         }
-    }
 
     while (b->col != target_col && *(b->a + b->c) != '\n')
         if (right_ch(b))
             break;
 
+  end:
     /* right_ch will clear this, so need to do it again */
     b->sc_set = 1;
     b->sc = target_col;
 
-    return 0;
+    return ret;
 }
 
 #define is_alpha_u(u) (isalpha(u) || (u) == '_')
