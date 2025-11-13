@@ -45,9 +45,8 @@ Install
 -------
 
 This cross-platform software has been written in ANSI C with the minimum
-use of non-standard libraries. To install, edit one of the scripts below
-(depending upon your operating system) to set `install_dir`.
-Then run:
+use of non-standard libraries. To install, depending upon your operating
+system, run:
 ```
 $ make
 $ PREFIX="$HOME" make install
@@ -55,9 +54,9 @@ $ make clean
 ```
 or
 ```
-> nmake /F nMakefile
-> set PREFIX=%HOMEDRIVE%%HOMEPATH%&& nmake /F nMakefile install
-> nmake /F nMakefile clean
+> nmake -f nMakefile
+> set PREFIX=%HOMEDRIVE%%HOMEPATH%&& nmake -f nMakefile install
+> nmake -f nMakefile clean
 ```
 
 Make sure `PREFIX/bin` is included in your `PATH`.
