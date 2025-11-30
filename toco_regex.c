@@ -550,8 +550,21 @@ static void print_regex_chain(const struct regex_item *ri_head)
     }
 }
 
+static void add_to_char_set(unsigned char *char_set, int ch, int case_ins)
+{
+    char_set[ch] = 1;
+
+    if (case_ins) {
+        if (islower(ch))
+            char_set[ch - 'a' + 'A'] = 1;
+        else if (isupper(ch))
+            char_set[ch - 'A' + 'a'] = 1;
+    }
+}
+
 static int create_regex_chain(const int *find_eof,
-                              struct regex_item **ri_head, int nl_ins)
+                              struct regex_item **ri_head, int nl_ins,
+                              int case_ins)
 {
     int ret = 0;
     const int *p;
@@ -608,7 +621,7 @@ static int create_regex_chain(const int *find_eof,
                         d_mgoto(syntax_error, "Descending range\n");
 
                     for (y = *p; y <= *(p + 2); ++y)
-                        ri->char_set[y] = 1;
+                        add_to_char_set(ri->char_set, y, case_ins);
 
                     p += 2;
                 } else if (*p == ']' && !first_ch_in_set) {
@@ -617,7 +630,7 @@ static int create_regex_chain(const int *find_eof,
                 } else if (*p == EOF) {
                     d_mgoto(syntax_error, "Unclosed character set\n");
                 } else {
-                    ri->char_set[*p] = 1;
+                    add_to_char_set(ri->char_set, *p, case_ins);
                 }
                 first_ch_in_set = 0;
                 ++p;
@@ -669,7 +682,7 @@ static int create_regex_chain(const int *find_eof,
                     if (!nl_ins)
                         ri->char_set['\n'] = 0;
                 } else {
-                    ri->char_set[x] = 1;
+                    add_to_char_set(ri->char_set, x, case_ins);
                 }
 
                 break;
@@ -1084,7 +1097,7 @@ static void print_nfa(struct nfa_storage *ns)
     }
 }
 
-static int compile_regex(const char *regex_str, int nl_ins,
+static int compile_regex(const char *regex_str, int nl_ins, int case_ins,
                          struct regex **regex_st, int verbose)
 {
     int ret = GEN_ERROR;
@@ -1108,7 +1121,9 @@ static int compile_regex(const char *regex_str, int nl_ins,
                               &reg->find_eof)))
         mgoto(error);
 
-    if ((ret = create_regex_chain(reg->find_eof, &reg->ri, reg->nl_ins)))
+    if ((ret =
+         create_regex_chain(reg->find_eof, &reg->ri, reg->nl_ins,
+                            case_ins)))
         mgoto(error);
 
     if (verbose) {
@@ -1378,8 +1393,8 @@ static char *internal_regex_search(const char *text, size_t text_size,
 }
 
 int regex_search(const char *text, size_t text_size, int sol,
-                 const char *regex_str, int nl_ins, size_t *match_offset,
-                 size_t *match_len, int verbose)
+                 const char *regex_str, int nl_ins, int case_ins,
+                 size_t *match_offset, size_t *match_len, int verbose)
 {
     int ret = GEN_ERROR;
     struct regex *reg = NULL;
@@ -1391,14 +1406,14 @@ int regex_search(const char *text, size_t text_size, int sol,
         mgoto(clean_up);
     }
 
-    if ((ret = compile_regex(regex_str, nl_ins, &reg, verbose)))
+    if ((ret = compile_regex(regex_str, nl_ins, case_ins, &reg, verbose)))
         mgoto(clean_up);
 
     m = internal_regex_search(text, text_size, sol, reg, &ml, verbose);
 
     if (m == NULL) {
         ret = NO_MATCH;
-        mgoto(clean_up);
+        goto clean_up;
     }
 
     *match_offset = m - text;
@@ -1413,7 +1428,7 @@ int regex_search(const char *text, size_t text_size, int sol,
 }
 
 int regex_replace(const char *text, size_t text_size,
-                  const char *regex_str, int nl_ins,
+                  const char *regex_str, int nl_ins, int case_ins,
                   const char *replace_str, char **result,
                   size_t *result_len, int verbose)
 {
@@ -1439,7 +1454,7 @@ int regex_replace(const char *text, size_t text_size,
         mgoto(clean_up);
     }
 
-    if ((ret = compile_regex(regex_str, nl_ins, &reg, verbose)))
+    if ((ret = compile_regex(regex_str, nl_ins, case_ins, &reg, verbose)))
         mgoto(clean_up);
 
     if ((ret =

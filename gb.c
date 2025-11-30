@@ -510,7 +510,7 @@ int exact_forward_search(struct gb *b, struct gb *cl)
     return 0;
 }
 
-int regex_forward_search(struct gb *b, struct gb *cl)
+int regex_forward_search(struct gb *b, struct gb *cl, int case_ins)
 {
     /* Moves cursor to after the match */
     size_t match_offset, match_len, move;
@@ -524,7 +524,8 @@ int regex_forward_search(struct gb *b, struct gb *cl)
         ((char *) b->a + b->c + 1,
          b->e - (b->c + 1),
          *(b->a + b->c) == '\n' ? 1 : 0,
-         (char *) cl->a + cl->c, 0, &match_offset, &match_len, 0))
+         (char *) cl->a + cl->c, 0, case_ins, &match_offset, &match_len,
+         0))
         return GEN_ERROR;
 
     move = 1 + match_offset + match_len;
@@ -536,7 +537,7 @@ int regex_forward_search(struct gb *b, struct gb *cl)
     return 0;
 }
 
-int regex_replace_region(struct gb *b, struct gb *cl)
+int regex_replace_region(struct gb *b, struct gb *cl, int case_ins)
 {
     int ret = GEN_ERROR;
     char delim, *find, *sep, *replace, *res = NULL;
@@ -565,7 +566,8 @@ int regex_replace_region(struct gb *b, struct gb *cl)
             mgoto(clean_up);
 
     if (regex_replace((char *) b->a + b->c,
-                      b->m - b->c, find, 0, replace, &res, &res_len, 0))
+                      b->m - b->c, find, 0, case_ins, replace, &res,
+                      &res_len, 0))
         mgoto(clean_up);
 
     /* Delete region */

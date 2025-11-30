@@ -114,7 +114,9 @@ The keybindings are listed below. `^a` means pressing `Ctrl` plus `a`.
 | `^t`    | Trim trailing white-space and remove non-printable chars  |
 | `^s`    | Exact forward search (moves cursor to start of the match) |
 | `^z`    | Regex forward search (moves cursor to after the match)    |
+| `^[ z`  | Regex forward search (case insensitive)                   |
 | `^r`    | Regex replace region *                                    |
+| `^[ r`  | Regex replace region (case insensitive)                   |
 | `^u`    | Go to line number                                         |
 | `^q`    | Insert hex                                                |
 | `^[ b`  | Left word                                                 |
@@ -683,12 +685,13 @@ if it exists. Any sub-file or sub-directories will be deleted along with the
 specified path itself.
 
 ```m4
-regexrep(text, regex_find, replace[, newline_insensitive, verbose])
+regexrep(text, regex_find, replace[, newline_insen, case_insen, verbose])
 ```
 This is an extension to the POSIX standard. `regexrep` searches text for
 a regex pattern and replaces the matches. If the fourth argument is 1,
-then newline insensitive matching occurs.
-If verbose is 1, then the posfix form of the expression and the
+then newline insensitive matching occurs, and if the fifth argument is 1,
+then the matching will be case insensitive.
+If verbose is 1, then the postfix form of the expression and the
 nondeterministic finite automaton (NFA) structure are printed to `stderr`.
 
 ```m4
@@ -983,7 +986,7 @@ must be distinguished before the context of the infix expression is lost.
 With regular expressions, the implicit concatenation operator needs to be
 explicitly introduced.
 
-Running the regex engine or eval with verbose mode on will display the posfix
+Running the regex engine or eval with verbose mode on will display the postfix
 form to `stderr`.
 
 
@@ -991,7 +994,7 @@ Thompson's construction
 -----------------------
 
 Next, the nondeterministic finite automaton (NFA) is made using Thompson's
-construction. The posfix expression is "evaluated". This is analogous to
+construction. The postfix expression is "evaluated". This is analogous to
 an arithmetic expression, but instead of doing maths, the complete NFA is
 constructed by joining NFA *fragments*.
 

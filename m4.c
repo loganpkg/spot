@@ -1220,7 +1220,7 @@ int econc(m4_, NM) (void *v) {
 #undef NM
 #undef PAR_DESC
 #define NM regexrep
-#define PAR_DESC "(text, regex_find, replace[, newline_insensitive, verbose])"
+#define PAR_DESC "(text, regex_find, replace[, newline_insen, case_insen, verbose])"
 
 int econc(m4_, NM) (void *v) {
     M4ptr m4 = (M4ptr) v;
@@ -1228,23 +1228,28 @@ int econc(m4_, NM) (void *v) {
     char *res;
     size_t res_len;
     int nl_insen = 0;           /* Newline insensitive off */
+    int case_insen = 0;         /* Case insensitive off */
     int verbose = 0;            /* Prints information about the regex */
 
     print_help;
     allow_pass_through;
-    max_pars(5);
+    max_pars(6);
     min_pars(3);
 
     if (!strcmp(arg(4), "1"))
         nl_insen = 1;           /* Newline insensitive on */
 
-    if (!strcmp(arg(5), "1"))
+    if (!strcmp(arg(5), "1"))   /* Case insensitive on */
+        case_insen = 1;
+
+    if (!strcmp(arg(6), "1"))
         verbose = 1;
 
     if ((ret = regex_replace(arg(1),
                              strlen(arg(1)),
                              arg(2),
-                             nl_insen, arg(3), &res, &res_len, verbose)))
+                             nl_insen, case_insen, arg(3), &res, &res_len,
+                             verbose)))
         return ret;
 
     if (unget_str(m4->input, res)) {

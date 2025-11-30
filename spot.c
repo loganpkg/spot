@@ -293,7 +293,8 @@ int main(int argc, char **argv)
     struct gb *se = NULL;       /* Search buffer */
     struct gb *tmp = NULL;      /* Temporary buffer */
     struct gb *t;               /* For switching gap buffers */
-    char search_type = ' ';     /* s = Exact search, z = Regex search */
+    /* s = Exact search, z = Regex search, c = Case insensitive regex search */
+    char search_type = ' ';
     int cl_active = 0;          /* Cursor is in the command line */
     char op = ' ';              /* The cl operation which is in progress */
 
@@ -468,13 +469,20 @@ int main(int argc, char **argv)
                 break;
             case 'n':
                 /* Repeat last search */
-                if (search_type == 's')
+                switch (search_type) {
+                case 's':
                     rv = exact_forward_search(b, se);
-                else if (search_type == 'z')
-                    rv = regex_forward_search(b, se);
-                else
+                    break;
+                case 'z':
+                    rv = regex_forward_search(b, se, 0);
+                    break;
+                case 'c':      /* Case insensitive */
+                    rv = regex_forward_search(b, se, 1);
+                    break;
+                default:
                     rv = 1;
-
+                    break;
+                }
                 break;
             case 'w':
                 rv = copy_region(z, p, 0);
@@ -492,6 +500,16 @@ int main(int argc, char **argv)
 
                 cl_active = 1;
                 op = '=';
+                break;
+            case 'z':
+                delete_gb(cl);
+                cl_active = 1;
+                op = 'a';       /* Case insensitive regex search */
+                break;
+            case 'r':
+                delete_gb(cl);
+                cl_active = 1;
+                op = 'b';       /* Case insensitive regex replace */
                 break;
             case '$':
                 delete_gb(cl);
@@ -556,7 +574,7 @@ int main(int argc, char **argv)
                     se = cl;
                     cl = t;
                     delete_gb(cl);
-                    search_type = op;
+                    search_type = 's';
                     rv = exact_forward_search(b, se);
                     break;
                 case 'z':
@@ -565,11 +583,23 @@ int main(int argc, char **argv)
                     se = cl;
                     cl = t;
                     delete_gb(cl);
-                    search_type = op;
-                    rv = regex_forward_search(b, se);
+                    search_type = 'z';
+                    rv = regex_forward_search(b, se, 0);
+                    break;
+                case 'a':
+                    /* Swap gap buffers */
+                    t = se;
+                    se = cl;
+                    cl = t;
+                    delete_gb(cl);
+                    search_type = 'c';
+                    rv = regex_forward_search(b, se, 1);
                     break;
                 case 'r':
-                    rv = regex_replace_region(b, cl);
+                    rv = regex_replace_region(b, cl, 0);
+                    break;
+                case 'b':
+                    rv = regex_replace_region(b, cl, 1);
                     break;
                 case '=':
                     start_of_gb(cl);

@@ -409,8 +409,8 @@ int insert_hex(struct gb *b, struct gb *cl);
 void set_mark(struct gb *b);
 int swap_cursor_and_mark(struct gb *b);
 int exact_forward_search(struct gb *b, struct gb *cl);
-int regex_forward_search(struct gb *b, struct gb *cl);
-int regex_replace_region(struct gb *b, struct gb *cl);
+int regex_forward_search(struct gb *b, struct gb *cl, int case_ins);
+int regex_replace_region(struct gb *b, struct gb *cl, int case_ins);
 int match_bracket(struct gb *b);
 void trim_clean(struct gb *b);
 int copy_region(struct gb *b, struct gb *p, int cut);
@@ -434,10 +434,10 @@ int delete_entry(struct ht *ht, const char *name, int pop_hist);
 int upsert(struct ht *ht, const char *name, const char *def, Fptr func_p,
            int push_hist);
 int regex_search(const char *text, size_t text_size, int sol,
-                 const char *regex_str, int nl_ins, size_t *match_offset,
-                 size_t *match_len, int verbose);
+                 const char *regex_str, int nl_ins, int case_ins,
+                 size_t *match_offset, size_t *match_len, int verbose);
 int regex_replace(const char *text, size_t text_size,
-                  const char *regex_str, int nl_ins,
+                  const char *regex_str, int nl_ins, int case_ins,
                   const char *replace_str, char **result,
                   size_t *result_len, int verbose);
 int get_file_size(const char *fn, size_t *fs);
