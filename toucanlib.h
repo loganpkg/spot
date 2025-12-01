@@ -130,6 +130,7 @@
 /* Success return codes */
 #define SUCCESS 0
 #define MATCH SUCCESS
+#define PARTIAL_MATCH 8
 /* Used to not trigger the debugging */
 #define NULL_OK NULL
 

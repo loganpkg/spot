@@ -64,6 +64,7 @@
 #define ESC 27
 
 #define INIT_UNREAD_MEM_SIZE 64
+#define INIT_UNGET_BUF_ELEMENTS 64
 
 #define CTRL_2 0
 
@@ -118,6 +119,15 @@ WINDOW *initscr(void)
         mgoto(error);
 
     stdscr->n = INIT_UNREAD_MEM_SIZE;
+
+    if (mof(INIT_UNGET_BUF_ELEMENTS, sizeof(int), SIZE_MAX))
+        mgoto(error);
+
+    if ((stdscr->unget_buf =
+         calloc(INIT_UNGET_BUF_ELEMENTS, sizeof(int))) == NULL)
+        mgoto(error);
+
+    stdscr->b_n = INIT_UNGET_BUF_ELEMENTS;
 
     /* Setup terminal */
 #ifdef _WIN32
@@ -194,6 +204,7 @@ int endwin(void)
     free(stdscr->vs_c);
     free(stdscr->vs_n);
     free(stdscr->a);
+    free(stdscr->unget_buf);
     free(stdscr);
 
     return ret;
@@ -252,8 +263,7 @@ static int unread(unsigned char u)
         stdscr->n = new_n;
     }
 
-    *(stdscr->a + stdscr->i) = u;
-    ++stdscr->i;
+    *(stdscr->a + stdscr->i++) = u;
 
     return OK;
 }
@@ -271,10 +281,8 @@ static int getch_raw(void)
 
 #endif
 
-    if (stdscr->i) {
-        stdscr->i--;
-        return *(stdscr->a + stdscr->i);
-    }
+    if (stdscr->i)
+        return *(stdscr->a + --stdscr->i);
 
     if (!stdscr->non_blocking)
 #ifdef _WIN32
@@ -330,10 +338,48 @@ static int getch_raw(void)
 }
 
 
+int ungetch(int ch)
+{
+    int *t;
+    size_t new_b_n;
+
+    if (stdscr->b_i == stdscr->b_n) {
+        /* Grow buffer */
+        if (aof(stdscr->b_n, 1, SIZE_MAX))
+            mreturn(ERR);
+
+        new_b_n = stdscr->b_n + 1;
+
+        if (mof(new_b_n, 2, SIZE_MAX))
+            mreturn(ERR);
+
+        new_b_n *= 2;
+
+        if (mof(new_b_n, sizeof(int), SIZE_MAX))
+            mreturn(ERR);
+
+        if ((t =
+             realloc(stdscr->unget_buf, new_b_n * sizeof(int))) == NULL)
+            mreturn(ERR);
+
+        stdscr->unget_buf = t;
+        stdscr->b_n = new_b_n;
+    }
+
+    *(stdscr->unget_buf + stdscr->b_i++) = ch;
+
+    return OK;
+}
+
+
 int getch(void)
 {
 #ifdef _WIN32
     int x, y;
+
+    /* Use unget buffer first */
+    if (stdscr->b_i)
+        return *(stdscr->unget_buf + --stdscr->b_i);
 
   top:
     x = getch_raw();
@@ -395,6 +441,10 @@ int getch(void)
 
     int sb[MAX_SEQ_LEN];        /* Sequence buffer */
     size_t i = 0;               /* Index of next write in sb */
+
+    /* Use unget buffer first */
+    if (stdscr->b_i)
+        return *(stdscr->unget_buf + --stdscr->b_i);
 
   top:
 

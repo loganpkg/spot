@@ -55,10 +55,15 @@ struct screen {
     size_t tabsize;             /* Number of spaces printed for a Tab */
     int clear;                  /* Clear physical screen */
     int centre;                 /* Draw cursor on the centre row */
+    /* The buf module is not used in order to keep curses self-contained. */
+    /* For raw characters: */
     unsigned char *a;           /* Unread memory buffer */
-    /* Index of next unused space in unread memory buffer */
-    size_t i;
+    size_t i;                   /* Next unused space in unread memory buffer */
     size_t n;                   /* Allocated size of unread memory buffer */
+    /* For cooked characters, includes special keyboard keys: */
+    int *unget_buf;
+    size_t b_i;                 /* Next unused element in unget_buf */
+    size_t b_n;                 /* Allocated elements in unget_buf */
 };
 
 
@@ -134,6 +139,7 @@ typedef unsigned char bool;
 WINDOW *initscr(void);
 int endwin(void);
 int set_tabsize(size_t size);
+int ungetch(int ch);
 int getch(void);
 int erase(void);
 int clear(void);

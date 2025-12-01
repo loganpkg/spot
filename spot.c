@@ -34,12 +34,478 @@
 
 #define ESC 27
 
+/* Excludes EKS */
+#define MAX_KEY_SEQ 12
+
+/* End of Key Sequence. Cannot use zero, like in a string, as zero is bound. */
+#define EKS INT_MAX
+
 #define clean_ch(ch) (isprint(ch) || (ch) == '\t' || (ch) == '\n' ? (ch) \
     : ((ch) == '\0' ? '~' : '?'))
 
+#define z (ed->cl_active ? ed->cl : ed->b)
 
-int draw(struct gb *b, struct gb *cl, int cl_active, char **sb,
-         size_t *sb_s, int *centre, int *clr, int rv, int es_set, int es)
+
+struct editor {
+    int ret;                    /* Return value of the text editor */
+    int running;                /* Indicates if the text editor is running */
+    int rv;                     /* Return value of last internal command */
+    int es_set;
+    int es;                     /* Exit status of last shell command */
+    char *sb;                   /* Memory for status bar */
+    size_t sb_s;                /* Size of status bar memory */
+    int centre;                 /* Vertically centre cursor on the screen */
+    int clr;                    /* Redraw physical screen */
+    struct gb *b;               /* Text buffers linked together */
+    struct gb *p;               /* Paste buffer */
+    struct gb *cl;              /* Command line buffer */
+    struct gb *se;              /* Search buffer */
+    struct gb *tmp;             /* Temporary buffer */
+    /* ' ' = None, s = Exact search, z = Regex search, c = Case insen regex */
+    char search_type;
+    int cl_active;              /* Cursor is in the command line */
+    /* The command line operation which is in progress - ELEP */
+    char op;                    /* ' ' = None */
+};
+
+typedef void (*edFptr)(struct editor *);
+
+
+struct key_binding {
+    edFptr cmd_func;
+    int key_seq[MAX_KEY_SEQ + 1];
+};
+
+
+static void free_editor(struct editor *ed)
+{
+    free(ed->sb);
+    ed->sb = NULL;
+    free_gb_list(ed->b);
+    ed->b = NULL;
+    free_gb(ed->p);
+    ed->p = NULL;
+    free_gb(ed->cl);
+    ed->cl = NULL;
+    free_gb(ed->se);
+    ed->se = NULL;
+    free_gb(ed->tmp);
+    ed->tmp = NULL;
+}
+
+static int init_editor(struct editor *ed)
+{
+    ed->ret = 0;
+    ed->running = 1;
+    ed->rv = 0;
+    ed->es_set = 0;
+    ed->es = 0;
+    ed->sb = NULL;
+    ed->sb_s = 0;
+    ed->centre = 0;
+    ed->clr = 0;
+    ed->b = NULL;
+    ed->p = NULL;
+    ed->cl = NULL;
+    ed->se = NULL;
+    ed->tmp = NULL;
+    ed->search_type = ' ';
+    ed->cl_active = 0;
+    ed->op = ' ';
+
+    if ((ed->p = init_gb(INIT_GB_SIZE)) == NULL)
+        mgoto(clean_up);
+
+    if ((ed->cl = init_gb(INIT_GB_SIZE)) == NULL)
+        mgoto(clean_up);
+
+    if ((ed->se = init_gb(INIT_GB_SIZE)) == NULL)
+        mgoto(clean_up);
+
+    if ((ed->tmp = init_gb(INIT_GB_SIZE)) == NULL)
+        mgoto(clean_up);
+
+    return 0;
+
+  clean_up:
+    free_editor(ed);
+    return 1;
+}
+
+
+static void commence_cl_cmd(struct editor *ed, char op)
+{
+    delete_gb(ed->cl);
+    ed->cl_active = 1;
+    ed->op = op;
+}
+
+
+/* ****************** Navigation commands ******************* */
+
+static void ed_left_ch(struct editor *ed)
+{
+    ed->rv = left_ch(z);
+}
+
+static void ed_right_ch(struct editor *ed)
+{
+    ed->rv = right_ch(z);
+}
+
+static void ed_up_line(struct editor *ed)
+{
+    ed->rv = up_line(z);
+}
+
+static void ed_down_line(struct editor *ed)
+{
+    ed->rv = down_line(z);
+}
+
+static void ed_left_word(struct editor *ed)
+{
+    left_word(z);
+}
+
+static void ed_right_word(struct editor *ed)
+{
+    right_word(z, ' ');
+}
+
+static void ed_start_of_line(struct editor *ed)
+{
+    start_of_line(z);
+}
+
+static void ed_end_of_line(struct editor *ed)
+{
+    end_of_line(z);
+}
+
+static void ed_start_of_buffer(struct editor *ed)
+{
+    start_of_gb(z);
+}
+
+static void ed_end_of_buffer(struct editor *ed)
+{
+    end_of_gb(z);
+}
+
+static void ed_match_bracket(struct editor *ed)
+{
+    ed->rv = match_bracket(z);
+}
+
+static void ed_swap_cursor_and_mark(struct editor *ed)
+{
+    ed->rv = swap_cursor_and_mark(z);
+}
+
+/* ********************************************************** */
+
+
+
+
+/* ***************** Basic editing commands ***************** */
+
+static void ed_delete_ch(struct editor *ed)
+{
+    ed->rv = delete_ch(z);
+}
+
+static void ed_backspace_ch(struct editor *ed)
+{
+    ed->rv = backspace_ch(z);
+}
+
+
+static void ed_lowercase_word(struct editor *ed)
+{
+    right_word(z, 'L');
+}
+
+static void ed_uppercase_word(struct editor *ed)
+{
+    right_word(z, 'U');
+}
+
+static void ed_shell_current_line(struct editor *ed)
+{
+    ed->rv = shell_line(z, ed->tmp, &ed->es);
+    if (!ed->rv)
+        ed->es_set = 1;
+}
+
+static void ed_trim_clean(struct editor *ed)
+{
+    trim_clean(z);
+}
+
+/* ********************************************************** */
+
+
+
+
+/* **************** Copy and paste commands ***************** */
+
+static void ed_set_mark(struct editor *ed)
+{
+    set_mark(z);
+}
+
+static void ed_escape_cl(struct editor *ed)
+{
+    /* Clears the mark OR escapes from the command line */
+    if (z->m_set) {
+        z->m_set = 0;
+        z->m = 0;
+    } else if (ed->cl_active) {
+        delete_gb(ed->cl);
+        ed->cl_active = 0;
+    }
+}
+
+static void ed_copy_region(struct editor *ed)
+{
+    ed->rv = copy_region(z, ed->p, 0);
+}
+
+static void ed_cut_region(struct editor *ed)
+{
+    ed->rv = copy_region(z, ed->p, 1);
+}
+
+static void ed_cut_to_eol(struct editor *ed)
+{
+    ed->rv = cut_to_eol(z, ed->p);
+}
+
+static void ed_cut_to_sol(struct editor *ed)
+{
+    ed->rv = cut_to_sol(z, ed->p);
+}
+
+static void ed_paste(struct editor *ed)
+{
+    ed->rv = paste(z, ed->p);
+}
+
+/* ********************************************************** */
+
+
+
+
+/* ***************** Editor level commands ****************** */
+
+static void ed_clear_screen(struct editor *ed)
+{
+    /* Clears and centres the screen */
+    ed->centre = 1;
+    ed->clr = 1;
+}
+
+static void ed_left_buffer(struct editor *ed)
+{
+    if (ed->b->prev != NULL)
+        ed->b = ed->b->prev;
+}
+
+static void ed_right_buffer(struct editor *ed)
+{
+    if (ed->b->next != NULL)
+        ed->b = ed->b->next;
+}
+
+static void ed_save_buffer(struct editor *ed)
+{
+    ed->rv = save(ed->b);       /* Cannot save the command line */
+}
+
+static void ed_remove_buffer(struct editor *ed)
+{
+    remove_gb(&ed->b);
+    if (ed->b == NULL)
+        ed->running = 0;
+}
+
+static void ed_close_editor(struct editor *ed)
+{
+    ed->running = 0;
+}
+
+/* ********************************************************** */
+
+
+
+
+/* *********** Commands that use the command line *********** */
+
+static void ed_forward_search(struct editor *ed)
+{
+    commence_cl_cmd(ed, 's');
+}
+
+static void ed_regex_search(struct editor *ed)
+{
+    commence_cl_cmd(ed, 'z');
+}
+
+static void ed_regex_search_case_ins(struct editor *ed)
+{
+    commence_cl_cmd(ed, 'a');
+}
+
+static void ed_regex_rep(struct editor *ed)
+{
+    commence_cl_cmd(ed, 'r');
+}
+
+static void ed_regex_rep_case_ins(struct editor *ed)
+{
+    commence_cl_cmd(ed, 'b');
+}
+
+static void ed_goto_row(struct editor *ed)
+{
+    commence_cl_cmd(ed, 'u');
+}
+
+static void ed_insert_hex(struct editor *ed)
+{
+    commence_cl_cmd(ed, 'q');
+}
+
+static void ed_insert_shell_cmd(struct editor *ed)
+{
+    commence_cl_cmd(ed, '$');
+}
+
+static void ed_open_file(struct editor *ed)
+{
+    commence_cl_cmd(ed, 'f');
+}
+
+static void ed_insert_file(struct editor *ed)
+{
+    commence_cl_cmd(ed, 'i');
+}
+
+static void ed_set_filename(struct editor *ed)
+{
+    commence_cl_cmd(ed, '=');
+
+    /* Load existing filename */
+    if (ed->b->fn != NULL && insert_str(ed->cl, ed->b->fn))
+        delete_gb(ed->cl);
+}
+
+/* ********************************************************** */
+
+
+
+
+/* ******************** Special commands ******************** */
+
+static void ed_repeat_search(struct editor *ed)
+{
+    /* Repeat last search */
+    switch (ed->search_type) {
+    case 's':
+        ed->rv = exact_forward_search(ed->b, ed->se);
+        break;
+    case 'z':
+        ed->rv = regex_forward_search(ed->b, ed->se, 0);
+        break;
+    case 'c':                  /* Case insensitive */
+        ed->rv = regex_forward_search(ed->b, ed->se, 1);
+        break;
+    default:
+        ed->rv = 1;
+        break;
+    }
+}
+
+static void ed_execute_cl(struct editor *ed)
+{
+    struct gb *t;               /* For switching gap buffers */
+    if (ed->cl_active) {
+        switch (ed->op) {
+        case 's':
+        case 'z':
+        case 'a':
+            /* Swap gap buffers */
+            t = ed->se;
+            ed->se = ed->cl;
+            ed->cl = t;
+            delete_gb(ed->cl);
+            switch (ed->op) {
+            case 's':
+                ed->search_type = 's';
+                ed->rv = exact_forward_search(ed->b, ed->se);
+                break;
+            case 'z':
+                ed->search_type = 'z';
+                ed->rv = regex_forward_search(ed->b, ed->se, 0);
+                break;
+            case 'a':
+                ed->search_type = 'c';
+                ed->rv = regex_forward_search(ed->b, ed->se, 1);
+                break;
+            }
+            break;
+        case 'r':
+            ed->rv = regex_replace_region(ed->b, ed->cl, 0);
+            break;
+        case 'b':
+            ed->rv = regex_replace_region(ed->b, ed->cl, 1);
+            break;
+        case '=':
+            start_of_gb(ed->cl);
+            ed->rv =
+                rename_gb(ed->b, (const char *) ed->cl->a + ed->cl->c);
+            break;
+        case 'u':
+            ed->rv = goto_row(ed->b, ed->cl);
+            break;
+        case 'q':
+            ed->rv = insert_hex(ed->b, ed->cl);
+            break;
+        case 'f':
+            start_of_gb(ed->cl);
+            ed->rv = new_gb(&ed->b, (const char *) ed->cl->a + ed->cl->c,
+                            INIT_GB_SIZE);
+            break;
+        case 'i':
+            start_of_gb(ed->cl);
+            ed->rv =
+                insert_file(ed->b, (const char *) ed->cl->a + ed->cl->c);
+            break;
+        case '$':
+            start_of_gb(ed->cl);
+            ed->rv =
+                insert_shell_cmd(ed->b,
+                                 (const char *) ed->cl->a + ed->cl->c,
+                                 &ed->es);
+            if (!ed->rv)
+                ed->es_set = 1;
+
+            break;
+        }
+        ed->cl_active = 0;
+        ed->op = ' ';
+    } else {
+        ed->rv = insert_ch(ed->b, '\n');
+    }
+}
+
+/* ********************************************************** */
+
+
+
+
+int draw(struct editor *ed)
 {
     size_t up, target_up, ts, i;
     int have_centred = 0;
@@ -58,13 +524,16 @@ int draw(struct gb *b, struct gb *cl, int cl_active, char **sb,
     size_t c_x;
     char *tmp;
 
+    /* For easier reference */
+    struct gb *b = ed->b;
+    struct gb *cl = ed->cl;
 
   start:
-    if (*clr) {
+    if (ed->clr) {
         if (clear() == ERR)
             return GEN_ERROR;
 
-        *clr = 0;
+        ed->clr = 0;
 
     } else {
         if (erase() == ERR)
@@ -74,7 +543,7 @@ int draw(struct gb *b, struct gb *cl, int cl_active, char **sb,
     getmaxyx(stdscr, h, w);
     s = h * w;                  /* Cannot overflow as already in memory */
 
-    if (b->d > b->g || *centre) {
+    if (b->d > b->g || ed->centre) {
         /* Does not consider long lines that wrap */
         b->d = b->g;
         up = 0;
@@ -89,7 +558,7 @@ int draw(struct gb *b, struct gb *cl, int cl_active, char **sb,
                 break;
             }
         }
-        *centre = 0;
+        ed->centre = 0;
         have_centred = 1;
     }
 
@@ -122,7 +591,7 @@ int draw(struct gb *b, struct gb *cl, int cl_active, char **sb,
     if (si >= ts) {
         /* Off screen */
         if (!have_centred)
-            *centre = 1;
+            ed->centre = 1;
         else
             b->d = b->g;
         goto start;
@@ -159,8 +628,8 @@ int draw(struct gb *b, struct gb *cl, int cl_active, char **sb,
     if (h >= 2) {
         /* Status bar */
 
-        if (es_set) {
-            r = snprintf(num_str, NUM_BUF_SIZE, "%d", es);
+        if (ed->es_set) {
+            r = snprintf(num_str, NUM_BUF_SIZE, "%d", ed->es);
             if (r < 0 || r >= NUM_BUF_SIZE)
                 return GEN_ERROR;
         } else {
@@ -169,30 +638,30 @@ int draw(struct gb *b, struct gb *cl, int cl_active, char **sb,
 
         move(h - 2, 0);
 
-        if (*sb_s < w) {
-            if ((tmp = realloc(*sb, w + 1)) == NULL)
+        if (ed->sb_s < w) {
+            if ((tmp = realloc(ed->sb, w + 1)) == NULL)
                 return GEN_ERROR;
 
-            *sb = tmp;
-            *sb_s = w + 1;
+            ed->sb = tmp;
+            ed->sb_s = w + 1;
         }
 
-        len = snprintf(*sb, *sb_s, "%c%c %s (%lu,%lu) %02X %s",
-                       rv ? '!' : ' ', b->mod ? '*' : ' ', b->fn,
+        len = snprintf(ed->sb, ed->sb_s, "%c%c %s (%lu,%lu) %02X %s",
+                       ed->rv ? '!' : ' ', b->mod ? '*' : ' ', b->fn,
                        (unsigned long) b->r, (unsigned long) b->col,
-                       cl_active ? *(cl->a + cl->c) : *(b->a + b->c),
+                       ed->cl_active ? *(cl->a + cl->c) : *(b->a + b->c),
                        num_str);
         if (len < 0)
             return GEN_ERROR;
 
-        if ((size_t) len < *sb_s) {
-            memset(*sb + len, ' ', w - len);
-            *(*sb + w) = '\0';
+        if ((size_t) len < ed->sb_s) {
+            memset(ed->sb + len, ' ', w - len);
+            *(ed->sb + w) = '\0';
         }
 
         standout();
 
-        if (addnstr(*sb, w) == ERR)
+        if (addnstr(ed->sb, w) == ERR)
             return GEN_ERROR;
 
         standend();
@@ -239,7 +708,7 @@ int draw(struct gb *b, struct gb *cl, int cl_active, char **sb,
         }
 
         /* At the cursor */
-        if (cl_active) {
+        if (ed->cl_active) {
             c_y = y;
             c_x = x;
         }
@@ -273,31 +742,145 @@ int draw(struct gb *b, struct gb *cl, int cl_active, char **sb,
 }
 
 
-#define z (cl_active ? cl : b)
+static int check_key_seq(int *keys, size_t num, const int *binding)
+{
+    size_t i;
+
+    for (i = 0; i < num; ++i)
+        if (keys[i] != binding[i])
+            return NO_MATCH;
+
+    if (binding[i] == EKS)
+        return MATCH;
+
+    return PARTIAL_MATCH;
+}
+
+
+static int keys_to_command(struct editor *ed, const struct key_binding *kb,
+                           size_t kb_num)
+{
+    int r, keep_matching;
+    int keys[MAX_KEY_SEQ];
+    size_t k_i, i;
+
+    k_i = 0;
+
+    while (1) {
+      top:
+        if (draw(ed))
+            return 1;
+
+        keys[k_i++] = getch();
+
+        keep_matching = 0;
+        for (i = 0; i < kb_num; ++i) {
+            if ((r = check_key_seq(keys, k_i, kb[i].key_seq)) == MATCH) {
+                ed->rv = 0;
+                ed->es_set = 0;
+                ed->es = 0;
+
+                (kb[i].cmd_func) (ed);  /* Execute command */
+
+                if (!ed->running)
+                    return 0;
+
+                k_i = 0;        /* Eat the read sequence */
+                goto top;
+            } else if (r == PARTIAL_MATCH) {
+                keep_matching = 1;
+            }
+        }
+        if (!keep_matching) {
+            /* Return keys */
+            while (k_i >= 2) {
+                if (ungetch(keys[k_i - 1]) == ERR)
+                    return 1;
+
+                --k_i;
+            }
+
+            /* Literally insert first key */
+            if (isprint(keys[k_i - 1]) || keys[k_i - 1] == '\t')
+                ed->rv = insert_ch(z, keys[k_i - 1]);
+
+            --k_i;
+            if (k_i)
+                return 1;
+        }
+    }
+}
+
 
 int main(int argc, char **argv)
 {
-    int ret = 0;                /* Return value of the text editor */
-    int running = 1;            /* Indicates if the text editor is running */
-    int rv = 0;                 /* Return value of last internal command */
-    int es_set = 0;
-    int es = 0;                 /* Exit status of last shell command */
-    char *sb = NULL;            /* Memory for status bar */
-    size_t sb_s = 0;            /* Size of status bar memory */
-    int centre = 0;             /* Vertically centre cursor on the screen */
-    int clr = 0;                /* Redraw physical screen */
-    int i, x, y;
-    struct gb *b = NULL;        /* Text buffers linked together */
-    struct gb *p = NULL;        /* Paste buffer */
-    struct gb *cl = NULL;       /* Command line buffer */
-    struct gb *se = NULL;       /* Search buffer */
-    struct gb *tmp = NULL;      /* Temporary buffer */
-    struct gb *t;               /* For switching gap buffers */
-    /* s = Exact search, z = Regex search, c = Case insensitive regex search */
-    char search_type = ' ';
-    int cl_active = 0;          /* Cursor is in the command line */
-    char op = ' ';              /* The cl operation which is in progress */
+    const struct key_binding kb[] = {
+        { &ed_left_ch, { KEY_LEFT, EKS} },
+        { &ed_left_ch, { C('b'), EKS} },
+        { &ed_right_ch, { KEY_RIGHT, EKS} },
+        { &ed_right_ch, { C('f'), EKS} },
+        { &ed_up_line, { KEY_UP, EKS} },
+        { &ed_up_line, { C('p'), EKS} },
+        { &ed_down_line, { KEY_DOWN, EKS} },
+        { &ed_down_line, { C('n'), EKS} },
+        { &ed_delete_ch, { KEY_DC, EKS} },
+        { &ed_delete_ch, { C('d'), EKS} },
+        { &ed_backspace_ch, { KEY_BACKSPACE, EKS} },
+        { &ed_backspace_ch, { C('h'), EKS} },
+        { &ed_backspace_ch, { 127, EKS} },
+        { &ed_start_of_line, { KEY_HOME, EKS} },
+        { &ed_start_of_line, { C('a'), EKS} },
+        { &ed_end_of_line, { KEY_END, EKS} },
+        { &ed_end_of_line, { C('e'), EKS} },
+        { &ed_set_mark, { 0, EKS} },
+        { &ed_set_mark, { ESC, 2, EKS} },
+        { &ed_set_mark, { ESC, '@', EKS} },
+        { &ed_escape_cl, { C('g'), EKS} },
+        { &ed_clear_screen, { C('l'), EKS} },
+        { &ed_cut_region, { C('w'), EKS} },
+        { &ed_paste, { C('y'), EKS} },
+        { &ed_cut_to_eol, { C('k'), EKS} },
+        { &ed_trim_clean, { C('t'), EKS} },
+        { &ed_forward_search, { C('s'), EKS} },
+        { &ed_regex_search, { C('z'), EKS} },
+        { &ed_regex_rep, { C('r'), EKS} },
+        { &ed_goto_row, { C('u'), EKS} },
+        { &ed_insert_hex, { C('q'), EKS} },
+        { &ed_left_word, { ESC, 'b', EKS} },
+        { &ed_right_word, { ESC, 'f', EKS} },
+        { &ed_lowercase_word, { ESC, 'l', EKS} },
+        { &ed_uppercase_word, { ESC, 'u', EKS} },
+        { &ed_cut_to_sol, { ESC, 'k', EKS} },
+        { &ed_match_bracket, { ESC, 'm', EKS} },
+        { &ed_copy_region, { ESC, 'w', EKS} },
+        { &ed_remove_buffer, { ESC, '!', EKS} },
+        { &ed_set_filename, { ESC, '=', EKS} },
+        { &ed_regex_search_case_ins, { ESC, 'z', EKS} },
+        { &ed_regex_rep_case_ins, { ESC, 'r', EKS} },
+        { &ed_insert_shell_cmd, { ESC, '$', EKS} },
+        { &ed_shell_current_line, { ESC, '`', EKS} },
+        { &ed_start_of_buffer, { ESC, '<', EKS} },
+        { &ed_end_of_buffer, { ESC, '>', EKS} },
+        { &ed_swap_cursor_and_mark, { C('x'), C('x'), EKS} },
+        { &ed_close_editor, { C('x'), C('c'), EKS} },
+        { &ed_save_buffer, { C('x'), C('s'), EKS} },
+        { &ed_open_file, { C('x'), C('f'), EKS} },
+        { &ed_insert_file, { C('x'), 'i', EKS} },
+        { &ed_left_buffer, { C('x'), KEY_LEFT, EKS} },
+        { &ed_right_buffer, { C('x'), KEY_RIGHT, EKS} },
+        { &ed_repeat_search, { ESC, 'n', EKS} },
 
+        /* Do not change these two: */
+        { &ed_execute_cl, { '\r', EKS} },
+        { &ed_execute_cl, { '\n', EKS} }
+    };
+
+    struct editor ed;
+    int ret = 0;
+    int i;
+
+    if (init_editor(&ed))
+        mgoto(clean_up);
 
     if (initscr() == NULL)
         mgoto(clean_up);
@@ -319,344 +902,25 @@ int main(int argc, char **argv)
 
     if (argc > 1) {
         for (i = 1; i < argc; ++i)
-            if (new_gb(&b, *(argv + i), INIT_GB_SIZE))
+            if (new_gb(&ed.b, *(argv + i), INIT_GB_SIZE))
                 mgoto(clean_up);
 
-        while (b->prev)
-            b = b->prev;
+        while (ed.b->prev)
+            ed.b = ed.b->prev;
     } else {
         /* No args */
-        if (new_gb(&b, NULL, INIT_GB_SIZE))
+        if (new_gb(&ed.b, NULL, INIT_GB_SIZE))
             mgoto(clean_up);
     }
 
-    if ((p = init_gb(INIT_GB_SIZE)) == NULL)
-        mgoto(clean_up);
-
-    if ((cl = init_gb(INIT_GB_SIZE)) == NULL)
-        mgoto(clean_up);
-
-    if ((se = init_gb(INIT_GB_SIZE)) == NULL)
-        mgoto(clean_up);
-
-    if ((tmp = init_gb(INIT_GB_SIZE)) == NULL)
-        mgoto(clean_up);
-
-    while (running) {
-        if (draw
-            (b, cl, cl_active, &sb, &sb_s, &centre, &clr, rv, es_set, es))
-            mgoto(clean_up);
-
-        rv = 0;
-        es_set = 0;
-        es = 0;
-
-        x = getch();
-
-        switch (x) {
-        case C('b'):
-        case KEY_LEFT:
-            rv = left_ch(z);
-            break;
-        case C('f'):
-        case KEY_RIGHT:
-            rv = right_ch(z);
-            break;
-        case C('p'):
-        case KEY_UP:
-            rv = up_line(z);
-            break;
-        case C('n'):
-        case KEY_DOWN:
-            rv = down_line(z);
-            break;
-        case C('d'):
-        case KEY_DC:
-            rv = delete_ch(z);
-            break;
-        case C('h'):
-        case 127:
-        case KEY_BACKSPACE:
-            rv = backspace_ch(z);
-            break;
-        case C('a'):
-        case KEY_HOME:
-            start_of_line(z);
-            break;
-        case C('e'):
-        case KEY_END:
-            end_of_line(z);
-            break;
-        case 0:
-            set_mark(z);
-            break;
-        case C('g'):
-            if (z->m_set) {
-                z->m_set = 0;
-                z->m = 0;
-            } else if (cl_active) {
-                delete_gb(cl);
-                cl_active = 0;
-            }
-            break;
-        case C('l'):
-            centre = 1;
-            clr = 1;
-            break;
-        case C('w'):
-            rv = copy_region(z, p, 1);
-            break;
-        case C('y'):
-            rv = paste(z, p);
-            break;
-        case C('k'):
-            rv = cut_to_eol(z, p);
-            break;
-        case C('t'):
-            trim_clean(z);
-            break;
-        case C('s'):
-            delete_gb(cl);
-            cl_active = 1;
-            op = 's';
-            break;
-        case C('z'):
-            delete_gb(cl);
-            cl_active = 1;
-            op = 'z';
-            break;
-        case C('r'):
-            delete_gb(cl);
-            cl_active = 1;
-            op = 'r';
-            break;
-        case C('u'):
-            delete_gb(cl);
-            cl_active = 1;
-            op = 'u';
-            break;
-        case C('q'):
-            delete_gb(cl);
-            cl_active = 1;
-            op = 'q';
-            break;
-        case ESC:
-            y = getch();
-            switch (y) {
-            case '2':
-            case '@':
-                set_mark(z);
-                break;
-            case 'b':
-                left_word(z);
-                break;
-            case 'f':
-                right_word(z, ' ');
-                break;
-            case 'l':
-                /* Lowercase word */
-                right_word(z, 'L');
-                break;
-            case 'u':
-                /* Uppercase word */
-                right_word(z, 'U');
-                break;
-            case 'k':
-                rv = cut_to_sol(z, p);
-                break;
-            case 'm':
-                rv = match_bracket(z);
-                break;
-            case 'n':
-                /* Repeat last search */
-                switch (search_type) {
-                case 's':
-                    rv = exact_forward_search(b, se);
-                    break;
-                case 'z':
-                    rv = regex_forward_search(b, se, 0);
-                    break;
-                case 'c':      /* Case insensitive */
-                    rv = regex_forward_search(b, se, 1);
-                    break;
-                default:
-                    rv = 1;
-                    break;
-                }
-                break;
-            case 'w':
-                rv = copy_region(z, p, 0);
-                break;
-            case '!':
-                remove_gb(&b);
-                if (b == NULL)
-                    running = 0;
-
-                break;
-            case '=':
-                delete_gb(cl);
-                if (b->fn != NULL && insert_str(cl, b->fn))
-                    delete_gb(cl);
-
-                cl_active = 1;
-                op = '=';
-                break;
-            case 'z':
-                delete_gb(cl);
-                cl_active = 1;
-                op = 'a';       /* Case insensitive regex search */
-                break;
-            case 'r':
-                delete_gb(cl);
-                cl_active = 1;
-                op = 'b';       /* Case insensitive regex replace */
-                break;
-            case '$':
-                delete_gb(cl);
-                cl_active = 1;
-                op = '$';       /* insert_shell_cmd */
-                break;
-            case '`':
-                rv = shell_line(z, tmp, &es);
-                if (!rv)
-                    es_set = 1;
-
-                break;
-            case '<':
-                start_of_gb(z);
-                break;
-            case '>':
-                end_of_gb(z);
-                break;
-            }
-            break;
-        case C('x'):
-            y = getch();
-            switch (y) {
-            case C('x'):
-                rv = swap_cursor_and_mark(z);
-                break;
-            case C('c'):
-                running = 0;
-                break;
-            case C('s'):
-                rv = save(b);   /* Cannot save the command line */
-                break;
-            case C('f'):
-                delete_gb(cl);
-                cl_active = 1;
-                op = 'f';
-                break;
-            case 'i':
-                delete_gb(cl);
-                cl_active = 1;
-                op = 'i';
-                break;
-            case KEY_LEFT:
-                if (b->prev != NULL)
-                    b = b->prev;
-
-                break;
-            case KEY_RIGHT:
-                if (b->next != NULL)
-                    b = b->next;
-
-                break;
-            }
-            break;
-        case '\r':
-        case '\n':
-            if (cl_active) {
-                switch (op) {
-                case 's':
-                    /* Swap gap buffers */
-                    t = se;
-                    se = cl;
-                    cl = t;
-                    delete_gb(cl);
-                    search_type = 's';
-                    rv = exact_forward_search(b, se);
-                    break;
-                case 'z':
-                    /* Swap gap buffers */
-                    t = se;
-                    se = cl;
-                    cl = t;
-                    delete_gb(cl);
-                    search_type = 'z';
-                    rv = regex_forward_search(b, se, 0);
-                    break;
-                case 'a':
-                    /* Swap gap buffers */
-                    t = se;
-                    se = cl;
-                    cl = t;
-                    delete_gb(cl);
-                    search_type = 'c';
-                    rv = regex_forward_search(b, se, 1);
-                    break;
-                case 'r':
-                    rv = regex_replace_region(b, cl, 0);
-                    break;
-                case 'b':
-                    rv = regex_replace_region(b, cl, 1);
-                    break;
-                case '=':
-                    start_of_gb(cl);
-                    rv = rename_gb(b, (const char *) cl->a + cl->c);
-                    break;
-                case 'u':
-                    rv = goto_row(b, cl);
-                    break;
-                case 'q':
-                    rv = insert_hex(b, cl);
-                    break;
-                case 'f':
-                    start_of_gb(cl);
-                    rv = new_gb(&b, (const char *) cl->a + cl->c,
-                                INIT_GB_SIZE);
-                    break;
-                case 'i':
-                    start_of_gb(cl);
-                    rv = insert_file(b, (const char *) cl->a + cl->c);
-                    break;
-                case '$':
-                    start_of_gb(cl);
-                    rv = insert_shell_cmd(b, (const char *) cl->a + cl->c,
-                                          &es);
-                    if (!rv)
-                        es_set = 1;
-
-                    break;
-                }
-                cl_active = 0;
-                op = ' ';
-            } else {
-                rv = insert_ch(z, '\n');
-            }
-            break;
-        default:
-            if (isprint(x) || x == '\t')
-                rv = insert_ch(z, x);
-
-            break;
-        }
-    }
-
+    ret =
+        keys_to_command(&ed, kb, sizeof(kb) / sizeof(struct key_binding));
 
   clean_up:
     if (endwin() == ERR)
         ret = GEN_ERROR;
 
-    free(sb);
-
-    free_gb_list(b);
-    free_gb(p);
-    free_gb(cl);
-    free_gb(se);
-    free_gb(tmp);
+    free_editor(&ed);
 
     return ret;
 }
-
-#undef z
