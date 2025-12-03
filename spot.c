@@ -54,6 +54,7 @@ struct editor {
     int es;                     /* Exit status of last shell command */
     char *sb;                   /* Memory for status bar */
     size_t sb_s;                /* Size of status bar memory */
+    char *msg;                  /* Message on status bar (static storage) */
     int centre;                 /* Vertically centre cursor on the screen */
     int clr;                    /* Redraw physical screen */
     struct gb *b;               /* Text buffers linked together */
@@ -64,7 +65,7 @@ struct editor {
     /* ' ' = None, s = Exact search, z = Regex search, c = Case insen regex */
     char search_type;
     int cl_active;              /* Cursor is in the command line */
-    /* The command line operation which is in progress - ELEP */
+    /* The command line operation which is in progress */
     char op;                    /* ' ' = None */
 };
 
@@ -102,6 +103,7 @@ static int init_editor(struct editor *ed)
     ed->es = 0;
     ed->sb = NULL;
     ed->sb_s = 0;
+    ed->msg = "";
     ed->centre = 0;
     ed->clr = 0;
     ed->b = NULL;
@@ -135,13 +137,14 @@ static int init_editor(struct editor *ed)
 
 static void commence_cl_cmd(struct editor *ed, char op)
 {
-    delete_gb(ed->cl);
+    reset_gb(ed->cl);
     ed->cl_active = 1;
     ed->op = op;
 }
 
 
 /* ****************** Navigation commands ******************* */
+/* These commands do not have undo. */
 
 static void ed_left_ch(struct editor *ed)
 {
@@ -170,7 +173,7 @@ static void ed_left_word(struct editor *ed)
 
 static void ed_right_word(struct editor *ed)
 {
-    right_word(z, ' ');
+    ed->rv = right_word(z, ' ');
 }
 
 static void ed_start_of_line(struct editor *ed)
@@ -220,15 +223,14 @@ static void ed_backspace_ch(struct editor *ed)
     ed->rv = backspace_ch(z);
 }
 
-
 static void ed_lowercase_word(struct editor *ed)
 {
-    right_word(z, 'L');
+    ed->rv = right_word(z, 'L');
 }
 
 static void ed_uppercase_word(struct editor *ed)
 {
-    right_word(z, 'U');
+    ed->rv = right_word(z, 'U');
 }
 
 static void ed_shell_current_line(struct editor *ed)
@@ -240,7 +242,7 @@ static void ed_shell_current_line(struct editor *ed)
 
 static void ed_trim_clean(struct editor *ed)
 {
-    trim_clean(z);
+    ed->rv = trim_clean(z);
 }
 
 /* ********************************************************** */
@@ -262,7 +264,7 @@ static void ed_escape_cl(struct editor *ed)
         z->m_set = 0;
         z->m = 0;
     } else if (ed->cl_active) {
-        delete_gb(ed->cl);
+        reset_gb(ed->cl);
         ed->cl_active = 0;
     }
 }
@@ -298,6 +300,7 @@ static void ed_paste(struct editor *ed)
 
 
 /* ***************** Editor level commands ****************** */
+/* These commands do not have undo. */
 
 static void ed_clear_screen(struct editor *ed)
 {
@@ -342,6 +345,22 @@ static void ed_close_editor(struct editor *ed)
 
 /* *********** Commands that use the command line *********** */
 
+/* No undo: */
+
+static void ed_set_filename(struct editor *ed)
+{
+    commence_cl_cmd(ed, '=');
+
+    /* Load existing filename */
+    if (ed->b->fn != NULL && insert_str(ed->cl, ed->b->fn))
+        reset_gb(ed->cl);
+}
+
+static void ed_goto_row(struct editor *ed)
+{
+    commence_cl_cmd(ed, 'u');
+}
+
 static void ed_forward_search(struct editor *ed)
 {
     commence_cl_cmd(ed, 's');
@@ -357,6 +376,9 @@ static void ed_regex_search_case_ins(struct editor *ed)
     commence_cl_cmd(ed, 'a');
 }
 
+
+/* With undo: */
+
 static void ed_regex_rep(struct editor *ed)
 {
     commence_cl_cmd(ed, 'r');
@@ -365,11 +387,6 @@ static void ed_regex_rep(struct editor *ed)
 static void ed_regex_rep_case_ins(struct editor *ed)
 {
     commence_cl_cmd(ed, 'b');
-}
-
-static void ed_goto_row(struct editor *ed)
-{
-    commence_cl_cmd(ed, 'u');
 }
 
 static void ed_insert_hex(struct editor *ed)
@@ -392,13 +409,24 @@ static void ed_insert_file(struct editor *ed)
     commence_cl_cmd(ed, 'i');
 }
 
-static void ed_set_filename(struct editor *ed)
-{
-    commence_cl_cmd(ed, '=');
+/* ********************************************************** */
 
-    /* Load existing filename */
-    if (ed->b->fn != NULL && insert_str(ed->cl, ed->b->fn))
-        delete_gb(ed->cl);
+
+
+
+/* ********************* Undo and redo ********************** */
+static void ed_undo(struct editor *ed)
+{
+    ed->rv = reverse(ed->b, 'U');
+    if (ed->rv == NO_HISTORY)
+        ed->msg = "No more undo";
+}
+
+static void ed_redo(struct editor *ed)
+{
+    ed->rv = reverse(ed->b, 'R');
+    if (ed->rv == NO_HISTORY)
+        ed->msg = "No more redo";
 }
 
 /* ********************************************************** */
@@ -439,7 +467,7 @@ static void ed_execute_cl(struct editor *ed)
             t = ed->se;
             ed->se = ed->cl;
             ed->cl = t;
-            delete_gb(ed->cl);
+            reset_gb(ed->cl);
             switch (ed->op) {
             case 's':
                 ed->search_type = 's';
@@ -531,13 +559,13 @@ int draw(struct editor *ed)
   start:
     if (ed->clr) {
         if (clear() == ERR)
-            return GEN_ERROR;
+            return 1;
 
         ed->clr = 0;
 
     } else {
         if (erase() == ERR)
-            return GEN_ERROR;
+            return 1;
     }
 
     getmaxyx(stdscr, h, w);
@@ -631,7 +659,7 @@ int draw(struct editor *ed)
         if (ed->es_set) {
             r = snprintf(num_str, NUM_BUF_SIZE, "%d", ed->es);
             if (r < 0 || r >= NUM_BUF_SIZE)
-                return GEN_ERROR;
+                return 1;
         } else {
             *num_str = '\0';
         }
@@ -640,19 +668,19 @@ int draw(struct editor *ed)
 
         if (ed->sb_s < w) {
             if ((tmp = realloc(ed->sb, w + 1)) == NULL)
-                return GEN_ERROR;
+                return 1;
 
             ed->sb = tmp;
             ed->sb_s = w + 1;
         }
 
-        len = snprintf(ed->sb, ed->sb_s, "%c%c %s (%lu,%lu) %02X %s",
+        len = snprintf(ed->sb, ed->sb_s, "%c%c %s (%lu,%lu) %02X %s %s",
                        ed->rv ? '!' : ' ', b->mod ? '*' : ' ', b->fn,
                        (unsigned long) b->r, (unsigned long) b->col,
                        ed->cl_active ? *(cl->a + cl->c) : *(b->a + b->c),
-                       num_str);
+                       num_str, ed->msg);
         if (len < 0)
-            return GEN_ERROR;
+            return 1;
 
         if ((size_t) len < ed->sb_s) {
             memset(ed->sb + len, ' ', w - len);
@@ -662,7 +690,7 @@ int draw(struct editor *ed)
         standout();
 
         if (addnstr(ed->sb, w) == ERR)
-            return GEN_ERROR;
+            return 1;
 
         standend();
     }
@@ -771,6 +799,9 @@ static int keys_to_command(struct editor *ed, const struct key_binding *kb,
         if (draw(ed))
             return 1;
 
+        /* Clear message after displayed once */
+        ed->msg = "";
+
         keys[k_i++] = getch();
 
         keep_matching = 0;
@@ -854,7 +885,7 @@ int main(int argc, char **argv)
         { &ed_match_bracket, { ESC, 'm', EKS} },
         { &ed_copy_region, { ESC, 'w', EKS} },
         { &ed_remove_buffer, { ESC, '!', EKS} },
-        { &ed_set_filename, { ESC, '=', EKS} },
+        { &ed_set_filename, { ESC, '/', EKS} },
         { &ed_regex_search_case_ins, { ESC, 'z', EKS} },
         { &ed_regex_rep_case_ins, { ESC, 'r', EKS} },
         { &ed_insert_shell_cmd, { ESC, '$', EKS} },
@@ -869,6 +900,8 @@ int main(int argc, char **argv)
         { &ed_left_buffer, { C('x'), KEY_LEFT, EKS} },
         { &ed_right_buffer, { C('x'), KEY_RIGHT, EKS} },
         { &ed_repeat_search, { ESC, 'n', EKS} },
+        { &ed_undo, { ESC, '-', EKS} },
+        { &ed_redo, { ESC, '=', EKS} },
 
         /* Do not change these two: */
         { &ed_execute_cl, { '\r', EKS} },
@@ -918,7 +951,7 @@ int main(int argc, char **argv)
 
   clean_up:
     if (endwin() == ERR)
-        ret = GEN_ERROR;
+        ret = 1;
 
     free_editor(&ed);
 

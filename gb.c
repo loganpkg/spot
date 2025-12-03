@@ -18,6 +18,176 @@
 
 #include "toucanlib.h"
 
+#define record_buf (b->mode == 'U' ? b->redo : b->undo)
+#define replay_buf (b->mode == 'U' ? b->undo : b->redo)
+
+#define START_GROUP if (add_to_op_buf(record_buf, 'S', b->g, ' ')) \
+    return 1
+
+#define END_GROUP if (add_to_op_buf(record_buf, 'E', b->g, ' ')) \
+    return 1
+
+
+
+static int add_to_op_buf(struct op_buf *op, unsigned char id, size_t g_loc,
+                         char ch)
+{
+    struct atomic_op *t;
+    size_t new_n, new_s;
+
+    if (op->i == op->n) {
+        /* Grow */
+        if (aof(op->n, 1, SIZE_MAX))
+            return 1;
+
+        new_n = op->n + 1;
+
+        if (mof(new_n, 2, SIZE_MAX))
+            return 1;
+
+        new_n *= 2;
+
+        if (mof(new_n, sizeof(struct atomic_op), SIZE_MAX))
+            return 1;
+
+        new_s = new_n * sizeof(struct atomic_op);
+
+        if ((t = realloc(op->a, new_s)) == NULL)
+            return 1;
+
+        op->a = t;
+        op->n = new_n;
+    }
+
+    (*(op->a + op->i)).id = id;
+    (*(op->a + op->i)).g_loc = g_loc;
+    (*(op->a + op->i)).ch = ch;
+
+    ++op->i;
+
+    return 0;
+}
+
+
+static struct op_buf *init_op_buf(size_t n)
+{
+    struct op_buf *op;
+
+    if ((op = calloc(1, sizeof(struct op_buf))) == NULL)
+        return NULL;
+
+    if (mof(n, sizeof(struct atomic_op), SIZE_MAX)) {
+        free(op);
+        return NULL;
+    }
+
+    if ((op->a = calloc(n, sizeof(struct atomic_op))) == NULL) {
+        free(op);
+        return NULL;
+    }
+
+    op->n = n;
+    return op;
+}
+
+static void free_op_buf(struct op_buf *op)
+{
+    if (op != NULL) {
+        free(op->a);
+        free(op);
+    }
+}
+
+int reverse(struct gb *b, unsigned char mode)
+{
+    size_t depth = 0;
+
+    switch (mode) {
+    case 'U':
+        b->mode = 'U';
+        break;
+    case 'R':
+        b->mode = 'R';
+        break;
+    default:
+        return 1;
+    }
+
+    if (!replay_buf->i)
+        return NO_HISTORY;
+
+    do {
+        if (!replay_buf->i)
+            break;
+
+        /* Move into position */
+        while (b->g > (*(replay_buf->a + replay_buf->i - 1)).g_loc)
+            if (left_ch(b))
+                break;
+
+        while (b->g < (*(replay_buf->a + replay_buf->i - 1)).g_loc)
+            if (right_ch(b))
+                break;
+
+        /* Check */
+        if (b->g != (*(replay_buf->a + replay_buf->i - 1)).g_loc)
+            return 1;
+
+        /* Reverse the operation */
+        switch ((*(replay_buf->a + replay_buf->i - 1)).id) {
+        case 'S':
+            if (add_to_op_buf
+                (record_buf, (*(replay_buf->a + replay_buf->i - 1)).id,
+                 (*(replay_buf->a + replay_buf->i - 1)).g_loc,
+                 (*(replay_buf->a + replay_buf->i - 1)).ch))
+                return 1;
+
+            ++depth;
+            break;
+        case 'E':
+            if (add_to_op_buf
+                (record_buf, (*(replay_buf->a + replay_buf->i - 1)).id,
+                 (*(replay_buf->a + replay_buf->i - 1)).g_loc,
+                 (*(replay_buf->a + replay_buf->i - 1)).ch))
+                return 1;
+
+            --depth;
+            break;
+        case 'I':
+            if (delete_ch(b))
+                return 1;
+
+            break;
+        case 'D':
+            if (insert_ch(b, (*(replay_buf->a + replay_buf->i - 1)).ch))
+                return 1;
+
+            if (left_ch(b))
+                return 1;
+
+            break;
+        default:
+            return 1;
+        }
+
+        --replay_buf->i;
+    } while (depth);
+
+    b->mode = 'N';              /* Normal */
+
+    return 0;
+}
+
+void free_gb(struct gb *b)
+{
+    if (b != NULL) {
+        free_op_buf(b->undo);
+        free_op_buf(b->redo);
+        free(b->fn);
+        free(b->a);
+        free(b);
+    }
+}
 
 struct gb *init_gb(size_t s)
 {
@@ -38,16 +208,18 @@ struct gb *init_gb(size_t s)
     *(b->a + s - 1) = '\0';
 
     b->r = 1;
-    return b;
-}
 
-void free_gb(struct gb *b)
-{
-    if (b != NULL) {
-        free(b->fn);
-        free(b->a);
-        free(b);
+    if ((b->undo = init_op_buf(s)) == NULL) {
+        free_gb(b);
+        return NULL;
     }
+
+    if ((b->redo = init_op_buf(s)) == NULL) {
+        free_gb(b);
+        return NULL;
+    }
+
+    return b;
 }
 
 void free_gb_list(struct gb *b)
@@ -66,9 +238,10 @@ void free_gb_list(struct gb *b)
     }
 }
 
-void delete_gb(struct gb *b)
+void reset_gb(struct gb *b)
 {
-    /* Soft delete */
+    /* fn, prev and next are preserved. Nothing is freed. */
+
     b->g = 0;
     b->c = b->e;
     b->m_set = 0;
@@ -79,6 +252,8 @@ void delete_gb(struct gb *b)
     b->sc = 0;
     b->d = 0;
     b->mod = 1;
+    b->undo->i = 0;
+    b->redo->i = 0;
 }
 
 static int grow_gap(struct gb *b, size_t will_use)
@@ -92,17 +267,17 @@ static int grow_gap(struct gb *b, size_t will_use)
     s = b->e + 1;               /* OK as in memory already */
 
     if (aof(s, will_use, SIZE_MAX))
-        return GEN_ERROR;
+        return 1;
 
     new_s = s + will_use;
 
     if (mof(new_s, 2, SIZE_MAX))
-        return GEN_ERROR;
+        return 1;
 
     new_s *= 2;
 
     if ((t = realloc(b->a, new_s)) == NULL)
-        return GEN_ERROR;
+        return 1;
 
     b->a = t;
     increase = new_s - s;
@@ -121,7 +296,17 @@ int insert_ch(struct gb *b, char ch)
 {
     b->sc_set = 0;
     if (b->g == b->c && grow_gap(b, 1))
-        return GEN_ERROR;
+        return 1;
+
+    if (add_to_op_buf(record_buf, 'I', b->g, ch))
+        return 1;
+
+    /*
+     * Truncate the redo buffer under normal operations to prevent a fork
+     * in history.
+     */
+    if (b->mode == 'N' && b->redo->i)
+        b->redo->i = 0;
 
     *(b->a + b->g) = ch;
     ++b->g;
@@ -142,30 +327,39 @@ int insert_str(struct gb *b, const char *str)
 {
     char ch;
 
+    START_GROUP;
+
     while ((ch = *str++) != '\0')
         if (insert_ch(b, ch))
-            return GEN_ERROR;
+            return 1;
+
+    END_GROUP;
 
     return 0;
 }
 
 int insert_mem(struct gb *b, const char *mem, size_t mem_len)
 {
+    START_GROUP;
+
     while (mem_len) {
         if (insert_ch(b, *mem++))
-            return GEN_ERROR;
+            return 1;
 
         --mem_len;
     }
+
+    END_GROUP;
 
     return 0;
 }
 
 int insert_file(struct gb *b, const char *fn)
 {
-    int ret = GEN_ERROR;
     FILE *fp = NULL;
-    size_t fs;
+    int x;
+
+    START_GROUP;
 
     b->sc_set = 0;
 
@@ -174,34 +368,28 @@ int insert_file(struct gb *b, const char *fn)
         if (errno == ENOENT)    /* File does not exist */
             return 2;
         else
-            return GEN_ERROR;
+            return 1;
     }
 
-    if (get_file_size(fn, &fs))
-        mgoto(clean_up);
+    while ((x = getc(fp)) != EOF) {
+        if (insert_ch(b, x)) {
+            fclose(fp);
+            return 1;
+        }
+    }
+    if (ferror(fp) || !feof(fp)) {
+        fclose(fp);
+        return 1;
+    }
 
-    if (!fs)
-        goto done;
+    if (fclose(fp))
+        return 1;
 
-    if (fs > b->c - b->g && grow_gap(b, fs))
-        mgoto(clean_up);
+    start_of_gb(b);
 
-    /* Right side of gap insert */
-    if (fread(b->a + b->c - fs, 1, fs, fp) != fs)
-        mgoto(clean_up);
+    END_GROUP;
 
-    b->c -= fs;
-    b->m_set = 0;
-    b->mod = 1;
-
-  done:
-    ret = 0;
-  clean_up:
-    if (fp != NULL)
-        if (fclose(fp))
-            ret = GEN_ERROR;
-
-    return ret;
+    return 0;
 }
 
 int delete_ch(struct gb *b)
@@ -209,7 +397,17 @@ int delete_ch(struct gb *b)
     b->sc_set = 0;
 
     if (b->c == b->e)
-        return GEN_ERROR;
+        return 1;
+
+    if (add_to_op_buf(record_buf, 'D', b->g, *(b->a + b->c)))
+        return 1;
+
+    /*
+     * Truncate the redo buffer under normal operations to prevent a fork
+     * in history.
+     */
+    if (b->mode == 'N' && b->redo->i)
+        b->redo->i = 0;
 
     ++b->c;
     b->m_set = 0;
@@ -225,7 +423,7 @@ int left_ch(struct gb *b)
     b->sc_set = 0;
 
     if (!b->g)
-        return GEN_ERROR;
+        return 1;
 
     --b->g;
     --b->c;
@@ -266,7 +464,7 @@ int right_ch(struct gb *b)
     b->sc_set = 0;
 
     if (b->c == b->e)
-        return GEN_ERROR;
+        return 1;
 
     u = *(b->a + b->c);
     if (u == '\n') {
@@ -289,10 +487,17 @@ int right_ch(struct gb *b)
 
 int backspace_ch(struct gb *b)
 {
-    if (left_ch(b))
-        return GEN_ERROR;
+    START_GROUP;
 
-    return delete_ch(b);
+    if (left_ch(b))
+        return 1;
+
+    if (delete_ch(b))
+        return 1;
+
+    END_GROUP;
+
+    return 0;
 }
 
 void start_of_line(struct gb *b)
@@ -321,7 +526,7 @@ int up_line(struct gb *b)
      * sc will still be set as left_ch has not been called yet.
      */
     if (b->r == 1)
-        return GEN_ERROR;
+        return 1;
 
     while (b->r == r_orig)
         left_ch(b);
@@ -355,7 +560,7 @@ int down_line(struct gb *b)
             while (b->col > target_col)
                 left_ch(b);
 
-            ret = GEN_ERROR;
+            ret = 1;
             goto end;
         }
 
@@ -386,7 +591,7 @@ void left_word(struct gb *b)
         left_ch(b);
 }
 
-void right_word(struct gb *b, char transform)
+int right_word(struct gb *b, char transform)
 {
     /*
      * Moves the cursor right one word. If transform is 'L' then uppercase
@@ -395,20 +600,27 @@ void right_word(struct gb *b, char transform)
      */
     unsigned char u;
 
+    START_GROUP;
+
     while (!is_alpha_u(*(b->a + b->c)))
         if (right_ch(b))
-            return;
+            return 0;
 
     u = *(b->a + b->c);
     do {
         if (isupper(u) && transform == 'L') {
-            *(b->a + b->c) = 'a' + u - 'A';
-            b->m_set = 0;
-            b->mod = 1;
+            if (delete_ch(b))
+                return 1;
+
+            if (insert_ch(b, u - 'A' + 'a'))
+                return 1;
+
         } else if (islower(u) && transform == 'U') {
-            *(b->a + b->c) = 'A' + u - 'a';
-            b->m_set = 0;
-            b->mod = 1;
+            if (delete_ch(b))
+                return 1;
+
+            if (insert_ch(b, u - 'a' + 'A'))
+                return 1;
         }
 
         if (right_ch(b))
@@ -416,6 +628,10 @@ void right_word(struct gb *b, char transform)
 
         u = *(b->a + b->c);
     } while (is_alnum_u(u));
+
+    END_GROUP;
+
+    return 0;
 }
 
 #undef is_alpha_u
@@ -428,12 +644,12 @@ int goto_row(struct gb *b, struct gb *cl)
 
     start_of_gb(cl);
     if (str_to_size_t((const char *) cl->a + cl->c, &x))
-        return GEN_ERROR;
+        return 1;
 
     start_of_gb(b);
     while (b->r != x)
         if (right_ch(b))
-            return GEN_ERROR;
+            return 1;
 
     return 0;
 }
@@ -443,18 +659,23 @@ int insert_hex(struct gb *b, struct gb *cl)
     const unsigned char *str;
     unsigned char h1, h0, x;
 
+    START_GROUP;
+
     start_of_gb(cl);
     str = cl->a + cl->c;
     while ((h1 = *str++) != '\0') {
         if ((h0 = *str++) == '\0')
-            return GEN_ERROR;
+            return 1;
 
         if (hex_to_val(h1, h0, &x))
-            return GEN_ERROR;
+            return 1;
 
         if (insert_ch(b, x))
-            return GEN_ERROR;
+            return 1;
     }
+
+    END_GROUP;
+
     return 0;
 }
 
@@ -469,7 +690,7 @@ int swap_cursor_and_mark(struct gb *b)
     size_t m_orig, g_orig;
 
     if (!b->m_set)
-        return GEN_ERROR;
+        return 1;
 
     if (b->c > b->m) {
         m_orig = b->m;
@@ -496,12 +717,12 @@ int exact_forward_search(struct gb *b, struct gb *cl)
     start_of_gb(cl);
 
     if (b->c == b->e)
-        return GEN_ERROR;
+        return 1;
 
     if ((q =
          quick_search(b->a + b->c + 1, b->e - (b->c + 1), cl->a + cl->c,
                       cl->e - cl->c)) == NULL)
-        return GEN_ERROR;
+        return 1;
 
     num = q - (b->a + b->c);
     while (num--)
@@ -518,7 +739,7 @@ int regex_forward_search(struct gb *b, struct gb *cl, int case_ins)
     start_of_gb(cl);
 
     if (b->c == b->e)
-        return GEN_ERROR;
+        return 1;
 
     if (regex_search
         ((char *) b->a + b->c + 1,
@@ -526,7 +747,7 @@ int regex_forward_search(struct gb *b, struct gb *cl, int case_ins)
          *(b->a + b->c) == '\n' ? 1 : 0,
          (char *) cl->a + cl->c, 0, case_ins, &match_offset, &match_len,
          0))
-        return GEN_ERROR;
+        return 1;
 
     move = 1 + match_offset + match_len;
     while (move) {
@@ -539,9 +760,11 @@ int regex_forward_search(struct gb *b, struct gb *cl, int case_ins)
 
 int regex_replace_region(struct gb *b, struct gb *cl, int case_ins)
 {
-    int ret = GEN_ERROR;
+    int ret = 1;
     char delim, *find, *sep, *replace, *res = NULL;
-    size_t res_len;
+    size_t res_len, count;
+
+    START_GROUP;
 
     b->sc_set = 0;
 
@@ -571,9 +794,10 @@ int regex_replace_region(struct gb *b, struct gb *cl, int case_ins)
         mgoto(clean_up);
 
     /* Delete region */
-    b->c = b->m;
-    b->m_set = 0;
-    b->mod = 1;
+    count = b->m - b->c;
+    while (count--)
+        if (delete_ch(b))
+            mgoto(clean_up);
 
     if (insert_mem(b, res, res_len))
         mgoto(clean_up);
@@ -581,6 +805,8 @@ int regex_replace_region(struct gb *b, struct gb *cl, int case_ins)
     ret = 0;
   clean_up:
     free(res);
+
+    END_GROUP;
 
     return ret;
 }
@@ -622,7 +848,7 @@ int match_bracket(struct gb *b)
         target = '(';
         break;
     default:
-        return GEN_ERROR;
+        return 1;
     }
     depth = 1;
     while (1) {
@@ -653,42 +879,49 @@ int match_bracket(struct gb *b)
         while (b->c != c_orig)
             right_ch(b);
 
-    return GEN_ERROR;
+    return 1;
 }
 
-void trim_clean(struct gb *b)
+int trim_clean(struct gb *b)
 {
     size_t r_orig = b->r, col_orig = b->col;
     unsigned char ch;
     int eol;
 
+    START_GROUP;
+
     end_of_gb(b);
     if (left_ch(b))
-        return;
+        return 0;
 
     if (*(b->a + b->c) == '\n')
         while (1) {
             if (left_ch(b))
                 break;
 
-            if (*(b->a + b->c) == '\n')
-                delete_ch(b);   /* Eat surplus trailing new lines */
-            else
+            if (*(b->a + b->c) == '\n') {
+                if (delete_ch(b))       /* Eat surplus trailing new lines */
+                    return 1;
+            } else {
                 break;
+            }
         }
 
     eol = 1;
     while (1) {
         ch = *(b->a + b->c);
 
-        if (ch == '\n')
+        if (ch == '\n') {
             eol = 1;
-        else if (eol && (ch == ' ' || ch == '\t'))
-            delete_ch(b);       /* Eat trailing whitespace */
-        else if (!isprint(ch) && ch != '\t')
-            delete_ch(b);
-        else
+        } else if (eol && (ch == ' ' || ch == '\t')) {
+            if (delete_ch(b))   /* Eat trailing whitespace */
+                return 1;
+        } else if (!isprint(ch) && ch != '\t') {
+            if (delete_ch(b))
+                return 1;
+        } else {
             eol = 0;
+        }
 
         if (left_ch(b))
             break;
@@ -702,6 +935,10 @@ void trim_clean(struct gb *b)
     while (b->col != col_orig && *(b->a + b->c) != '\n')
         if (right_ch(b))
             break;
+
+    END_GROUP;
+
+    return 0;
 }
 
 int copy_region(struct gb *b, struct gb *p, int cut)
@@ -715,12 +952,15 @@ int copy_region(struct gb *b, struct gb *p, int cut)
      */
     size_t i, num;
 
+    if (cut)
+        START_GROUP;
+
     b->sc_set = 0;
 
     if (!b->m_set)
-        return GEN_ERROR;
+        return 1;
 
-    delete_gb(p);
+    reset_gb(p);
 
     if (b->m == b->c)
         return 0;
@@ -728,28 +968,33 @@ int copy_region(struct gb *b, struct gb *p, int cut)
     if (b->m < b->c) {
         for (i = b->m; i < b->g; ++i)
             if (insert_ch(p, *(b->a + i)))
-                return GEN_ERROR;
+                return 1;
 
         if (cut) {
             num = b->g - b->m;
             while (num--)
-                backspace_ch(b);
+                if (backspace_ch(b))
+                    return 1;
         }
     } else {
         for (i = b->c; i < b->m; ++i)
             if (insert_ch(p, *(b->a + i)))
-                return GEN_ERROR;
+                return 1;
 
         if (cut) {
             num = b->m - b->c;
             while (num--)
-                delete_ch(b);
+                if (delete_ch(b))
+                    return 1;
         }
     }
 
     /* Clear mark even when just copying */
     if (!cut)
         b->m_set = 0;
+
+    if (cut)
+        END_GROUP;
 
     return 0;
 }
@@ -778,14 +1023,14 @@ int word_under_cursor(struct gb *b, struct gb *tmp)
     unsigned char *p, *p_stop, u;
     p = b->a + b->c;
     p_stop = b->a + b->e;       /* Exclusive */
-    delete_gb(tmp);
+    reset_gb(tmp);
 
     if ((u = *p) == ' ' || u == '\t')
-        return GEN_ERROR;       /* Invalid character */
+        return 1;               /* Invalid character */
 
     while ((u = *p) != ' ' && u != '\n' && u != '\t' && p != p_stop) {
         if (u && insert_ch(tmp, u))     /* Skip embedded \0 chars */
-            return GEN_ERROR;
+            return 1;
 
         ++p;
     }
@@ -798,10 +1043,10 @@ int word_under_cursor(struct gb *b, struct gb *tmp)
                 if (u) {
                     /* Skip embedded \0 chars */
                     if (insert_ch(tmp, u))
-                        return GEN_ERROR;
+                        return 1;
 
                     if (left_ch(tmp))
-                        return GEN_ERROR;
+                        return 1;
                 }
             } else {
                 break;
@@ -835,7 +1080,7 @@ int copy_logical_line(struct gb *b, struct gb *tmp)
         right_ch(b);
 
     if (copy_region(b, tmp, 0))
-        return GEN_ERROR;
+        return 1;
 
     /* Delete backslash at the end of lines and combine lines */
     start_of_gb(tmp);
@@ -865,52 +1110,61 @@ int insert_shell_cmd(struct gb *b, const char *cmd, int *es)
     FILE *fp;
     int x, st;
 
+    START_GROUP;
+
     /* Open a new line */
     if (insert_ch(b, '\n'))
-        return GEN_ERROR;
+        return 1;
 
     if ((fp = popen(cmd, "r")) == NULL)
-        return GEN_ERROR;
+        return 1;
 
     while ((x = getc(fp)) != EOF) {
         if ((isprint(x) || x == '\t' || x == '\n') && insert_ch(b, x)) {
             pclose(fp);
-            return GEN_ERROR;
+            return 1;
         }
     }
     if (ferror(fp) || !feof(fp)) {
         pclose(fp);
-        return GEN_ERROR;
+        return 1;
     }
     if ((st = pclose(fp)) == -1)
-        return GEN_ERROR;
+        return 1;
 
 #ifndef _WIN32
     if (!WIFEXITED(st))
-        return GEN_ERROR;
+        return 1;
 
     st = WEXITSTATUS(st);
 #endif
 
     *es = st;
 
+    END_GROUP;
+
     return 0;
 }
 
 int shell_line(struct gb *b, struct gb *tmp, int *es)
 {
+
+    START_GROUP;
+
     if (copy_logical_line(b, tmp))
-        return GEN_ERROR;
+        return 1;
 
     end_of_gb(tmp);
     if (insert_str(tmp, " 2>&1"))
-        return GEN_ERROR;
+        return 1;
 
     /* Embedded \0 will terminate string early */
     start_of_gb(tmp);
 
     if (insert_shell_cmd(b, (const char *) tmp->a + tmp->c, es))
-        return GEN_ERROR;
+        return 1;
+
+    END_GROUP;
 
     return 0;
 }
@@ -919,14 +1173,18 @@ int paste(struct gb *b, struct gb *p)
 {
     size_t i;
 
+    START_GROUP;
+
     for (i = 0; i < p->g; ++i)
         if (insert_ch(b, *(p->a + i)))
-            return GEN_ERROR;
+            return 1;
 
     /* Cursor should be at end of gap buffer, but just in case */
     for (i = p->c; i < p->e; ++i)
         if (insert_ch(b, *(p->a + i)))
-            return GEN_ERROR;
+            return 1;
+
+    END_GROUP;
 
     return 0;
 }
@@ -938,21 +1196,21 @@ int save(struct gb *b)
     b->sc_set = 0;
 
     if (b->fn == NULL || *b->fn == '\0')
-        return GEN_ERROR;
+        return 1;
 
     if ((fp = fopen_w(b->fn, 0)) == NULL)
-        return GEN_ERROR;
+        return 1;
 
     if (fwrite(b->a, 1, b->g, fp) != b->g) {
         fclose(fp);
-        return GEN_ERROR;
+        return 1;
     }
     if (fwrite(b->a + b->c, 1, b->e - b->c, fp) != b->e - b->c) {
         fclose(fp);
-        return GEN_ERROR;
+        return 1;
     }
     if (fclose(fp))
-        return GEN_ERROR;
+        return 1;
 
     b->mod = 0;
 
@@ -966,10 +1224,10 @@ int rename_gb(struct gb *b, const char *fn)
     b->sc_set = 0;
 
     if (fn == NULL)
-        return GEN_ERROR;
+        return 1;
 
     if ((new_fn = strdup(fn)) == NULL)
-        return GEN_ERROR;
+        return 1;
 
     free(b->fn);
     b->fn = new_fn;
@@ -982,17 +1240,17 @@ int new_gb(struct gb **b, const char *fn, size_t s)
     struct gb *t = NULL;
 
     if ((t = init_gb(s)) == NULL)
-        return GEN_ERROR;
+        return 1;
 
     if (fn != NULL && *fn != '\0') {
         /* OK for file to not exist */
         if (insert_file(t, fn) == 1) {
             free_gb(t);
-            return GEN_ERROR;
+            return 1;
         }
         if (rename_gb(t, fn)) {
             free_gb(t);
-            return GEN_ERROR;
+            return 1;
         }
         t->mod = 0;
     }

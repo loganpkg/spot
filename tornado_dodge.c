@@ -140,7 +140,7 @@ int spawn_obj(struct obj **head, int h, int w, char type)
     int obj_h, obj_w;
 
     if (head == NULL || !h || !w)
-        mreturn(GEN_ERROR);
+        mreturn(1);
 
     if (type == 'c' || type == 'g') {
         obj_h = CLOUD_HEIGHT;
@@ -164,11 +164,11 @@ int spawn_obj(struct obj **head, int h, int w, char type)
         obj_h = COIN_HEIGHT;
         obj_w = COIN_WIDTH;
     } else {
-        mreturn(GEN_ERROR);
+        mreturn(1);
     }
 
     if ((b = init_obj()) == NULL)
-        mreturn(GEN_ERROR);
+        mreturn(1);
 
     /* Vertical */
     if (type == 'g') {
@@ -179,7 +179,7 @@ int spawn_obj(struct obj **head, int h, int w, char type)
         b->y = 0;
     } else {
         if (random_num(h - obj_h, &b->y))
-            mreturn(GEN_ERROR);
+            mreturn(1);
     }
 
     /* Horizontal */
@@ -191,7 +191,7 @@ int spawn_obj(struct obj **head, int h, int w, char type)
         b->x = 0;
     } else {
         if (random_num(w - obj_w - 1, &b->x))
-            mreturn(GEN_ERROR);
+            mreturn(1);
     }
 
     /* Default trajectories */
@@ -243,7 +243,7 @@ int process_trajectory(char **traj, size_t *index, unsigned int *coordin)
         switch (*(*traj + *index)) {
         case 'd':
             if (!*coordin)
-                return GEN_ERROR;
+                return 1;
 
             --*coordin;
             ++*index;
@@ -281,7 +281,7 @@ int print_object(size_t y, size_t x, const char *object, char type,
     size_t c_y, c_x, torch_y;
 
     if (move(y, x) == ERR)
-        return GEN_ERROR;
+        return 1;
 
     while ((ch = *object++) != '\0') {
         z = inch();
@@ -295,7 +295,7 @@ int print_object(size_t y, size_t x, const char *object, char type,
                 standout();
 
             if (addch(v_ch) == ERR)
-                return GEN_ERROR;
+                return 1;
 
             if (v_hl)
                 standend();
@@ -305,11 +305,11 @@ int print_object(size_t y, size_t x, const char *object, char type,
             /* Indent */
             getyx(stdscr, c_y, c_x);
             if (move(c_y + 1, x) == ERR)
-                return GEN_ERROR;
+                return 1;
 
             /* Silence compiler warning about unused variable */
             if (x > c_x)
-                return GEN_ERROR;
+                return 1;
 
             break;
         default:
@@ -334,7 +334,7 @@ int print_object(size_t y, size_t x, const char *object, char type,
                 standout();
 
             if (addch(ch) == ERR)
-                return GEN_ERROR;
+                return 1;
 
             if (v_hl)
                 standend();
@@ -353,7 +353,7 @@ int print_object(size_t y, size_t x, const char *object, char type,
 
             /* Keep virtual char unchanged (just highlight) */
             if (addch(v_ch) == ERR)
-                return GEN_ERROR;
+                return 1;
 
             getyx(stdscr, c_y, c_x);
             if (c_y != torch_y)
@@ -576,7 +576,7 @@ int remove_used_coins(struct obj **coin_head)
 
     while (b != NULL) {
         if (move(b->y, b->x) == ERR)
-            mreturn(GEN_ERROR);
+            mreturn(1);
 
         ch = inch() & A_CHARTEXT;
 
@@ -605,7 +605,7 @@ int remove_used_coins(struct obj **coin_head)
 
 int main(void)
 {
-    int ret = GEN_ERROR;
+    int ret = 1;
     int k;
 
     struct obj *cloud_head = NULL;
@@ -910,7 +910,7 @@ int main(void)
 
   clean_up:
     if (endwin() == ERR)
-        ret = GEN_ERROR;
+        ret = 1;
 
     return ret;
 }

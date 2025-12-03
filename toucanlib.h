@@ -126,40 +126,25 @@
     goto lab;                                                       \
 } while (0)
 
+/* Error codes */
+
+/*
+ * 0 = Success.
+ * 1 = Error.
+ */
 
 /* Success return codes */
-#define SUCCESS 0
-#define MATCH SUCCESS
-#define PARTIAL_MATCH 8
-/* Used to not trigger the debugging */
-#define NULL_OK NULL
+#define MATCH 2
+#define PARTIAL_MATCH 3
 
-/*
- * Error codes:
- * EOF is is negative.
- */
-
-/* Success is 0 or: */
-#define OK 0
-
-/* System related error. Terminates execution (after clean up). */
-#define GEN_ERROR 1
-
-/*
- * User related errors.
- * Execution continutes, but exit status will be non-zero.
- */
-#define NO_MATCH 2
-#define SYNTAX_ERROR 3
-#define DIV_BY_ZERO_ERROR 4
-#define USER_OVERFLOW_ERROR 5
-#define USAGE_ERROR 6
-
-/*
- * System or user related error whereby execution continutes.
- * Exit status will be non-zero.
- */
-#define ERROR_BUT_CONTIN 7
+/* Error codes */
+#define ERROR_BUT_CONTIN 4
+#define NO_MATCH 5
+#define SYNTAX_ERROR 6
+#define DIV_BY_ZERO_ERROR 7
+#define USER_OVERFLOW_ERROR 8
+#define USAGE_ERROR 9
+#define NO_HISTORY 10
 
 
 #ifdef _WIN32
@@ -299,6 +284,30 @@ struct pbuf {
 };
 
 
+/* Gap buffer atomic operation */
+struct atomic_op {
+    /*
+     * A "group" is a sequence of atomic operations that are undone together.
+     * 'S' = Start group.
+     * 'E' = End group.
+     * 'I' = Insert ch.
+     * 'D' = Delete ch.
+     */
+    unsigned char id;
+    /*
+     * Start of gap location.
+     * The gap will change in size, but g remains comparable.
+     */
+    size_t g_loc;
+    char ch;
+};
+
+struct op_buf {
+    struct atomic_op *a;        /* Memory */
+    size_t i;                   /* Index of next free element */
+    size_t n;                   /* Number of allocated elements */
+};
+
 struct gb {
     char *fn;
     unsigned char *a;
@@ -313,6 +322,10 @@ struct gb {
     size_t sc;                  /* Sticky column for repeated up and down */
     size_t d;                   /* Draw start */
     int mod;                    /* Modified */
+    /* 0 = Redo or normal operation, 1 = Undo in progress */
+    unsigned char mode;         /* 'N' = Normal, 'U' = Undo, 'R' = redo */
+    struct op_buf *undo;        /* Undo buffer */
+    struct op_buf *redo;        /* Redo buffer */
     struct gb *prev;
     struct gb *next;
 };
@@ -387,10 +400,11 @@ int add_s(struct sbuf *b, size_t x);
 struct pbuf *init_pbuf(size_t n);
 void free_pbuf(struct pbuf *b);
 int add_p(struct pbuf *b, void *x);
-struct gb *init_gb(size_t s);
+int reverse(struct gb *b, unsigned char mode);
 void free_gb(struct gb *b);
+struct gb *init_gb(size_t s);
 void free_gb_list(struct gb *b);
-void delete_gb(struct gb *b);
+void reset_gb(struct gb *b);
 int insert_ch(struct gb *b, char ch);
 int insert_str(struct gb *b, const char *str);
 int insert_mem(struct gb *b, const char *mem, size_t mem_len);
@@ -404,7 +418,7 @@ void end_of_line(struct gb *b);
 int up_line(struct gb *b);
 int down_line(struct gb *b);
 void left_word(struct gb *b);
-void right_word(struct gb *b, char transform);
+int right_word(struct gb *b, char transform);
 int goto_row(struct gb *b, struct gb *cl);
 int insert_hex(struct gb *b, struct gb *cl);
 void set_mark(struct gb *b);
@@ -413,7 +427,7 @@ int exact_forward_search(struct gb *b, struct gb *cl);
 int regex_forward_search(struct gb *b, struct gb *cl, int case_ins);
 int regex_replace_region(struct gb *b, struct gb *cl, int case_ins);
 int match_bracket(struct gb *b);
-void trim_clean(struct gb *b);
+int trim_clean(struct gb *b);
 int copy_region(struct gb *b, struct gb *p, int cut);
 int cut_to_eol(struct gb *b, struct gb *p);
 int cut_to_sol(struct gb *b, struct gb *p);

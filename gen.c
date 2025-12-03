@@ -26,13 +26,13 @@ int binary_io(void)
 {
 #ifdef _WIN32
     if (_setmode(_fileno(stdin), _O_BINARY) == -1)
-        return GEN_ERROR;
+        return 1;
 
     if (_setmode(_fileno(stdout), _O_BINARY) == -1)
-        return GEN_ERROR;
+        return 1;
 
     if (_setmode(_fileno(stderr), _O_BINARY) == -1)
-        return GEN_ERROR;
+        return 1;
 #endif
     return 0;
 }
@@ -163,14 +163,14 @@ int tty_check(FILE *stream, int *is_tty)
     int r, e;
 
     if ((fd = fileno(stream)) == -1)
-        return GEN_ERROR;
+        return 1;
 
     errno = 0;
     r = isatty(fd);
     e = errno;
 
     if (!r && e == EBADF)
-        return GEN_ERROR;
+        return 1;
 
     *is_tty = r;
 
@@ -184,7 +184,7 @@ int milli_sleep(long milliseconds)
 #endif
 
     if (milliseconds < 0)
-        return GEN_ERROR;
+        return 1;
 
 #ifdef _WIN32
     Sleep(milliseconds);
@@ -195,7 +195,7 @@ int milli_sleep(long milliseconds)
     ts.tv_nsec = (milliseconds % 1000) * 1000000;
 
     if (nanosleep(&ts, NULL))
-        return GEN_ERROR;
+        return 1;
 
     return 0;
 #endif
@@ -205,21 +205,21 @@ int random_uint(unsigned int *x)
 {
 #ifdef _WIN32
     if (rand_s(x))
-        return GEN_ERROR;
+        return 1;
 #else
     FILE *fp;
     unsigned int z;
 
     if ((fp = fopen("/dev/urandom", "rb")) == NULL)
-        return GEN_ERROR;
+        return 1;
 
     if (fread(&z, sizeof(unsigned int), 1, fp) != 1) {
         fclose(fp);
-        return GEN_ERROR;
+        return 1;
     }
 
     if (fclose(fp))
-        return GEN_ERROR;
+        return 1;
 
     *x = z;
 #endif
@@ -239,7 +239,7 @@ int random_num(unsigned int max_inclusive, unsigned int *x)
 
     while (1) {
         if (random_uint(&y))
-            return GEN_ERROR;
+            return 1;
 
         if (y < redraw)
             break;

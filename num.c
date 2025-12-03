@@ -29,7 +29,7 @@ int str_to_num(const char *str, unsigned long max_val, unsigned long *res)
     unsigned int n;
 
     if (str == NULL || *str == '\0')
-        mreturn(GEN_ERROR);
+        mreturn(1);
 
     if (*str == '0') {
         ++str;                  /* Eat char */
@@ -45,14 +45,14 @@ int str_to_num(const char *str, unsigned long max_val, unsigned long *res)
         if ((base == 10 && isdigit(ch)) || (base == 16 && isxdigit(ch))
             || (base == 8 && ch >= '0' && ch <= '7')) {
             if (mof(x, base, max_val))
-                mreturn(GEN_ERROR);
+                mreturn(1);
 
             x *= base;
 
             n = hex_nibble(ch);
 
             if (aof(x, n, max_val))
-                mreturn(GEN_ERROR);
+                mreturn(1);
 
             x += n;
         } else {
@@ -76,7 +76,7 @@ int str_to_size_t(const char *str, size_t *res)
     unsigned long n;
 
     if (str_to_num(str, SIZE_MAX, &n))
-        mreturn(GEN_ERROR);
+        mreturn(1);
 
     *res = (size_t) n;
     return 0;
@@ -87,7 +87,7 @@ int str_to_uint(const char *str, unsigned int *res)
     unsigned long n;
 
     if (str_to_num(str, UINT_MAX, &n))
-        mreturn(GEN_ERROR);
+        mreturn(1);
 
     *res = (unsigned int) n;
     return 0;
@@ -96,7 +96,7 @@ int str_to_uint(const char *str, unsigned int *res)
 int hex_to_val(unsigned char h1, unsigned char h0, unsigned char *res)
 {
     if (!isxdigit(h1) || !isxdigit(h0))
-        mreturn(GEN_ERROR);
+        mreturn(1);
 
     *res = hex(h1, h0);
 
@@ -227,7 +227,7 @@ int lop(long *a, long b, unsigned char op)
 
 int lpow(long *a, long b)
 {
-    int ret = GEN_ERROR;
+    int ret = 1;
     long x;
 
     if (!b) {

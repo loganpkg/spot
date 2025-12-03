@@ -128,7 +128,9 @@ The keybindings are listed below. `^a` means pressing `Ctrl` plus `a`.
 | `^[ n`  | Repeat last search                                        |
 | `^[ w`  | Copy region                                               |
 | `^[ !`  | Remove current gap buffer without saving ^                |
-| `^[ =`  | Rename gap buffer                                         |
+| `^[ /`  | Rename gap buffer (the associated filename)               |
+| `^[ -`  | Undo                                                      |
+| `^[ =`  | Redo                                                      |
 | `^[ $`  | Insert shell command from the command line                |
 |``^[ ` ``| Insert shell command of logical line under the cursor +   |
 | `^[ <`  | Start of gap buffer                                       |
