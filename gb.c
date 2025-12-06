@@ -208,6 +208,7 @@ struct gb *init_gb(size_t s)
     *(b->a + s - 1) = '\0';
 
     b->r = 1;
+    b->col = 1;
 
     if ((b->undo = init_op_buf(s)) == NULL) {
         free_gb(b);
@@ -247,7 +248,7 @@ void reset_gb(struct gb *b)
     b->m_set = 0;
     b->m = 0;
     b->r = 1;
-    b->col = 0;
+    b->col = 1;
     b->sc_set = 0;
     b->sc = 0;
     b->d = 0;
@@ -312,7 +313,7 @@ int insert_ch(struct gb *b, char ch)
     ++b->g;
     if (ch == '\n') {
         ++b->r;
-        b->col = 0;
+        b->col = 1;
     } else if (ch == '\t') {
         b->col += TAB_SIZE;
     } else {
@@ -433,7 +434,7 @@ int left_ch(struct gb *b)
         --b->r;
         /* Need to work out col */
         i = b->g;
-        count = 0;
+        count = 1;
         while (i) {
             --i;
             ch = *(b->a + i);
@@ -469,7 +470,7 @@ int right_ch(struct gb *b)
     u = *(b->a + b->c);
     if (u == '\n') {
         ++b->r;
-        b->col = 0;
+        b->col = 1;
     } else if (u == '\t') {
         b->col += TAB_SIZE;
     } else {
@@ -502,7 +503,7 @@ int backspace_ch(struct gb *b)
 
 void start_of_line(struct gb *b)
 {
-    while (b->col)
+    while (b->col != 1)
         left_ch(b);
 }
 
@@ -606,8 +607,8 @@ int right_word(struct gb *b, char transform)
         if (right_ch(b))
             return 0;
 
-    u = *(b->a + b->c);
     do {
+        u = *(b->a + b->c);
         if (isupper(u) && transform == 'L') {
             if (delete_ch(b))
                 return 1;
@@ -621,12 +622,10 @@ int right_word(struct gb *b, char transform)
 
             if (insert_ch(b, u - 'a' + 'A'))
                 return 1;
+        } else {
+            if (right_ch(b))
+                break;
         }
-
-        if (right_ch(b))
-            break;
-
-        u = *(b->a + b->c);
     } while (is_alnum_u(u));
 
     END_GROUP;
@@ -1068,7 +1067,7 @@ int copy_logical_line(struct gb *b, struct gb *tmp)
      */
 
     /* Move to start of logical line */
-    while (b->col || (b->g >= 2 && *(b->a + b->g - 2) == '\\'))
+    while (b->col != 1 || (b->g >= 2 && *(b->a + b->g - 2) == '\\'))
         left_ch(b);
 
     b->m_set = 1;

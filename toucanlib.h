@@ -317,7 +317,7 @@ struct gb {
     int m_set;                  /* Mark set */
     size_t m;                   /* Mark */
     size_t r;                   /* Row number (starts from 1) */
-    size_t col;                 /* Column number (starts from 0) */
+    size_t col;                 /* Column number (starts from 1) */
     int sc_set;                 /* Sticky column set */
     size_t sc;                  /* Sticky column for repeated up and down */
     size_t d;                   /* Draw start */

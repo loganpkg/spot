@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Logan Ryan McLintock
+ * Copyright (c) 2023, 2025 Logan Ryan McLintock
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
