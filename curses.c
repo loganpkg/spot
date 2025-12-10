@@ -43,7 +43,6 @@
 #include <fcntl.h>
 #else
 #include <sys/ioctl.h>
-#include <sys/select.h>
 #include <unistd.h>
 #endif
 
@@ -163,10 +162,6 @@ WINDOW *initscr(void)
 
     cfmakeraw(&stdscr->term_new);
 
-    /* Wait forever for 1 char */
-    stdscr->term_new.c_cc[VMIN] = 1;
-    stdscr->term_new.c_cc[VTIME] = 0;
-
     if (tcsetattr(STDIN_FILENO, TCSANOW, &stdscr->term_new))
         mgoto(error);
 #endif
@@ -216,27 +211,6 @@ int set_tabsize(size_t size)
     stdscr->tabsize = size;
     return OK;
 }
-
-
-#ifndef _WIN32
-static int _kbhit(void)
-{
-    fd_set read_fd_set;
-    struct timeval t_o = { 0 };
-
-    FD_ZERO(&read_fd_set);
-    FD_SET(STDIN_FILENO, &read_fd_set);
-    if (select(STDIN_FILENO + 1, &read_fd_set, NULL, NULL, &t_o) == -1) {
-        fprintf(stderr, "[%s:%d]: select: Error\n", __FILE__, __LINE__);
-        return 0;               /* Error */
-    }
-
-    if (FD_ISSET(STDIN_FILENO, &read_fd_set))
-        return 1;               /* Ready */
-
-    return 0;                   /* No keyboard hit */
-}
-#endif
 
 
 static int unread(unsigned char u)
@@ -293,12 +267,11 @@ static int getch_raw(void)
 
     /* Non-blocking */
 
+#ifdef _WIN32
     /* No chars ready */
     if (!_kbhit())
         return ERR;
 
-
-#ifdef _WIN32
     return _getch();
 #else
     /* See how many chars are waiting */
@@ -760,24 +733,6 @@ int nodelay(WINDOW *win, bool bf)
 
     if (bf != TRUE && bf != FALSE)
         return ERR;
-
-    /*
-       #ifndef _WIN32
-       if ((!win->non_blocking && bf == TRUE)
-       || (win->non_blocking && bf == FALSE)) {
-       if ((flags = fcntl(STDIN_FILENO, F_GETFL)) == -1)
-       return ERR;
-
-       if (bf == TRUE)
-       flags |= O_NONBLOCK;
-       else
-       flags &= ~O_NONBLOCK;
-
-       if (fcntl(STDIN_FILENO, F_SETFL, flags) == -1)
-       return ERR;
-       }
-       #endif
-     */
 
     win->non_blocking = bf;
 
