@@ -1,5 +1,7 @@
+#! /bin/sh
+
 #
-# Copyright (c) 2023, 2024 Logan Ryan McLintock. All rights reserved.
+# Copyright (c) 2023, 2024, 2026 Logan Ryan McLintock. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -23,39 +25,58 @@
 # SUCH DAMAGE.
 #
 
-CFLAGS = -ansi -g -Og -Wno-variadic-macros -Wall -Wextra -pedantic -I .
-apps = spot m4 bc freq tornado_dodge
+# Install sh script for spot project.
 
-.PHONY: all
+# shellcheck disable=SC2086
 
-all: ${apps}
+set -e
+set -u
+set -x
 
-curses.o: curses.h
 
-gen.o: toucanlib.h
-num.o: toucanlib.h
-buf.o: toucanlib.h
-gb.o: toucanlib.h
-eval.o: toucanlib.h
-ht.o: toucanlib.h
-fs.o: toucanlib.h
-toco_regex.o: toucanlib.h
+# Config.
+default_prefix=$HOME
+cflags='-ansi -g -Og -Wno-variadic-macros -Wall -Wextra -pedantic -I .'
+apps='spot m4 bc freq tornado_dodge'
 
-toucanlib.o: gen.o num.o buf.o gb.o eval.o ht.o toco_regex.o fs.o
-	ld -r gen.o num.o buf.o gb.o eval.o ht.o toco_regex.o fs.o \
-		-o toucanlib.o
 
-spot: spot.c curses.o toucanlib.o
-m4: m4.c toucanlib.o
-bc: bc.c toucanlib.o
-freq: freq.c toucanlib.o
-tornado_dodge: tornado_dodge.c curses.o toucanlib.o
+make_executable() {
+    ex_nm=$(printf %s "$1" | sed -E 's/\.o$//')
+    cc $cflags "$@" toucanlib.o -o "$ex_nm"
+}
 
-.PHONY: install
-install:
-	mkdir -p ${PREFIX}/bin
-	cp -a ${apps} ${PREFIX}/bin
 
-.PHONY: clean
-clean:
-	rm -f *.o *.obj *.lib *.ilk *.pdb *.exe ${apps}
+export cflags
+
+
+find . ! -path '*.git/*' -type f -name '*.c' -exec sh -c '
+    set -e
+    set -u
+    set -x
+    cc -c $cflags "$1"
+' sh '{}' \;
+
+
+ld -r gen.o num.o buf.o gb.o eval.o ht.o toco_regex.o fs.o -o toucanlib.o
+
+
+make_executable spot.o curses.o
+make_executable m4.o
+make_executable bc.o
+make_executable freq.o
+make_executable tornado_dodge.o curses.o
+
+
+set +u
+if [ -z "$PREFIX" ]
+then
+    PREFIX=$default_prefix
+fi
+set -u
+
+
+mkdir -p "$PREFIX"/bin
+
+cp -p $apps "$PREFIX"/bin
+
+rm -f -- *.o *.obj *.lib *.ilk *.pdb *.exe $apps
