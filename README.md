@@ -56,9 +56,7 @@ This cross-platform software has been written in ANSI C with the minimum
 use of non-standard libraries. To install, depending upon your operating
 system, run:
 ```
-$ make
-$ PREFIX="$HOME" make install
-$ make clean
+$ PREFIX=$HOME ./install.sh
 ```
 or
 ```
