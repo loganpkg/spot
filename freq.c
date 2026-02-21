@@ -27,7 +27,6 @@
 
 #include "toucanlib.h"
 
-
 int main(int argc, char **argv)
 {
     int ret = 1;
@@ -55,8 +54,7 @@ int main(int argc, char **argv)
     p = mem;
 
     /* Initialise */
-    for (j = 0; j < UCHAR_MAX + 1; ++j)
-        freq[j] = 0;
+    for (j = 0; j < UCHAR_MAX + 1; ++j) freq[j] = 0;
 
     for (i = 0; i < fs; ++i) {
         u = *(p + i);
@@ -80,7 +78,7 @@ int main(int argc, char **argv)
 
     ret = 0;
 
-  clean_up:
+clean_up:
     if (p != NULL && un_mmap(p, fs))
         ret = 1;
 

@@ -31,7 +31,6 @@
  *                                  John 14:1 GNT
  */
 
-
 #ifdef __linux__
 /* For: cfmakeraw */
 #ifndef _DEFAULT_SOURCE
@@ -48,8 +47,8 @@
 #ifdef _WIN32
 #include <Windows.h>
 #include <conio.h>
-#include <io.h>
 #include <fcntl.h>
+#include <io.h>
 #else
 #include <sys/ioctl.h>
 #include <unistd.h>
@@ -62,31 +61,29 @@
 #include <stdlib.h>
 #include <string.h>
 
-
 #define IN_CURSES_LIB
 #include "curses.h"
 #undef IN_CURSES_LIB
 
-
 #define DEFAULT_TABSIZE 8
-#define ESC 27
+#define ESC             27
 
-#define INIT_UNREAD_MEM_SIZE 64
+#define INIT_UNREAD_MEM_SIZE    64
 #define INIT_UNGET_BUF_ELEMENTS 64
 
 #define CTRL_2 0
 
+#define mreturn(rv)                                                           \
+    do {                                                                      \
+        fprintf(stderr, "[%s:%d]: Error: " #rv "\n", __FILE__, __LINE__);     \
+        return (rv);                                                          \
+    } while (0)
 
-#define mreturn(rv) do {                                                \
-    fprintf(stderr, "[%s:%d]: Error: " #rv "\n", __FILE__, __LINE__);   \
-    return (rv);                                                        \
-} while (0)
-
-#define mgoto(lb) do {                                                  \
-    fprintf(stderr, "[%s:%d]: Error: " #lb "\n", __FILE__, __LINE__);   \
-    goto lb;                                                            \
-} while (0)
-
+#define mgoto(lb)                                                             \
+    do {                                                                      \
+        fprintf(stderr, "[%s:%d]: Error: " #lb "\n", __FILE__, __LINE__);     \
+        goto lb;                                                              \
+    } while (0)
 
 /* Unsigned overflow tests */
 /* Addition */
@@ -95,10 +92,9 @@
 /* Multiplication */
 #define mof(a, b, max_val) ((a) && (b) > (max_val) / (a))
 
-
-#define phy_move(pos) printf("\x1B[%lu;%luH", \
-    (unsigned long) ((pos) / stdscr->w + 1),  \
-    (unsigned long) ((pos) % stdscr->w + 1))
+#define phy_move(pos)                                                         \
+    printf("\x1B[%lu;%luH", (unsigned long) ((pos) / stdscr->w + 1),          \
+        (unsigned long) ((pos) % stdscr->w + 1))
 
 #define phy_hl_off() printf("\x1B[m")
 
@@ -108,8 +104,7 @@
 #define phy_clear() printf("\x1B[2J\x1B[1;1H")
 
 #define phy_invisible_cursor() printf("\x1B[?25l")
-#define phy_visible_cursor() printf("\x1B[?25h")
-
+#define phy_visible_cursor()   printf("\x1B[?25h")
 
 WINDOW *initscr(void)
 {
@@ -131,8 +126,8 @@ WINDOW *initscr(void)
     if (mof(INIT_UNGET_BUF_ELEMENTS, sizeof(int), SIZE_MAX))
         mgoto(error);
 
-    if ((stdscr->unget_buf =
-         calloc(INIT_UNGET_BUF_ELEMENTS, sizeof(int))) == NULL)
+    if ((stdscr->unget_buf = calloc(INIT_UNGET_BUF_ELEMENTS, sizeof(int)))
+        == NULL)
         mgoto(error);
 
     stdscr->b_n = INIT_UNGET_BUF_ELEMENTS;
@@ -148,16 +143,15 @@ WINDOW *initscr(void)
     if (_setmode(_fileno(stderr), _O_BINARY) == -1)
         mgoto(error);
 
-    if ((stdscr->term_handle =
-         GetStdHandle(STD_OUTPUT_HANDLE)) == INVALID_HANDLE_VALUE)
+    if ((stdscr->term_handle = GetStdHandle(STD_OUTPUT_HANDLE))
+        == INVALID_HANDLE_VALUE)
         mgoto(error);
 
     if (!GetConsoleMode(stdscr->term_handle, &stdscr->term_orig))
         mgoto(error);
 
-    stdscr->term_new =
-        stdscr->term_orig | ENABLE_PROCESSED_OUTPUT |
-        ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+    stdscr->term_new = stdscr->term_orig | ENABLE_PROCESSED_OUTPUT
+        | ENABLE_VIRTUAL_TERMINAL_PROCESSING;
 
     if (!SetConsoleMode(stdscr->term_handle, stdscr->term_new))
         mgoto(error);
@@ -185,11 +179,10 @@ WINDOW *initscr(void)
 
     return stdscr;
 
-  error:
+error:
     free(stdscr);
     mreturn(NULL);
 }
-
 
 int endwin(void)
 {
@@ -214,13 +207,11 @@ int endwin(void)
     return ret;
 }
 
-
 int set_tabsize(size_t size)
 {
     stdscr->tabsize = size;
     return OK;
 }
-
 
 static int unread(unsigned char u)
 {
@@ -251,7 +242,6 @@ static int unread(unsigned char u)
     return OK;
 }
 
-
 static int getch_raw(void)
 {
 
@@ -260,7 +250,7 @@ static int getch_raw(void)
     unsigned char t;
     size_t s_i, e_i;
 
-  top:
+top:
 
 #endif
 
@@ -319,7 +309,6 @@ static int getch_raw(void)
 #endif
 }
 
-
 int ungetch(int ch)
 {
     int *t;
@@ -340,8 +329,7 @@ int ungetch(int ch)
         if (mof(new_b_n, sizeof(int), SIZE_MAX))
             mreturn(ERR);
 
-        if ((t =
-             realloc(stdscr->unget_buf, new_b_n * sizeof(int))) == NULL)
+        if ((t = realloc(stdscr->unget_buf, new_b_n * sizeof(int))) == NULL)
             mreturn(ERR);
 
         stdscr->unget_buf = t;
@@ -353,7 +341,6 @@ int ungetch(int ch)
     return OK;
 }
 
-
 int getch(void)
 {
 #ifdef _WIN32
@@ -363,7 +350,7 @@ int getch(void)
     if (stdscr->b_i)
         return *(stdscr->unget_buf + --stdscr->b_i);
 
-  top:
+top:
     x = getch_raw();
     if (x == 0) {
         if ((y = getch_raw()) == ERR) {
@@ -373,7 +360,7 @@ int getch(void)
         if (y == 3)
             return CTRL_2;
         else
-            goto top;           /* Eat */
+            goto top; /* Eat */
     } else if (x == 224) {
         if ((y = getch_raw()) == ERR) {
             unread(x);
@@ -395,40 +382,42 @@ int getch(void)
         case 'O':
             return KEY_END;
         default:
-            goto top;           /* Eat */
+            goto top; /* Eat */
         }
     }
     return x;
 
 #else
 
-#define get_sb_ch() do {                                \
-    if (i == MAX_SEQ_LEN) {                              \
-        fprintf(stderr, "[%s:%d]: getch: Error: "       \
-            "Key sequence buffer is full\n",            \
-            __FILE__, __LINE__);                        \
-        goto top;                                       \
-    }                                                   \
-    if ((sb[i++] = getch_raw()) == ERR) {               \
-        while (i)                                       \
-            if (sb[--i] != ERR)                         \
-                unread(sb[i]);                          \
-                                                        \
-        return ERR;                                     \
-    }                                                   \
-} while (0)
+#define get_sb_ch()                                                           \
+    do {                                                                      \
+        if (i == MAX_SEQ_LEN) {                                               \
+            fprintf(stderr,                                                   \
+                "[%s:%d]: getch: Error: "                                     \
+                "Key sequence buffer is full\n",                              \
+                __FILE__, __LINE__);                                          \
+            goto top;                                                         \
+        }                                                                     \
+        if ((sb[i++] = getch_raw()) == ERR) {                                 \
+            while (i)                                                         \
+                if (sb[--i] != ERR)                                           \
+                    unread(sb[i]);                                            \
+                                                                              \
+            return ERR;                                                       \
+        }                                                                     \
+    } while (0)
 
     /* Must be at least 4 */
 #define MAX_SEQ_LEN 16
 
-    int sb[MAX_SEQ_LEN];        /* Sequence buffer */
-    size_t i = 0;               /* Index of next write in sb */
+    int sb[MAX_SEQ_LEN]; /* Sequence buffer */
+    size_t i = 0;        /* Index of next write in sb */
 
     /* Use unget buffer first */
     if (stdscr->b_i)
         return *(stdscr->unget_buf + --stdscr->b_i);
 
-  top:
+top:
 
     i = 0;
     get_sb_ch();
@@ -463,7 +452,7 @@ int getch(void)
                 if (sb[3] == '~')
                     return KEY_DC;
 
-              eat:
+            eat:
                 /* Eat to end of sequence */
                 while (1) {
                     get_sb_ch();
@@ -484,7 +473,6 @@ int getch(void)
 }
 
 #undef get_sb_ch
-
 
 static int get_phy_screen_size(void)
 {
@@ -508,7 +496,6 @@ static int get_phy_screen_size(void)
     return OK;
 }
 
-
 static int erase_screen(int clear)
 {
     size_t new_s_s;
@@ -520,9 +507,9 @@ static int erase_screen(int clear)
     if (mof(stdscr->h, stdscr->w, SIZE_MAX))
         mreturn(ERR);
 
-    new_s_s = stdscr->h * stdscr->w;    /* New screen size */
+    new_s_s = stdscr->h * stdscr->w; /* New screen size */
 
-    if (!new_s_s)               /* No screen size */
+    if (!new_s_s) /* No screen size */
         mreturn(ERR);
 
     if (clear || new_s_s != stdscr->vs_s) {
@@ -551,18 +538,15 @@ static int erase_screen(int clear)
     return OK;
 }
 
-
 int erase(void)
 {
     return erase_screen(0);
 }
 
-
 int clear(void)
 {
     return erase_screen(1);
 }
-
 
 int refresh(void)
 {
@@ -594,11 +578,10 @@ int refresh(void)
     return OK;
 }
 
-
 int addch(unsigned char ch)
 {
     unsigned char new_ch;
-    size_t tws;                 /* Tab write size */
+    size_t tws; /* Tab write size */
 
     /* Off screen */
     if (stdscr->v_i >= stdscr->vs_s)
@@ -611,11 +594,11 @@ int addch(unsigned char ch)
             stdscr->v_i = (stdscr->v_i / stdscr->w + 1) * stdscr->w;
     } else {
         if (ch == '\t') {
-            tws =
-                stdscr->vs_s - stdscr->v_i >
-                TABSIZE ? TABSIZE : stdscr->vs_s - stdscr->v_i;
+            tws = stdscr->vs_s - stdscr->v_i > TABSIZE
+                ? TABSIZE
+                : stdscr->vs_s - stdscr->v_i;
             memset(stdscr->vs_n + stdscr->v_i,
-                   stdscr->v_hl ? ' ' | '\x80' : ' ', tws);
+                stdscr->v_hl ? ' ' | '\x80' : ' ', tws);
             stdscr->v_i += tws;
         } else {
             if (ch == '\0')
@@ -625,15 +608,14 @@ int addch(unsigned char ch)
             else
                 new_ch = ch;
 
-            *(stdscr->vs_n + stdscr->v_i) =
-                stdscr->v_hl ? new_ch | '\x80' : new_ch;
+            *(stdscr->vs_n + stdscr->v_i)
+                = stdscr->v_hl ? new_ch | '\x80' : new_ch;
             ++stdscr->v_i;
         }
     }
 
     return OK;
 }
-
 
 int addnstr(const char *str, int n)
 {
@@ -657,7 +639,6 @@ int addnstr(const char *str, int n)
 
     return OK;
 }
-
 
 int move(int y, int x)
 {
@@ -688,11 +669,10 @@ chtype inch(void)
 
 int clrtoeol(void)
 {
-    memset(stdscr->vs_n + stdscr->v_i, ' ',
-           stdscr->w - stdscr->v_i % stdscr->w);
+    memset(
+        stdscr->vs_n + stdscr->v_i, ' ', stdscr->w - stdscr->v_i % stdscr->w);
     return OK;
 }
-
 
 int standend(void)
 {
@@ -700,13 +680,11 @@ int standend(void)
     return OK;
 }
 
-
 int standout(void)
 {
     stdscr->v_hl = 1;
     return OK;
 }
-
 
 int raw(void)
 {
@@ -714,13 +692,11 @@ int raw(void)
     return OK;
 }
 
-
 int noecho(void)
 {
     /* Preformed by initscr() in this implementation */
     return OK;
 }
-
 
 int keypad(WINDOW *win, bool bf)
 {
@@ -733,7 +709,6 @@ int keypad(WINDOW *win, bool bf)
 
     return OK;
 }
-
 
 int nodelay(WINDOW *win, bool bf)
 {
@@ -749,7 +724,7 @@ int nodelay(WINDOW *win, bool bf)
 }
 
 #define INVISIBLE 0
-#define VISIBLE 1
+#define VISIBLE   1
 
 int curs_set(int visibility)
 {

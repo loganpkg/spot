@@ -452,11 +452,11 @@ the POSIX standard.
 ```m4
 traceon[(macro_name[, ... ])]
 ```
-Prints to `stderr` the location in the input file, the name of the macro, and the
-macro stack depth after they are invoked. This is at the beginning of argument
-collection, not at the end when the macro is executed. The benefit of tracing
-the macros this way is that they appear in the same order as they do in the
-source code, making debugging easier.
+Prints to `stderr` the location in the input file, the name of the macro, and
+the macro stack depth after they are invoked. This is at the beginning of
+argument collection, not at the end when the macro is executed. The benefit
+of tracing the macros this way is that they appear in the same order as they
+do in the source code, making debugging easier.
 
 When called without arguments, then all of the existing macros are added to
 the trace list (which is implemented as a separate hash table). When called
@@ -635,9 +635,9 @@ if `size` is not specified. Indices commence from zero.
 ```m4
 translit(str, from_chars, to_chars)
 ```
-`translit` performs character-wise replacement on `str` and pushes the result into
-the input. A mapping of `from_chars` to `to_chars` is internally created to perform
-the replacement. Each specified character in `from_chars`
+`translit` performs character-wise replacement on `str` and pushes the result
+into the input. A mapping of `from_chars` to `to_chars` is internally created
+to perform the replacement. Each specified character in `from_chars`
 is swapped to the corresponding character in `to_chars`. If `from_chars`
 is longer than `to_chars`, then the characters without partners will be
 deleted.
@@ -1070,8 +1070,8 @@ Please note that the start of line and end of line anchors are unique, in that
 they are unary operators by default, but if no operand is available in the
 stack, they create an NFA fragment like a character set.
 
-This process will continue until the whole regex has been evaluated and a single
-NFA remains in the stack.
+This process will continue until the whole regex has been evaluated and
+a single NFA remains in the stack.
 
 The following graphs show the changes that are made by each of the operators.
 
@@ -1290,8 +1290,8 @@ all the states have been eliminated. At this point, the length is the
 *last match* pointer minus the pointer to the start of the text.
 
 Please note that the way the end node was reached is irrelevant, and only the
-start of the text pointer and the last match pointer are needed to obtain the location
-and length of the match.
+start of the text pointer and the last match pointer are needed to obtain the
+location and length of the match.
 
 Next, a character is read. The character is looked up in the character sets
 of the relevant in-state transitions. If the character is in the set, then

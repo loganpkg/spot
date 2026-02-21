@@ -28,8 +28,7 @@
 #include "toucanlib.h"
 
 #define READ_BLOCK_SIZE BUFSIZ
-#define INIT_BUF_SIZE 512
-
+#define INIT_BUF_SIZE   512
 
 /* ###################################################################### */
 
@@ -47,7 +46,7 @@ struct ibuf *init_ibuf(size_t n)
     b->n = n;
     return b;
 
-  error:
+error:
     free_ibuf(b);
     return NULL;
 }
@@ -64,7 +63,7 @@ int free_ibuf(struct ibuf *b)
 
         if (b->fp != NULL && b->fp != stdin)
             if (fclose(b->fp))
-                ret = 1;        /* Continue */
+                ret = 1; /* Continue */
 
         free(b->a);
         free(b);
@@ -79,6 +78,9 @@ static int grow_ibuf(struct ibuf *b, size_t will_use)
     char *t;
     size_t new_n;
 
+    if (will_use == 0)
+        return 0;
+
     if (aof(b->n, will_use, SIZE_MAX))
         mreturn(1);
 
@@ -88,6 +90,9 @@ static int grow_ibuf(struct ibuf *b, size_t will_use)
         mreturn(1);
 
     new_n *= 2;
+
+    if (new_n == 0)
+        return 0;
 
     if ((t = realloc(b->a, new_n)) == NULL)
         mreturn(1);
@@ -194,8 +199,7 @@ int append_stream(struct ibuf **b, FILE *fp, const char *nm)
     /* Link at end */
     if (*b != NULL) {
         w = *b;
-        while (w->next != NULL)
-            w = w->next;
+        while (w->next != NULL) w = w->next;
 
         w->next = t;
     } else {
@@ -224,7 +228,7 @@ int get_ch(struct ibuf **input, char *ch)
     struct ibuf *t = NULL;
     int x;
 
-  top:
+top:
     if ((*input)->i) {
         --(*input)->i;
         *ch = *((*input)->a + (*input)->i);
@@ -271,7 +275,6 @@ int get_ch(struct ibuf **input, char *ch)
 
             *ch = x;
             return 0;
-
         }
     }
 
@@ -358,7 +361,7 @@ int eat_str_if_match(struct ibuf **input, const char *str)
 
     return MATCH;
 
-  no_match:
+no_match:
     /* Return the read characters */
     while (i) {
         if (unget_ch(*input, *(str + i - 1)))
@@ -385,23 +388,23 @@ int get_word(struct ibuf **input, struct obuf *token, int interpret_hex)
         mreturn(1);
 
     if (isdigit(ch))
-        type = 'd';             /* Decimal (or octal) number */
-    else if (isalpha(ch) || ch == '_')  /* First char cannot be a digit */
-        type = 'w';             /* Word (valid variable or macro name) */
+        type = 'd';                    /* Decimal (or octal) number */
+    else if (isalpha(ch) || ch == '_') /* First char cannot be a digit */
+        type = 'w'; /* Word (valid variable or macro name) */
     else
-        goto end;               /* Send a single char */
+        goto end; /* Send a single char */
 
     second_ch = 1;
     while (1) {
         r = get_ch(input, &ch);
         if (r == 1)
             mreturn(1);
-        else if (r == EOF)      /* Ignore, as not the first char */
+        else if (r == EOF) /* Ignore, as not the first char */
             goto end;
 
         if (interpret_hex && second_ch && type == 'd'
             && (ch == 'x' || ch == 'X'))
-            type = 'h';         /* Hexadecimal number */
+            type = 'h'; /* Hexadecimal number */
 
         /* More of the same type. Words can include digits here. */
         if ((type == 'd' && isdigit(ch))
@@ -419,14 +422,13 @@ int get_word(struct ibuf **input, struct obuf *token, int interpret_hex)
         second_ch = 0;
     }
 
-  end:
-    if (put_ch(token, '\0')) {  /* Terminate string */
+end:
+    if (put_ch(token, '\0')) { /* Terminate string */
         mreturn(1);
     }
 
     return 0;
 }
-
 
 /* ###################################################################### */
 
@@ -444,7 +446,7 @@ struct obuf *init_obuf(size_t n)
     b->n = n;
     return b;
 
-  error:
+error:
     free_obuf(b);
     return NULL;
 }
@@ -467,6 +469,9 @@ static int grow_obuf(struct obuf *b, size_t will_use)
     char *t;
     size_t new_n;
 
+    if (will_use == 0)
+        return 0;
+
     if (aof(b->n, will_use, SIZE_MAX))
         mreturn(1);
 
@@ -476,6 +481,9 @@ static int grow_obuf(struct obuf *b, size_t will_use)
         mreturn(1);
 
     new_n *= 2;
+
+    if (new_n == 0)
+        return 0;
 
     if ((t = realloc(b->a, new_n)) == NULL)
         mreturn(1);
@@ -502,7 +510,7 @@ int put_str(struct obuf *b, const char *str)
 
     while ((ch = *str++) != '\0') {
         if (b->i == b->n && grow_obuf(b, 1)) {
-            b->i = i_backup;    /* Restore */
+            b->i = i_backup; /* Restore */
             mreturn(1);
         }
 
@@ -525,6 +533,9 @@ int put_mem(struct obuf *b, const char *mem, size_t mem_len)
 int put_obuf(struct obuf *b, struct obuf *t)
 {
     /* Empties t onto the end of b */
+    if (t->i == 0)
+        return 0; /* Nothing to do. */
+
     if (put_mem(b, t->a, t->i))
         mreturn(1);
 
@@ -541,36 +552,27 @@ int put_file(struct obuf *b, const char *fn)
     if (fn == NULL || *fn == '\0')
         mreturn(1);
 
-    if ((fp = fopen(fn, "rb")) == NULL) {
-        ret = 1;
+    if ((fp = fopen(fn, "rb")) == NULL)
         mgoto(clean_up);
-    }
 
-    if (get_file_size(fn, &fs)) {
-        ret = 1;
+    if (get_file_size(fn, &fs))
         mgoto(clean_up);
-    }
 
-    if (!fs) {
-        ret = 1;
+    if (!fs)
         mgoto(done);
-    }
 
-    if (fs > b->n - b->i && grow_obuf(b, fs)) {
-        ret = 1;
+    if (fs > b->n - b->i && grow_obuf(b, fs))
         mgoto(clean_up);
-    }
 
-    if (fread(b->a + b->i, 1, fs, fp) != fs) {
-        ret = 1;
+    if (fread(b->a + b->i, 1, fs, fp) != fs)
         mgoto(clean_up);
-    }
 
     b->i += fs;
 
-  done:
+done:
     ret = 0;
-  clean_up:
+
+clean_up:
     if (fp != NULL)
         if (fclose(fp))
             ret = 1;
@@ -603,7 +605,7 @@ int put_stream(struct obuf *b, FILE *fp)
     }
     return 0;
 
-  error:
+error:
     b->i = i_backup;
     return 1;
 }
@@ -699,7 +701,6 @@ char *obuf_to_str(struct obuf **b)
     return str;
 }
 
-
 /* ###################################################################### */
 
 struct lbuf *init_lbuf(size_t n)
@@ -719,7 +720,7 @@ struct lbuf *init_lbuf(size_t n)
     b->n = n;
     return b;
 
-  error:
+error:
     free_lbuf(b);
     return NULL;
 }
@@ -737,6 +738,9 @@ static int grow_lbuf(struct lbuf *b, size_t will_use)
     long *t;
     size_t new_n;
 
+    if (will_use == 0)
+        return 0;
+
     if (aof(b->n, will_use, SIZE_MAX))
         mreturn(1);
 
@@ -749,6 +753,9 @@ static int grow_lbuf(struct lbuf *b, size_t will_use)
 
     if (mof(new_n, sizeof(long), SIZE_MAX))
         mreturn(1);
+
+    if (new_n == 0)
+        return 0;
 
     if ((t = realloc(b->a, new_n * sizeof(long))) == NULL)
         mreturn(1);
@@ -767,7 +774,6 @@ int add_l(struct lbuf *b, long x)
     ++b->i;
     return 0;
 }
-
 
 /* ###################################################################### */
 
@@ -788,7 +794,7 @@ struct sbuf *init_sbuf(size_t n)
     b->n = n;
     return b;
 
-  error:
+error:
     free_sbuf(b);
     return NULL;
 }
@@ -806,6 +812,9 @@ static int grow_sbuf(struct sbuf *b, size_t will_use)
     size_t *t;
     size_t new_n;
 
+    if (will_use == 0)
+        return 0;
+
     if (aof(b->n, will_use, SIZE_MAX))
         mreturn(1);
 
@@ -818,6 +827,9 @@ static int grow_sbuf(struct sbuf *b, size_t will_use)
 
     if (mof(new_n, sizeof(size_t), SIZE_MAX))
         mreturn(1);
+
+    if (new_n == 0)
+        return 0;
 
     if ((t = realloc(b->a, new_n * sizeof(size_t))) == NULL)
         mreturn(1);
@@ -836,7 +848,6 @@ int add_s(struct sbuf *b, size_t x)
     ++b->i;
     return 0;
 }
-
 
 /* ###################################################################### */
 
@@ -857,7 +868,7 @@ struct pbuf *init_pbuf(size_t n)
     b->n = n;
     return b;
 
-  error:
+error:
     free_pbuf(b);
     return NULL;
 }
@@ -875,6 +886,9 @@ static int grow_pbuf(struct pbuf *b, size_t will_use)
     void **t;
     size_t new_n;
 
+    if (will_use == 0)
+        return 0;
+
     if (aof(b->n, will_use, SIZE_MAX))
         mreturn(1);
 
@@ -887,6 +901,9 @@ static int grow_pbuf(struct pbuf *b, size_t will_use)
 
     if (mof(new_n, sizeof(void *), SIZE_MAX))
         mreturn(1);
+
+    if (new_n == 0)
+        return 0;
 
     if ((t = realloc(b->a, new_n * sizeof(void *))) == NULL)
         mreturn(1);

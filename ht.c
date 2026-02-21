@@ -27,7 +27,6 @@
 
 #include "toucanlib.h"
 
-
 static struct entry *init_entry(void)
 {
     struct entry *e;
@@ -58,11 +57,15 @@ struct ht *init_ht(size_t num_buckets)
     if ((ht = calloc(1, sizeof(struct ht))) == NULL)
         mreturn(NULL);
 
-    if (mof(num_buckets, sizeof(struct entry *), SIZE_MAX))
+    if (mof(num_buckets, sizeof(struct entry *), SIZE_MAX)) {
+        free(ht);
         mreturn(NULL);
+    }
 
-    if ((ht->b = calloc(num_buckets, sizeof(struct entry *))) == NULL)
+    if ((ht->b = calloc(num_buckets, sizeof(struct entry *))) == NULL) {
+        free(ht);
         mreturn(NULL);
+    }
 
     ht->n = num_buckets;
 
@@ -100,7 +103,7 @@ static size_t hash_func(const char *str, size_t n)
         h = h * 33 ^ ch;
         ++str;
     }
-    return h % n;               /* Bucket index */
+    return h % n; /* Bucket index */
 }
 
 struct entry *lookup(struct ht *ht, const char *name)
@@ -113,11 +116,11 @@ struct entry *lookup(struct ht *ht, const char *name)
 
     while (e != NULL) {
         if (!strcmp(name, e->name))
-            return e;           /* Match */
+            return e; /* Match */
 
         e = e->next;
     }
-    return NULL;                /* Not found */
+    return NULL; /* Not found */
 }
 
 int delete_entry(struct ht *ht, const char *name, int pop_hist)
@@ -128,7 +131,7 @@ int delete_entry(struct ht *ht, const char *name, int pop_hist)
     e = lookup(ht, name);
 
     if (e == NULL)
-        return 1;               /* Error as not found */
+        return 1; /* Error as not found */
 
     bucket = hash_func(name, ht->n);
 
@@ -163,12 +166,12 @@ int delete_entry(struct ht *ht, const char *name, int pop_hist)
         }
     }
 
-    free_entry(e);              /* Will free history too if not isolated */
+    free_entry(e); /* Will free history too if not isolated */
     return 0;
 }
 
 int upsert(struct ht *ht, const char *name, const char *def, Fptr func_p,
-           int push_hist)
+    int push_hist)
 {
     struct entry *e, *new_e = NULL;
     size_t bucket;

@@ -45,12 +45,10 @@
  *                                      John 13:34-35 GNT
  */
 
-
 #include "toucanlib.h"
 
-#define INIT_NUM_NODES 100
+#define INIT_NUM_NODES         100
 #define INIT_OPERAND_STACK_NUM 100
-
 
 /* Lookup in storage */
 #define lk(n) (*(ns->a + (n)))
@@ -58,36 +56,32 @@
 /* Sets link_type to END_NODE */
 #define clear_node(n) memset(ns->a + (n), '\0', sizeof(struct nfa_node))
 
-
-#define copy_node(dst, src) memcpy(ns->a + (dst), ns->a + (src),    \
-    sizeof(struct nfa_node))
-
+#define copy_node(dst, src)                                                   \
+    memcpy(ns->a + (dst), ns->a + (src), sizeof(struct nfa_node))
 
 /* operator: */
-#define LEFT_PAREN 0
-#define RIGHT_PAREN 1
-#define ONE_OR_MORE 2
-#define ZERO_OR_ONE 3
+#define LEFT_PAREN   0
+#define RIGHT_PAREN  1
+#define ONE_OR_MORE  2
+#define ZERO_OR_ONE  3
 #define ZERO_OR_MORE 4
-#define CONCAT 5
-#define SOL_ANCHOR 6
-#define EOL_ANCHOR 7
-#define OR 8
+#define CONCAT       5
+#define SOL_ANCHOR   6
+#define EOL_ANCHOR   7
+#define OR           8
 
 #define NO_OPERATOR 9
-
 
 /*
  * link1 is only used when both links are epsilon.
  * link_type:
  */
-#define END_NODE 0
-#define BOTH_EPSILON 1
-#define EPSILON 2
+#define END_NODE        0
+#define BOTH_EPSILON    1
+#define EPSILON         2
 #define SOL_READ_STATUS 3
 #define EOL_READ_STATUS 4
-#define CHAR_SET 5
-
+#define CHAR_SET        5
 
 struct operator_detail {
     unsigned char precedence;
@@ -111,8 +105,8 @@ struct nfa_node {
 struct nfa_storage {
     struct nfa_node *a;
     size_t i;
-    size_t n;                   /* Number of elements, not bytes */
-    size_t reuse;               /* For reusing deleted nodes */
+    size_t n;     /* Number of elements, not bytes */
+    size_t reuse; /* For reusing deleted nodes */
     unsigned char reuse_set;
 };
 
@@ -125,7 +119,7 @@ struct nfa {
 struct operand_stack {
     struct nfa *a;
     size_t i;
-    size_t n;                   /* Number of elements, not bytes */
+    size_t n; /* Number of elements, not bytes */
 };
 
 struct regex {
@@ -136,23 +130,22 @@ struct regex {
     struct nfa_storage *ns;
     size_t nfa_start;
     size_t nfa_end;
-    int nl_ins;                 /* Newline insensitive matching */
+    int nl_ins; /* Newline insensitive matching */
     unsigned char *state;
     unsigned char *state_next;
 };
 
 struct operator_detail op_detail[] = {
-    { 4, '_', "(" },            /* LEFT_PAREN */
-    { 4, '_', ")" },            /* RIGHT_PAREN */
-    { 3, 'L', "+" },            /* ONE_OR_MORE */
-    { 3, 'L', "?" },            /* ZERO_OR_ONE */
-    { 3, 'L', "*" },            /* ZERO_OR_MORE */
-    { 2, 'L', "." },            /* CONCAT */
-    { 1, 'R', "^" },            /* SOL_ANCHOR */
-    { 1, 'L', "$" },            /* EOL_ANCHOR */
-    { 0, 'L', "|" }             /* OR */
+    { 4, '_', "(" }, /* LEFT_PAREN */
+    { 4, '_', ")" }, /* RIGHT_PAREN */
+    { 3, 'L', "+" }, /* ONE_OR_MORE */
+    { 3, 'L', "?" }, /* ZERO_OR_ONE */
+    { 3, 'L', "*" }, /* ZERO_OR_MORE */
+    { 2, 'L', "." }, /* CONCAT */
+    { 1, 'R', "^" }, /* SOL_ANCHOR */
+    { 1, 'L', "$" }, /* EOL_ANCHOR */
+    { 0, 'L', "|" }, /* OR */
 };
-
 
 /* ********** Helper functions ********** */
 
@@ -190,7 +183,7 @@ static struct nfa_storage *init_nfa_storage(void)
 
     return t;
 
-  error:
+error:
     if (t != NULL) {
         free(t->a);
         free(t);
@@ -243,7 +236,7 @@ static int issue_node(struct nfa_storage *ns, size_t *node)
 
     return 0;
 
-  error:
+error:
     return 1;
 }
 
@@ -268,8 +261,8 @@ static int delete_node(struct nfa_storage *ns, size_t node)
     return 0;
 }
 
-static void fill_hole(struct nfa_storage *ns, size_t *start_node,
-                      size_t *end_node)
+static void fill_hole(
+    struct nfa_storage *ns, size_t *start_node, size_t *end_node)
 {
     /*
      * Fills hole with the last node in the array, and patches the links.
@@ -319,15 +312,14 @@ static struct operand_stack *init_operand_stack(void)
         && INIT_OPERAND_STACK_NUM > SIZE_MAX / sizeof(struct nfa))
         mgoto(error);
 
-    if ((t->a =
-         calloc(INIT_OPERAND_STACK_NUM, sizeof(struct nfa))) == NULL)
+    if ((t->a = calloc(INIT_OPERAND_STACK_NUM, sizeof(struct nfa))) == NULL)
         mgoto(error);
 
     t->n = INIT_OPERAND_STACK_NUM;
 
     return t;
 
-  error:
+error:
     if (t != NULL) {
         free(t->a);
         free(t);
@@ -343,8 +335,8 @@ static void free_operand_stack(struct operand_stack *z)
     }
 }
 
-static int push_operand_stack(struct operand_stack *z, size_t nfa_start,
-                              size_t nfa_end)
+static int push_operand_stack(
+    struct operand_stack *z, size_t nfa_start, size_t nfa_end)
 {
     struct nfa *t;
     size_t new_n, new_size_in_bytes;
@@ -371,12 +363,12 @@ static int push_operand_stack(struct operand_stack *z, size_t nfa_start,
     ++z->i;
     return 0;
 
-  error:
+error:
     return 1;
 }
 
-static int pop_operand_stack(struct operand_stack *z, size_t *nfa_start,
-                             size_t *nfa_end)
+static int pop_operand_stack(
+    struct operand_stack *z, size_t *nfa_start, size_t *nfa_end)
 {
     if (!z->i)
         return 1;
@@ -405,11 +397,10 @@ static void free_regex(struct regex *reg)
     }
 }
 
-
 /* ********** Regex related functions ********** */
 
-static int interpret_escaped_chars(const char *input_str, char **output,
-                                   size_t *output_size)
+static int interpret_escaped_chars(
+    const char *input_str, char **output, size_t *output_size)
 {
     int ret = 0;
     const char *p;
@@ -452,8 +443,7 @@ static int interpret_escaped_chars(const char *input_str, char **output,
                 *q++ = '\r';
                 break;
             case 'x':
-                if (isxdigit((h1 = *p++))
-                    && isxdigit((h0 = *p++)))
+                if (isxdigit((h1 = *p++)) && isxdigit((h0 = *p++)))
                     *q++ = hex(h1, h0);
                 else
                     d_mgoto(syntax_error, "Invalid hex character\n");
@@ -463,17 +453,18 @@ static int interpret_escaped_chars(const char *input_str, char **output,
                 *q++ = '\\';
                 *q++ = c;
                 break;
-        } else
+            }
+        else
             *q++ = ch;
     }
     *output_size = q - mem;
     *output = mem;
     return 0;
 
-  error:
+error:
     ret = 1;
 
-  syntax_error:
+syntax_error:
     if (!ret)
         ret = SYNTAX_ERROR;
 
@@ -481,8 +472,8 @@ static int interpret_escaped_chars(const char *input_str, char **output,
     return ret;
 }
 
-static int char_to_int_eof_term(const char *input, size_t input_size,
-                                int **output)
+static int char_to_int_eof_term(
+    const char *input, size_t input_size, int **output)
 {
     /* EOF terminated */
     int *imem = NULL;
@@ -497,15 +488,14 @@ static int char_to_int_eof_term(const char *input, size_t input_size,
     if ((imem = calloc(input_size + 1, sizeof(int))) == NULL)
         mgoto(error);
 
-    for (i = 0; i < input_size; ++i)
-        imem[i] = p[i];
+    for (i = 0; i < input_size; ++i) imem[i] = p[i];
 
     imem[input_size] = EOF;
 
     *output = imem;
     return 0;
 
-  error:
+error:
     free(imem);
     return 1;
 }
@@ -529,8 +519,8 @@ static void print_char_set(const unsigned char *char_set)
 
     in_range = 0;
     for (i = 0; i <= UCHAR_MAX; ++i)
-        if (!in_range && i && char_set[i - 1] && char_set[i]
-            && i != UCHAR_MAX && char_set[i + 1]) {
+        if (!in_range && i && char_set[i - 1] && char_set[i] && i != UCHAR_MAX
+            && char_set[i + 1]) {
             in_range = 1;
             putc('-', stderr);
         } else if (in_range && !char_set[i]) {
@@ -547,7 +537,7 @@ static void print_char_set(const unsigned char *char_set)
 static void print_regex_chain(const struct regex_item *ri_head)
 {
     while (ri_head != NULL) {
-        if (ri_head->operator == NO_OPERATOR) {
+        if (ri_head->operator== NO_OPERATOR) {
             fprintf(stderr, "Char set: ");
             print_char_set(ri_head->char_set);
             putc('\n', stderr);
@@ -571,9 +561,8 @@ static void add_to_char_set(unsigned char *char_set, int ch, int case_ins)
     }
 }
 
-static int create_regex_chain(const int *find_eof,
-                              struct regex_item **ri_head, int nl_ins,
-                              int case_ins)
+static int create_regex_chain(
+    const int *find_eof, struct regex_item **ri_head, int nl_ins, int case_ins)
 {
     int ret = 0;
     const int *p;
@@ -603,14 +592,14 @@ static int create_regex_chain(const int *find_eof,
             if ((ri->char_set = calloc(UCHAR_MAX + 1, 1)) == NULL)
                 mgoto(error);
 
-            ri->operator = NO_OPERATOR;
+            ri->operator= NO_OPERATOR;
             ri->char_set[*p++] = 1;
         } else if (x == '[') {
             /* Character set */
             if ((ri->char_set = calloc(UCHAR_MAX + 1, 1)) == NULL)
                 mgoto(error);
 
-            ri->operator = NO_OPERATOR;
+            ri->operator= NO_OPERATOR;
 
             negate_set = 0;
 
@@ -624,8 +613,7 @@ static int create_regex_chain(const int *find_eof,
             while (1) {
                 /* Check for range */
                 if ((first_ch_in_set || (*p != ']' && *p != EOF))
-                    && *(p + 1) == '-' && *(p + 2) != ']'
-                    && *(p + 2) != EOF) {
+                    && *(p + 1) == '-' && *(p + 2) != ']' && *(p + 2) != EOF) {
                     if (*p > *(p + 2))
                         d_mgoto(syntax_error, "Descending range\n");
 
@@ -635,7 +623,7 @@ static int create_regex_chain(const int *find_eof,
                     p += 2;
                 } else if (*p == ']' && !first_ch_in_set) {
                     ++p;
-                    break;      /* End of set */
+                    break; /* End of set */
                 } else if (*p == EOF) {
                     d_mgoto(syntax_error, "Unclosed character set\n");
                 } else {
@@ -653,40 +641,39 @@ static int create_regex_chain(const int *find_eof,
             switch (x) {
                 /* Operators */
             case '(':
-                ri->operator = LEFT_PAREN;
+                ri->operator= LEFT_PAREN;
                 break;
             case ')':
-                ri->operator = RIGHT_PAREN;
+                ri->operator= RIGHT_PAREN;
                 break;
             case '+':
-                ri->operator = ONE_OR_MORE;
+                ri->operator= ONE_OR_MORE;
                 break;
             case '?':
-                ri->operator = ZERO_OR_ONE;
+                ri->operator= ZERO_OR_ONE;
                 break;
             case '*':
-                ri->operator = ZERO_OR_MORE;
+                ri->operator= ZERO_OR_MORE;
                 break;
             case '^':
-                ri->operator = SOL_ANCHOR;
+                ri->operator= SOL_ANCHOR;
                 break;
             case '$':
-                ri->operator = EOL_ANCHOR;
+                ri->operator= EOL_ANCHOR;
                 break;
             case '|':
-                ri->operator = OR;
+                ri->operator= OR;
                 break;
             default:
                 /* Other characters */
                 if ((ri->char_set = calloc(UCHAR_MAX + 1, 1)) == NULL)
                     mgoto(error);
 
-                ri->operator = NO_OPERATOR;
+                ri->operator= NO_OPERATOR;
 
                 if (x == '.') {
                     /* Set of all chars */
-                    for (i = 0; i <= UCHAR_MAX; ++i)
-                        ri->char_set[i] = 1;
+                    for (i = 0; i <= UCHAR_MAX; ++i) ri->char_set[i] = 1;
 
                     if (!nl_ins)
                         ri->char_set['\n'] = 0;
@@ -697,19 +684,20 @@ static int create_regex_chain(const int *find_eof,
                 break;
             }
         }
-        if ((ri->operator == NO_OPERATOR || ri->operator == LEFT_PAREN
-             || ri->operator == SOL_ANCHOR)
-            && prev != NULL && (prev->operator == NO_OPERATOR
-                                || prev->operator == ONE_OR_MORE
-                                || prev->operator == ZERO_OR_ONE
-                                || prev->operator == ZERO_OR_MORE
-                                || prev->operator == RIGHT_PAREN
-                                || prev->operator == EOL_ANCHOR)) {
+        if ((ri->operator== NO_OPERATOR || ri->operator== LEFT_PAREN || ri->
+                operator== SOL_ANCHOR)
+            && prev != NULL
+            && (prev->
+                operator== NO_OPERATOR || prev->
+                operator== ONE_OR_MORE || prev->
+                operator== ZERO_OR_ONE || prev->
+                operator== ZERO_OR_MORE || prev->
+                operator== RIGHT_PAREN || prev->operator== EOL_ANCHOR)) {
             /* Link in concatenation */
             if ((t = init_regex_item()) == NULL)
                 mgoto(error);
 
-            t->operator = CONCAT;
+            t->operator= CONCAT;
 
             prev->next = t;
             t->next = ri;
@@ -722,10 +710,10 @@ static int create_regex_chain(const int *find_eof,
 
     return 0;
 
-  error:
+error:
     ret = 1;
 
-  syntax_error:
+syntax_error:
     if (!ret)
         ret = SYNTAX_ERROR;
 
@@ -733,31 +721,30 @@ static int create_regex_chain(const int *find_eof,
     return ret;
 }
 
-
-#define pop_operator_to_output do {             \
-    if (output_tail == NULL) {                  \
-        output_tail = operator_stack;           \
-        postfix = output_tail;                  \
-    } else {                                    \
-        output_tail->next = operator_stack;     \
-        output_tail = output_tail->next;        \
-    }                                           \
-    operator_stack = operator_stack->next;      \
-} while (0)
-
+#define pop_operator_to_output                                                \
+    do {                                                                      \
+        if (output_tail == NULL) {                                            \
+            output_tail = operator_stack;                                     \
+            postfix = output_tail;                                            \
+        } else {                                                              \
+            output_tail->next = operator_stack;                               \
+            output_tail = output_tail->next;                                  \
+        }                                                                     \
+        operator_stack = operator_stack->next;                                \
+    } while (0)
 
 static void shunting_yard(struct regex_item **ri_head)
 {
     struct regex_item *operator_stack = NULL;
-    struct regex_item *postfix = NULL;  /* Output head */
+    struct regex_item *postfix = NULL; /* Output head */
     struct regex_item *output_tail = NULL;
     struct regex_item *next = NULL;
     struct regex_item *ri, *t;
 
     ri = *ri_head;
     while (ri != NULL) {
-        next = ri->next;        /* Backup */
-        if (ri->operator == NO_OPERATOR) {
+        next = ri->next; /* Backup */
+        if (ri->operator== NO_OPERATOR) {
             if (output_tail == NULL) {
                 output_tail = ri;
                 postfix = output_tail;
@@ -765,16 +752,16 @@ static void shunting_yard(struct regex_item **ri_head)
                 output_tail->next = ri;
                 output_tail = ri;
             }
-        } else if (ri->operator == LEFT_PAREN) {
+        } else if (ri->operator== LEFT_PAREN) {
             ri->next = operator_stack;
             operator_stack = ri;
-        } else if (ri->operator == RIGHT_PAREN) {
+        } else if (ri->operator== RIGHT_PAREN) {
             while (operator_stack != NULL) {
-                if (operator_stack->operator == LEFT_PAREN) {
+                if (operator_stack->operator== LEFT_PAREN) {
                     t = operator_stack;
                     operator_stack = operator_stack->next;
                     /* Need to free left parenthesis, as removed */
-                    t->next = NULL;     /* Isolate */
+                    t->next = NULL; /* Isolate */
                     free_regex_chain(t);
                     break;
                 } else {
@@ -802,10 +789,9 @@ static void shunting_yard(struct regex_item **ri_head)
             ri->next = operator_stack;
             operator_stack = ri;
         }
-        ri = next;              /* Restore from backup */
+        ri = next; /* Restore from backup */
     }
-    while (operator_stack != NULL)
-        pop_operator_to_output;
+    while (operator_stack != NULL) pop_operator_to_output;
 
     if (output_tail != NULL)
         output_tail->next = NULL;
@@ -815,10 +801,8 @@ static void shunting_yard(struct regex_item **ri_head)
 
 #undef pop_operator_to_output
 
-
 static int thompsons_construction(const struct regex_item *ri_head,
-                                  struct nfa_storage **nfa_store,
-                                  size_t *nfa_start, size_t *nfa_end)
+    struct nfa_storage **nfa_store, size_t *nfa_start, size_t *nfa_end)
 {
     int ret = 0;
     struct nfa_storage *ns = NULL;
@@ -1052,7 +1036,7 @@ static int thompsons_construction(const struct regex_item *ri_head,
 
     if (z->i)
         d_mgoto(syntax_error, "%lu operands left on the stack\n",
-                (unsigned long) z->i);
+            (unsigned long) z->i);
 
     /* Fill the last hole (if any) */
     fill_hole(ns, &start_b, &end_b);
@@ -1064,10 +1048,10 @@ static int thompsons_construction(const struct regex_item *ri_head,
 
     return 0;
 
-  error:
+error:
     ret = 1;
 
-  syntax_error:
+syntax_error:
     if (!ret)
         ret = SYNTAX_ERROR;
 
@@ -1101,13 +1085,13 @@ static void print_nfa(struct nfa_storage *ns)
 
             if (lk(i).link_type == BOTH_EPSILON)
                 fprintf(stderr, "%lu -- e --> %lu\n", (unsigned long) i,
-                        (unsigned long) lk(i).link1);
+                    (unsigned long) lk(i).link1);
         }
     }
 }
 
 static int compile_regex(const char *regex_str, int nl_ins, int case_ins,
-                         struct regex **regex_st, int verbose)
+    struct regex **regex_st, int verbose)
 {
     int ret = 1;
     struct regex *reg = NULL;
@@ -1120,19 +1104,16 @@ static int compile_regex(const char *regex_str, int nl_ins, int case_ins,
 
     reg->nl_ins = nl_ins;
 
-    if ((ret =
-         interpret_escaped_chars(regex_str, &reg->find_esc,
-                                 &reg->find_esc_size)))
+    if ((ret = interpret_escaped_chars(
+             regex_str, &reg->find_esc, &reg->find_esc_size)))
         mgoto(error);
 
-    if ((ret =
-         char_to_int_eof_term(reg->find_esc, reg->find_esc_size,
-                              &reg->find_eof)))
+    if ((ret = char_to_int_eof_term(
+             reg->find_esc, reg->find_esc_size, &reg->find_eof)))
         mgoto(error);
 
-    if ((ret =
-         create_regex_chain(reg->find_eof, &reg->ri, reg->nl_ins,
-                            case_ins)))
+    if ((ret = create_regex_chain(
+             reg->find_eof, &reg->ri, reg->nl_ins, case_ins)))
         mgoto(error);
 
     if (verbose) {
@@ -1147,9 +1128,8 @@ static int compile_regex(const char *regex_str, int nl_ins, int case_ins,
         print_regex_chain(reg->ri);
     }
 
-    if ((ret =
-         thompsons_construction(reg->ri, &reg->ns, &reg->nfa_start,
-                                &reg->nfa_end)))
+    if ((ret = thompsons_construction(
+             reg->ri, &reg->ns, &reg->nfa_start, &reg->nfa_end)))
         mgoto(error);
 
     if (verbose) {
@@ -1167,52 +1147,52 @@ static int compile_regex(const char *regex_str, int nl_ins, int case_ins,
     *regex_st = reg;
     return 0;
 
-  usage_error:
+usage_error:
     ret = USAGE_ERROR;
 
-  error:
-    free_regex(reg);
+error:
+    if (reg != NULL)
+        free_regex(reg);
+
     return ret;
 }
 
+#define swap_state_tables                                                     \
+    do {                                                                      \
+        t = reg->state;                                                       \
+        reg->state = reg->state_next;                                         \
+        reg->state_next = t;                                                  \
+    } while (0)
 
-#define swap_state_tables do {              \
-    t = reg->state;                         \
-    reg->state = reg->state_next;           \
-    reg->state_next = t;                    \
-} while (0)
+#define clear_state_table(tb) memset(tb, '\0', ns->i)
 
+#define check_for_winner                                                      \
+    do {                                                                      \
+        if (reg->state_next[reg->nfa_end]) {                                  \
+            /*                                                                \
+             * End node is in state. Record the match. Regex takes the        \
+             * longest match, so OK to overwrite any previous match.          \
+             */                                                               \
+            last_match = p;                                                   \
+        } else {                                                              \
+            count = 0;                                                        \
+            for (i = 0; i < ns->i; ++i)                                       \
+                if (reg->state_next[i])                                       \
+                    ++count;                                                  \
+                                                                              \
+            if (!count) { /* All nodes out */                                 \
+                goto report;                                                  \
+            }                                                                 \
+        }                                                                     \
+    } while (0)
 
-#define clear_state_table(tb)  memset(tb, '\0', ns->i)
-
-
-#define check_for_winner do {                                               \
-    if (reg->state_next[reg->nfa_end]) {                                    \
-        /*                                                                  \
-         * End node is in state. Record the match. Regex takes the longest  \
-         * match, so OK to overwrite any previous match.                    \
-         */                                                                 \
-        last_match = p;                                                     \
-    } else {                                                                \
-        count = 0;                                                          \
-        for (i = 0; i < ns->i; ++i)                                         \
-            if (reg->state_next[i])                                         \
-                ++count;                                                    \
-                                                                            \
-        if (!count) {       /* All nodes out */                             \
-            goto report;                                                    \
-        }                                                                   \
-    }                                                                       \
-} while (0)
-
-
-#define print_state_tables for (i = 0; i < ns->i; ++i)          \
-    fprintf(stderr, "Node %lu: %d %d\n", (unsigned long) i,     \
-        reg->state[i], reg->state_next[i])
-
+#define print_state_tables                                                    \
+    for (i = 0; i < ns->i; ++i)                                               \
+    fprintf(stderr, "Node %lu: %d %d\n", (unsigned long) i, reg->state[i],    \
+        reg->state_next[i])
 
 static char *run_nfa(const char *text, size_t text_size, int sol,
-                     struct regex *reg, size_t *match_len, int verbose)
+    struct regex *reg, size_t *match_len, int verbose)
 {
     /* Does not advance */
     struct nfa_storage *ns;
@@ -1222,16 +1202,15 @@ static char *run_nfa(const char *text, size_t text_size, int sol,
     size_t s, i, count;
     int diff, eol = 0;
 
-    ns = reg->ns;               /* Make a shortcut so that lk works */
+    ns = reg->ns; /* Make a shortcut so that lk works */
     p = text;
     s = text_size;
 
     if (verbose) {
         fprintf(stderr, "=== Start of NFA run ===\n");
         fprintf(stderr, "Start node: %lu\nEnd node: %lu\n", reg->nfa_start,
-                reg->nfa_end);
+            reg->nfa_end);
     }
-
 
     /* Clear state tables */
     clear_state_table(reg->state);
@@ -1263,7 +1242,7 @@ static char *run_nfa(const char *text, size_t text_size, int sol,
         while (1) {
             for (i = 0; i < ns->i; ++i) {
                 if (reg->state[i]) {
-                    reg->state_next[i] = 1;     /* Accumulative */
+                    reg->state_next[i] = 1; /* Accumulative */
                     if (lk(i).link_type == EPSILON
                         || lk(i).link_type == BOTH_EPSILON
                         || (lk(i).link_type == SOL_READ_STATUS && sol)
@@ -1331,9 +1310,7 @@ static char *run_nfa(const char *text, size_t text_size, int sol,
         clear_state_table(reg->state_next);
     }
 
-  report:
-
-
+report:
 
     /* End of text */
     if (last_match == NULL) {
@@ -1356,16 +1333,14 @@ static char *run_nfa(const char *text, size_t text_size, int sol,
 #undef check_for_winner
 #undef print_state_tables
 
-
-static char *internal_regex_search(const char *text, size_t text_size,
-                                   int sol, struct regex *reg,
-                                   size_t *match_len, int verbose)
+static char *internal_regex_search(const char *text, size_t text_size, int sol,
+    struct regex *reg, size_t *match_len, int verbose)
 {
     /* Advances */
     const char *q;
     size_t ts;
     char *match = NULL;
-    size_t ml;                  /* Match length */
+    size_t ml; /* Match length */
 
     q = text;
     ts = text_size;
@@ -1402,8 +1377,8 @@ static char *internal_regex_search(const char *text, size_t text_size,
 }
 
 int regex_search(const char *text, size_t text_size, int sol,
-                 const char *regex_str, int nl_ins, int case_ins,
-                 size_t *match_offset, size_t *match_len, int verbose)
+    const char *regex_str, int nl_ins, int case_ins, size_t *match_offset,
+    size_t *match_len, int verbose)
 {
     int ret = 1;
     struct regex *reg = NULL;
@@ -1418,6 +1393,9 @@ int regex_search(const char *text, size_t text_size, int sol,
     if ((ret = compile_regex(regex_str, nl_ins, case_ins, &reg, verbose)))
         mgoto(clean_up);
 
+    if (reg == NULL)
+        mgoto(clean_up);
+
     m = internal_regex_search(text, text_size, sol, reg, &ml, verbose);
 
     if (m == NULL) {
@@ -1430,16 +1408,15 @@ int regex_search(const char *text, size_t text_size, int sol,
 
     ret = 0;
 
-  clean_up:
+clean_up:
     free_regex(reg);
 
     return ret;
 }
 
-int regex_replace(const char *text, size_t text_size,
-                  const char *regex_str, int nl_ins, int case_ins,
-                  const char *replace_str, char **result,
-                  size_t *result_len, int verbose)
+int regex_replace(const char *text, size_t text_size, const char *regex_str,
+    int nl_ins, int case_ins, const char *replace_str, char **result,
+    size_t *result_len, int verbose)
 {
     /*
      * Repeated search and replace. The result is \0 terminated and the length
@@ -1454,7 +1431,7 @@ int regex_replace(const char *text, size_t text_size,
 
     int sol;
     const char *q;
-    const char *q_stop;         /* Exclusive */
+    const char *q_stop; /* Exclusive */
     char *m, *m_last_end;
     size_t ml;
 
@@ -1466,9 +1443,11 @@ int regex_replace(const char *text, size_t text_size,
     if ((ret = compile_regex(regex_str, nl_ins, case_ins, &reg, verbose)))
         mgoto(clean_up);
 
-    if ((ret =
-         interpret_escaped_chars(replace_str, &replace_esc,
-                                 &replace_esc_size)))
+    if (reg == NULL)
+        mgoto(clean_up);
+
+    if ((ret = interpret_escaped_chars(
+             replace_str, &replace_esc, &replace_esc_size)))
         mgoto(clean_up);
 
     if (text_size > SIZE_MAX / 2)
@@ -1533,8 +1512,7 @@ int regex_replace(const char *text, size_t text_size,
         m_last_end = m + ml;
     }
 
-
-  finish:
+finish:
 
     /* Terminate */
     if (put_ch(output, '\0'))
@@ -1544,7 +1522,7 @@ int regex_replace(const char *text, size_t text_size,
     *result = output->a;
     *result_len = output->i - 1;
 
-  clean_up:
+clean_up:
     free_regex(reg);
     free(replace_esc);
 

@@ -27,9 +27,7 @@
 
 #include "toucanlib.h"
 
-
 #define INIT_CONCAT_BUF 512
-
 
 int binary_io(void)
 {
@@ -66,6 +64,7 @@ char *concat(const char *str, ...)
     while (1) {
         if (put_str(b, p)) {
             free_obuf(b);
+            va_end(v);
             mreturn(NULL);
         }
         if ((p = va_arg(v, const char *)) == NULL)
@@ -80,13 +79,13 @@ char *concat(const char *str, ...)
     }
 
     res = b->a;
-    free(b);                    /* Free struct only, not memory inside */
+    free(b); /* Free struct only, not memory inside */
 
     return res;
 }
 
-void *quick_search(const void *mem, size_t mem_len, const void *find,
-                   size_t find_len)
+void *quick_search(
+    const void *mem, size_t mem_len, const void *find, size_t find_len)
 {
     /*
      * Sunday's Quick Search algoritm.
@@ -99,24 +98,22 @@ void *quick_search(const void *mem, size_t mem_len, const void *find,
     if (find_len > mem_len)
         return NULL;
 
-    for (i = 0; i < UCHAR_MAX + 1; ++i)
-        b[i] = find_len + 1;
+    for (i = 0; i < UCHAR_MAX + 1; ++i) b[i] = find_len + 1;
 
     q = (unsigned char *) find;
-    q_stop = q + find_len;      /* Exclusive */
+    q_stop = q + find_len; /* Exclusive */
 
-    for (i = 0; i < find_len; ++i)
-        b[q[i]] = find_len - i;
+    for (i = 0; i < find_len; ++i) b[q[i]] = find_len - i;
 
     p = (unsigned char *) mem;
-    p_last = p + mem_len - find_len;    /* Inclusive */
+    p_last = p + mem_len - find_len; /* Inclusive */
 
     while (p <= p_last) {
         x = p;
         q = (unsigned char *) find;
         while (1) {
             if (q == q_stop)
-                return p;       /* Full match */
+                return p; /* Full match */
 
             if (*x++ != *q++)
                 break;

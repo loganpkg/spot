@@ -31,9 +31,7 @@
  *                                      John 20:29 GNT
  */
 
-
 #include "toucanlib.h"
-
 
 #define INIT_BUF_SIZE 100
 

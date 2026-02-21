@@ -30,16 +30,16 @@
 #define record_buf (b->mode == 'U' ? b->redo : b->undo)
 #define replay_buf (b->mode == 'U' ? b->undo : b->redo)
 
-#define START_GROUP if (add_to_op_buf(record_buf, 'S', b->g, ' ')) \
+#define START_GROUP                                                           \
+    if (add_to_op_buf(record_buf, 'S', b->g, ' '))                            \
     return 1
 
-#define END_GROUP if (add_to_op_buf(record_buf, 'E', b->g, ' ')) \
+#define END_GROUP                                                             \
+    if (add_to_op_buf(record_buf, 'E', b->g, ' '))                            \
     return 1
 
-
-
-static int add_to_op_buf(struct op_buf *op, unsigned char id, size_t g_loc,
-                         char ch)
+static int add_to_op_buf(
+    struct op_buf *op, unsigned char id, size_t g_loc, char ch)
 {
     struct atomic_op *t;
     size_t new_n, new_s;
@@ -76,7 +76,6 @@ static int add_to_op_buf(struct op_buf *op, unsigned char id, size_t g_loc,
 
     return 0;
 }
-
 
 static struct op_buf *init_op_buf(size_t n)
 {
@@ -145,19 +144,19 @@ int reverse(struct gb *b, unsigned char mode)
         /* Reverse the operation */
         switch ((*(replay_buf->a + replay_buf->i - 1)).id) {
         case 'S':
-            if (add_to_op_buf
-                (record_buf, (*(replay_buf->a + replay_buf->i - 1)).id,
-                 (*(replay_buf->a + replay_buf->i - 1)).g_loc,
-                 (*(replay_buf->a + replay_buf->i - 1)).ch))
+            if (add_to_op_buf(record_buf,
+                    (*(replay_buf->a + replay_buf->i - 1)).id,
+                    (*(replay_buf->a + replay_buf->i - 1)).g_loc,
+                    (*(replay_buf->a + replay_buf->i - 1)).ch))
                 return 1;
 
             ++depth;
             break;
         case 'E':
-            if (add_to_op_buf
-                (record_buf, (*(replay_buf->a + replay_buf->i - 1)).id,
-                 (*(replay_buf->a + replay_buf->i - 1)).g_loc,
-                 (*(replay_buf->a + replay_buf->i - 1)).ch))
+            if (add_to_op_buf(record_buf,
+                    (*(replay_buf->a + replay_buf->i - 1)).id,
+                    (*(replay_buf->a + replay_buf->i - 1)).g_loc,
+                    (*(replay_buf->a + replay_buf->i - 1)).ch))
                 return 1;
 
             --depth;
@@ -182,7 +181,7 @@ int reverse(struct gb *b, unsigned char mode)
         --replay_buf->i;
     } while (depth);
 
-    b->mode = 'N';              /* Normal */
+    b->mode = 'N'; /* Normal */
 
     return 0;
 }
@@ -237,8 +236,7 @@ void free_gb_list(struct gb *b)
     struct gb *t;
 
     if (b != NULL) {
-        while (b->prev != NULL)
-            b = b->prev;
+        while (b->prev != NULL) b = b->prev;
 
         while (b != NULL) {
             t = b->next;
@@ -272,9 +270,9 @@ static int grow_gap(struct gb *b, size_t will_use)
     size_t s, new_s, increase;
 
     if (will_use <= b->c - b->g)
-        return 0;               /* Nothing to do */
+        return 0; /* Nothing to do */
 
-    s = b->e + 1;               /* OK as in memory already */
+    s = b->e + 1; /* OK as in memory already */
 
     if (aof(s, will_use, SIZE_MAX))
         return 1;
@@ -375,7 +373,7 @@ int insert_file(struct gb *b, const char *fn)
 
     errno = 0;
     if ((fp = fopen(fn, "rb")) == NULL) {
-        if (errno == ENOENT)    /* File does not exist */
+        if (errno == ENOENT) /* File does not exist */
             return 2;
         else
             return 1;
@@ -512,14 +510,12 @@ int backspace_ch(struct gb *b)
 
 void start_of_line(struct gb *b)
 {
-    while (b->col != 1)
-        left_ch(b);
+    while (b->col != 1) left_ch(b);
 }
 
 void end_of_line(struct gb *b)
 {
-    while (*(b->a + b->c) != '\n' && b->c != b->e)
-        right_ch(b);
+    while (*(b->a + b->c) != '\n' && b->c != b->e) right_ch(b);
 }
 
 int up_line(struct gb *b)
@@ -538,11 +534,9 @@ int up_line(struct gb *b)
     if (b->r == 1)
         return 1;
 
-    while (b->r == r_orig)
-        left_ch(b);
+    while (b->r == r_orig) left_ch(b);
 
-    while (b->col > target_col)
-        left_ch(b);
+    while (b->col > target_col) left_ch(b);
 
     /* left_ch will clear this, so need to do it again */
     b->sc_set = 1;
@@ -567,8 +561,7 @@ int down_line(struct gb *b)
              * Trying to exceed end of buffer which is on the same line.
              * Go back.
              */
-            while (b->col > target_col)
-                left_ch(b);
+            while (b->col > target_col) left_ch(b);
 
             ret = 1;
             goto end;
@@ -578,7 +571,7 @@ int down_line(struct gb *b)
         if (right_ch(b))
             break;
 
-  end:
+end:
     /* right_ch will clear this, so need to do it again */
     b->sc_set = 1;
     b->sc = target_col;
@@ -597,8 +590,7 @@ void left_word(struct gb *b)
     while (!is_alpha_u(*(b->a + b->c)));
 
     /* Look behind before moving, as want to stop at the start of a word */
-    while (b->g && is_alpha_u(*(b->a + b->g - 1)))
-        left_ch(b);
+    while (b->g && is_alpha_u(*(b->a + b->g - 1))) left_ch(b);
 }
 
 int right_word(struct gb *b, char transform)
@@ -644,7 +636,6 @@ int right_word(struct gb *b, char transform)
 
 #undef is_alpha_u
 #undef is_alnum_u
-
 
 int goto_row(struct gb *b, struct gb *cl)
 {
@@ -703,12 +694,10 @@ int swap_cursor_and_mark(struct gb *b)
     if (b->c > b->m) {
         m_orig = b->m;
         b->m = b->c;
-        while (b->g != m_orig)
-            left_ch(b);
+        while (b->g != m_orig) left_ch(b);
     } else {
         g_orig = b->g;
-        while (b->c != b->m)
-            right_ch(b);
+        while (b->c != b->m) right_ch(b);
 
         b->m = g_orig;
     }
@@ -727,14 +716,13 @@ int exact_forward_search(struct gb *b, struct gb *cl)
     if (b->c == b->e)
         return 1;
 
-    if ((q =
-         quick_search(b->a + b->c + 1, b->e - (b->c + 1), cl->a + cl->c,
-                      cl->e - cl->c)) == NULL)
+    if ((q = quick_search(
+             b->a + b->c + 1, b->e - (b->c + 1), cl->a + cl->c, cl->e - cl->c))
+        == NULL)
         return 1;
 
     num = q - (b->a + b->c);
-    while (num--)
-        right_ch(b);
+    while (num--) right_ch(b);
 
     return 0;
 }
@@ -749,12 +737,9 @@ int regex_forward_search(struct gb *b, struct gb *cl, int case_ins)
     if (b->c == b->e)
         return 1;
 
-    if (regex_search
-        ((char *) b->a + b->c + 1,
-         b->e - (b->c + 1),
-         *(b->a + b->c) == '\n' ? 1 : 0,
-         (char *) cl->a + cl->c, 0, case_ins, &match_offset, &match_len,
-         0))
+    if (regex_search((char *) b->a + b->c + 1, b->e - (b->c + 1),
+            *(b->a + b->c) == '\n' ? 1 : 0, (char *) cl->a + cl->c, 0,
+            case_ins, &match_offset, &match_len, 0))
         return 1;
 
     move = 1 + match_offset + match_len;
@@ -796,9 +781,8 @@ int regex_replace_region(struct gb *b, struct gb *cl, int case_ins)
         if (swap_cursor_and_mark(b))
             mgoto(clean_up);
 
-    if (regex_replace((char *) b->a + b->c,
-                      b->m - b->c, find, 0, case_ins, replace, &res,
-                      &res_len, 0))
+    if (regex_replace((char *) b->a + b->c, b->m - b->c, find, 0, case_ins,
+            replace, &res, &res_len, 0))
         mgoto(clean_up);
 
     /* Delete region */
@@ -811,7 +795,7 @@ int regex_replace_region(struct gb *b, struct gb *cl, int case_ins)
         mgoto(clean_up);
 
     ret = 0;
-  clean_up:
+clean_up:
     free(res);
 
     END_GROUP;
@@ -881,11 +865,9 @@ int match_bracket(struct gb *b)
 
     /* Go back */
     if (move_right)
-        while (b->c != c_orig)
-            left_ch(b);
+        while (b->c != c_orig) left_ch(b);
     else
-        while (b->c != c_orig)
-            right_ch(b);
+        while (b->c != c_orig) right_ch(b);
 
     return 1;
 }
@@ -908,7 +890,7 @@ int trim_clean(struct gb *b)
                 break;
 
             if (*(b->a + b->c) == '\n') {
-                if (delete_ch(b))       /* Eat surplus trailing new lines */
+                if (delete_ch(b)) /* Eat surplus trailing new lines */
                     return 1;
             } else {
                 break;
@@ -922,7 +904,7 @@ int trim_clean(struct gb *b)
         if (ch == '\n') {
             eol = 1;
         } else if (eol && (ch == ' ' || ch == '\t')) {
-            if (delete_ch(b))   /* Eat trailing whitespace */
+            if (delete_ch(b)) /* Eat trailing whitespace */
                 return 1;
         } else if (!isprint(ch) && ch != '\t') {
             if (delete_ch(b))
@@ -1030,14 +1012,14 @@ int word_under_cursor(struct gb *b, struct gb *tmp)
 {
     unsigned char *p, *p_stop, u;
     p = b->a + b->c;
-    p_stop = b->a + b->e;       /* Exclusive */
+    p_stop = b->a + b->e; /* Exclusive */
     reset_gb(tmp);
 
     if ((u = *p) == ' ' || u == '\t')
-        return 1;               /* Invalid character */
+        return 1; /* Invalid character */
 
     while ((u = *p) != ' ' && u != '\n' && u != '\t' && p != p_stop) {
-        if (u && insert_ch(tmp, u))     /* Skip embedded \0 chars */
+        if (u && insert_ch(tmp, u)) /* Skip embedded \0 chars */
             return 1;
 
         ++p;
@@ -1084,7 +1066,7 @@ int copy_logical_line(struct gb *b, struct gb *tmp)
 
     /* Move to end of logical line */
     while ((*(b->a + b->c) != '\n' || (b->g && *(b->a + b->g - 1) == '\\'))
-           && b->c != b->e)
+        && b->c != b->e)
         right_ch(b);
 
     if (copy_region(b, tmp, 0))
@@ -1298,7 +1280,7 @@ void remove_gb(struct gb **b)
             /* Middle of list, so bypass */
             (*b)->prev->next = (*b)->next;
             (*b)->next->prev = (*b)->prev;
-            *b = (*b)->prev;    /* Move left by default */
+            *b = (*b)->prev; /* Move left by default */
         }
         free_gb(t);
     }

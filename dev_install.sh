@@ -25,28 +25,56 @@
 # SUCH DAMAGE.
 #
 
+# shellcheck disable=SC2086
+
 set -e
 set -u
 set -x
+
 
 #################
 # Configuration #
 #################
 install_dir="$HOME"/bin
+cc=clang
+# cc=gcc
 flags='-ansi -g -Og -Wno-variadic-macros -Wall -Wextra -pedantic'
 # Change to N to use ncurses
 use_built_in_curses=Y
 #################
 
 
-if [ "$(uname)" = Linux ]
+cc_c() {
+    if [ "$cc" = clang ]
+    then
+        printf '[\n' > compile_commands.json
+    fi
+
+    "$cc" -c $flags "$1"
+
+    if [ "$cc" = clang ]
+    then
+        cat cc.json >> compile_commands.json
+        printf ']\n' >> compile_commands.json
+        clang-tidy "$1"
+    fi
+}
+
+
+if [ "$cc" = clang ]
 then
-    indent=indent
+    flags="-MJ cc.json -finput-charset=UTF-8 $flags"
 else
-    indent=gindent
+    flags="-finput-charset=ascii $flags"
 fi
 
-# lint=splint
+
+if [ "$use_built_in_curses" = Y ]
+then
+    # To look in the current working directory for <curses.h>
+    flags="$flags -I ."
+fi
+
 
 repo_dir=$(pwd)
 build_dir=$(mktemp -d)
@@ -64,14 +92,7 @@ cd "$build_dir" || exit 1
 rm -f err
 
 find . -type f \( -name '*.h' -o -name '*.c' \) \
-    -exec "$indent" -nut -kr \
-        -T size_t \
-        -T FILE \
-        -T WINDOW \
-        -T bool \
-        -T M4ptr \
-        -T Fptr \
-        '{}' \; 2> err
+    -exec clang-format -i -style=file '{}' \; 2> err
 
 if [ -s err ]
 then
@@ -79,14 +100,17 @@ then
     exit 1
 fi
 
-# find . -type f \( -name '*.h' -o -name '*.c' \) \
-#    -exec "$lint" -predboolint '{}' \;
-
 
 # Max of 79 chars per line plus the \n, making a total of 80.
 # So 80 non-newline chars is too long.
-find . -type f ! -path '*.git*' ! -name '*~' \
-    -exec grep -H -n -E '.{80}' '{}' \;
+find . -type f ! -path '*.git*' ! -name '*~' ! -name 'tornado_dodge.txt' \
+    -exec grep -H -n -E '.{80}' '{}' \; > err 2>&1
+
+if [ -s err ]
+then
+    cat err
+    exit 1
+fi
 
 
 ./func_dec.sh toucanlib.h gen.c num.c buf.c gb.c eval.c ht.c \
@@ -94,40 +118,40 @@ find . -type f ! -path '*.git*' ! -name '*~' \
 
 ./func_dec.sh curses.h curses.c
 
-find . -type f ! -path '*.git*' -name '*.h' \
-    -exec cc $flags '{}' \;
 
-find . -type f ! -path '*.git*' -name '*.c' \
-    ! -name spot.c ! -name tornado_dodge.c \
-    -exec cc -c $flags '{}' \;
+tmp=$(mktemp)
 
-if [ "$use_built_in_curses" = Y ]
+find . -type f ! -path '*.git*' -name '*.c' > "$tmp"
+
+if [ "$(uname)" = Linux ] || [ "$cc" != gcc ]
 then
-    # To look in the current working directory for <curses.h>
-    cc -c $flags -I . spot.c
-    cc -c $flags -I . tornado_dodge.c
-else
-    cc -c $flags spot.c
-    cc -c $flags tornado_dodge.c
+    find . -type f ! -path '*.git*' -name '*.h' >> "$tmp"
 fi
+
+while IFS='' read -r x
+do
+    printf 'Compiling: %s\n' "$x"
+    cc_c "$x"
+done < "$tmp"
 
 ld -r gen.o num.o buf.o gb.o eval.o ht.o toco_regex.o fs.o -o toucanlib.o
 
-cc $flags -o m4 m4.o toucanlib.o
+
+"$cc" $flags -o m4 m4.o toucanlib.o
+"$cc" $flags -o bc bc.o toucanlib.o
+"$cc" $flags -o freq freq.o toucanlib.o
+
 
 if [ "$use_built_in_curses" = Y ]
 then
-    cc $flags -o spot spot.o curses.o toucanlib.o
-    cc $flags -o tornado_dodge tornado_dodge.o curses.o toucanlib.o
+    "$cc" $flags -o spot spot.o curses.o toucanlib.o
+    "$cc" $flags -o tornado_dodge tornado_dodge.o curses.o toucanlib.o
 else
-    cc $flags -o spot spot.o toucanlib.o -lncurses
-    cc $flags -o tornado_dodge tornado_dodge.o toucanlib.o -lncurses
+    "$cc" $flags -o spot spot.o toucanlib.o -lncurses
+    "$cc" $flags -o tornado_dodge tornado_dodge.o toucanlib.o -lncurses
 fi
 
-
-cc $flags -o bc bc.o toucanlib.o
-cc $flags -o freq freq.o toucanlib.o
-
+ldd spot tornado_dodge
 
 mkdir -p "$install_dir"
 

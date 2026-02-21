@@ -27,19 +27,17 @@
 
 #include "toucanlib.h"
 
-
 #define INIT_LS_ENTRY_NUM 512
-#define INIT_BUF_SIZE 1024
+#define INIT_BUF_SIZE     1024
 
 /* attr must be an unsigned char */
-#define SET_DIR(attr) ((attr) |= 1)
-#define SET_SLINK(attr) ((attr) |= 1 << 1)
+#define SET_DIR(attr)    ((attr) |= 1)
+#define SET_SLINK(attr)  ((attr) |= 1 << 1)
 #define SET_DOTDIR(attr) ((attr) |= 1 << 2)
 
-
 struct ls_info {
-    struct pbuf *d;             /* To store pointers to directory names */
-    struct pbuf *f;             /* To store pointers to filenames */
+    struct pbuf *d; /* To store pointers to directory names */
+    struct pbuf *f; /* To store pointers to filenames */
 };
 
 int get_file_size(const char *fn, size_t *fs)
@@ -95,9 +93,8 @@ int get_path_attr(const char *path, unsigned char *attr)
     return 0;
 }
 
-
 int walk_dir_inner(const char *dir, int rec, void *info,
-                   int (*func_p)(const char *, unsigned char, void *info))
+    int (*func_p)(const char *, unsigned char, void *info))
 {
     /* Does not execute the function on dir itself */
     int ret = 1;
@@ -172,12 +169,12 @@ int walk_dir_inner(const char *dir, int rec, void *info,
             SET_DOTDIR(attr);
 
         if (rec && IS_DIR(attr) && !IS_SLINK(attr) && !IS_DOTDIR(attr))
-            if (walk_dir_inner(path, rec, info, func_p)) {      /* Recurse */
+            if (walk_dir_inner(path, rec, info, func_p)) { /* Recurse */
                 ret = 1;
                 mgoto(clean_up);
             }
 
-        if ((*func_p) (rec ? path : fn, attr, info)) {
+        if ((*func_p)(rec ? path : fn, attr, info)) {
             ret = 1;
             mgoto(clean_up);
         }
@@ -204,7 +201,7 @@ int walk_dir_inner(const char *dir, int rec, void *info,
 
     ret = 0;
 
-  clean_up:
+clean_up:
 
 #ifdef _WIN32
     if (h != INVALID_HANDLE_VALUE && !FindClose(h))
@@ -213,7 +210,7 @@ int walk_dir_inner(const char *dir, int rec, void *info,
     if (dir_wc != NULL)
         free(dir_wc);
 #else
-    if (closedir(h))
+    if (h != NULL && closedir(h))
         ret = 1;
 #endif
     if (path != NULL)
@@ -223,7 +220,7 @@ int walk_dir_inner(const char *dir, int rec, void *info,
 }
 
 int walk_dir(const char *dir, int rec, void *info,
-             int (*func_p)(const char *, unsigned char, void *info))
+    int (*func_p)(const char *, unsigned char, void *info))
 {
     /* Executes the function on dir itself too */
     unsigned char attr;
@@ -233,11 +230,11 @@ int walk_dir(const char *dir, int rec, void *info,
 
     /* Process outer directory */
     attr = 0;
-    SET_DIR(attr);              /* Not sure if outer dir is a symbolic link */
+    SET_DIR(attr); /* Not sure if outer dir is a symbolic link */
     if (!strcmp(dir, ".") || !strcmp(dir, ".."))
         SET_DOTDIR(attr);
 
-    if ((*func_p) (dir, attr, info))
+    if ((*func_p)(dir, attr, info))
         mreturn(1);
 
     return 0;
@@ -264,7 +261,7 @@ static int rm_path(const char *path, unsigned char attr, void *info)
 int rec_rm(const char *path)
 {
     errno = 0;
-    if (unlink(path) == 0)      /* Success */
+    if (unlink(path) == 0) /* Success */
         return 0;
 
     if (errno == ENOENT)
@@ -375,17 +372,15 @@ char *ls_dir(const char *dir)
     }
 
     err = 0;
-  clean_up:
+clean_up:
     if (lsi != NULL) {
         if (lsi->d != NULL) {
-            for (j = 0; j < lsi->d->i; ++j)
-                free(*(lsi->d->a + j));
+            for (j = 0; j < lsi->d->i; ++j) free(*(lsi->d->a + j));
 
             free_pbuf(lsi->d);
         }
         if (lsi->f != NULL) {
-            for (j = 0; j < lsi->f->i; ++j)
-                free(*(lsi->f->a + j));
+            for (j = 0; j < lsi->f->i; ++j) free(*(lsi->f->a + j));
 
             free_pbuf(lsi->f);
         }
@@ -427,17 +422,15 @@ int mmap_file_ro(const char *fn, void **mem, size_t *fs)
 #ifdef _WIN32
 
     /* Open existing file read only */
-    if ((file_h =
-         CreateFile(fn, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING,
-                    FILE_ATTRIBUTE_NORMAL,
-                    NULL)) == INVALID_HANDLE_VALUE) {
+    if ((file_h = CreateFile(fn, GENERIC_READ, FILE_SHARE_READ, NULL,
+             OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL))
+        == INVALID_HANDLE_VALUE) {
         ret = 1;
         mgoto(clean_up);
     }
 
-    if ((map_h =
-         CreateFileMapping(file_h, NULL, PAGE_READONLY, 0, 0,
-                           NULL)) == NULL) {
+    if ((map_h = CreateFileMapping(file_h, NULL, PAGE_READONLY, 0, 0, NULL))
+        == NULL) {
         ret = 1;
         mgoto(clean_up);
     }
@@ -448,7 +441,7 @@ int mmap_file_ro(const char *fn, void **mem, size_t *fs)
     }
 
     ret = 0;
-  clean_up:
+clean_up:
     if (file_h != INVALID_HANDLE_VALUE && !CloseHandle(file_h))
         ret = 1;
 
@@ -522,9 +515,10 @@ int make_temp(const char *template, char **temp_fn)
     }
 
     if (suffix_start == NULL) {
-        fprintf(stderr, "%s:%d: Syntax error: "
-                "make_temp: Invalid template, no X suffix\n", __FILE__,
-                __LINE__);
+        fprintf(stderr,
+            "%s:%d: Syntax error: "
+            "make_temp: Invalid template, no X suffix\n",
+            __FILE__, __LINE__);
         return SYNTAX_ERROR;
     }
 
@@ -578,7 +572,7 @@ static int rand_alnum(char *ch)
         y = (char *) &x;
 
         for (i = 0; i < sizeof(unsigned int); ++i) {
-            c = y[i] & 0x7F;    /* Clear upper bit, as not used in ASCII */
+            c = y[i] & 0x7F; /* Clear upper bit, as not used in ASCII */
             if (isalnum(c)) {
                 *ch = c;
                 return 0;
@@ -620,9 +614,10 @@ int make_stemp(const char *template, char **temp_fn)
     }
 
     if (suffix_start == NULL) {
-        fprintf(stderr, "%s:%d: Syntax error: "
-                "make_temp: Invalid template, no X suffix\n", __FILE__,
-                __LINE__);
+        fprintf(stderr,
+            "%s:%d: Syntax error: "
+            "make_temp: Invalid template, no X suffix\n",
+            __FILE__, __LINE__);
         free(template_copy);
         return SYNTAX_ERROR;
     }
@@ -645,7 +640,7 @@ int make_stemp(const char *template, char **temp_fn)
         }
 
         h = CreateFile(template_copy, GENERIC_WRITE, 0, NULL, CREATE_NEW,
-                       FILE_ATTRIBUTE_NORMAL, NULL);
+            FILE_ATTRIBUTE_NORMAL, NULL);
 
         if (h == INVALID_HANDLE_VALUE) {
             if (GetLastError() != ERROR_FILE_EXISTS) {

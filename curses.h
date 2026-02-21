@@ -26,7 +26,6 @@
 #ifndef CURSES_H
 #define CURSES_H
 
-
 #ifndef _WIN32
 /* For struct termios */
 #include <termios.h>
@@ -53,28 +52,27 @@ struct screen {
     struct termios term_orig;
     struct termios term_new;
 #endif
-    size_t h;                   /* Physical screen heigth */
-    size_t w;                   /* Physical screen width */
-    unsigned char *vs_c;        /* Current virtual screen */
-    unsigned char *vs_n;        /* Next virtual screen */
-    size_t vs_s;                /* Size of each virtual screen */
-    size_t v_i;                 /* Virtual cursor index (print location) */
-    int v_hl;                   /* Virtual highlight mode indicator */
-    int non_blocking;           /* Non-blocking getch */
-    size_t tabsize;             /* Number of spaces printed for a Tab */
-    int clear;                  /* Clear physical screen */
-    int centre;                 /* Draw cursor on the centre row */
+    size_t h;            /* Physical screen heigth */
+    size_t w;            /* Physical screen width */
+    unsigned char *vs_c; /* Current virtual screen */
+    unsigned char *vs_n; /* Next virtual screen */
+    size_t vs_s;         /* Size of each virtual screen */
+    size_t v_i;          /* Virtual cursor index (print location) */
+    int v_hl;            /* Virtual highlight mode indicator */
+    int non_blocking;    /* Non-blocking getch */
+    size_t tabsize;      /* Number of spaces printed for a Tab */
+    int clear;           /* Clear physical screen */
+    int centre;          /* Draw cursor on the centre row */
     /* The buf module is not used in order to keep curses self-contained. */
     /* For raw characters: */
-    unsigned char *a;           /* Unread memory buffer */
-    size_t i;                   /* Next unused space in unread memory buffer */
-    size_t n;                   /* Allocated size of unread memory buffer */
+    unsigned char *a; /* Unread memory buffer */
+    size_t i;         /* Next unused space in unread memory buffer */
+    size_t n;         /* Allocated size of unread memory buffer */
     /* For cooked characters, includes special keyboard keys: */
     int *unget_buf;
-    size_t b_i;                 /* Next unused element in unget_buf */
-    size_t b_n;                 /* Allocated elements in unget_buf */
+    size_t b_i; /* Next unused element in unget_buf */
+    size_t b_n; /* Allocated elements in unget_buf */
 };
-
 
 typedef struct screen WINDOW;
 typedef char chtype;
@@ -83,12 +81,11 @@ typedef char chtype;
  * Only ASCII characters are supported, and the highest order bit is used
  * for the attributes component.
  */
-#define A_CHARTEXT 0x7F
+#define A_CHARTEXT   0x7F
 #define A_ATTRIBUTES 0x80
 
 /* Highlighting is the only attribute that is implemented */
 #define A_STANDOUT 0x80
-
 
 #ifdef IN_CURSES_LIB
 /* In library, so external variable */
@@ -97,7 +94,6 @@ extern WINDOW *stdscr;
 /* In application source, so global variable */
 WINDOW *stdscr;
 #endif
-
 
 typedef unsigned char bool;
 
@@ -109,12 +105,9 @@ typedef unsigned char bool;
 #define TRUE (!FALSE)
 #endif
 
-
 #define C(l) ((l) - 'a' + 1)
 
-
 /* Set to Ctrl-H */
-
 
 #define KEY_LEFT  (UCHAR_MAX + 1)
 #define KEY_RIGHT (UCHAR_MAX + 2)
@@ -129,20 +122,19 @@ typedef unsigned char bool;
 
 #define TABSIZE (stdscr->tabsize)
 
-
 /* void getmaxyx(WINDOW *win, int y, int x); */
-#define getmaxyx(win, y, x) do { \
-    (y) = (win)->h;              \
-    (x) = (win)->w;              \
-} while (0)
-
+#define getmaxyx(win, y, x)                                                   \
+    do {                                                                      \
+        (y) = (win)->h;                                                       \
+        (x) = (win)->w;                                                       \
+    } while (0)
 
 /* void getyx(WINDOW *win, int y, int x); */
-#define getyx(win, y, x) do {    \
-    (y) = (win)->v_i / (win)->w; \
-    (x) = (win)->v_i % (win)->w; \
-} while (0)
-
+#define getyx(win, y, x)                                                      \
+    do {                                                                      \
+        (y) = (win)->v_i / (win)->w;                                          \
+        (x) = (win)->v_i % (win)->w;                                          \
+    } while (0)
 
 /* Function declarations */
 WINDOW *initscr(void);

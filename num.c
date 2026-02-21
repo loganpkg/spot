@@ -29,24 +29,23 @@
 
 #define INIT_BUF_SIZE 100
 
-
 int str_to_num(const char *str, unsigned long max_val, unsigned long *res)
 {
     unsigned char ch;
     unsigned long x = 0;
-    unsigned int base = 10;     /* Decimal */
+    unsigned int base = 10; /* Decimal */
     unsigned int n;
 
     if (str == NULL || *str == '\0')
         mreturn(1);
 
     if (*str == '0') {
-        ++str;                  /* Eat char */
+        ++str; /* Eat char */
         if (*str == 'x' || *str == 'X') {
-            ++str;              /* Eat char */
-            base = 16;          /* Hexadecimal */
+            ++str;     /* Eat char */
+            base = 16; /* Hexadecimal */
         } else {
-            base = 8;           /* Octal */
+            base = 8; /* Octal */
         }
     }
 
@@ -66,11 +65,10 @@ int str_to_num(const char *str, unsigned long max_val, unsigned long *res)
             x += n;
         } else {
             fprintf(stderr,
-                    "%s:%d: Syntax error: Character is not a %s digit\n",
-                    __FILE__, __LINE__,
-                    base == 10 ? "decimal" : (base ==
-                                              16 ? "hexadecimal" :
-                                              "octal"));
+                "%s:%d: Syntax error: Character is not a %s digit\n", __FILE__,
+                __LINE__,
+                base == 10 ? "decimal"
+                           : (base == 16 ? "hexadecimal" : "octal"));
             return SYNTAX_ERROR;
         }
 
@@ -120,7 +118,7 @@ int lop(long *a, long b, unsigned char op)
      */
 
     switch (op) {
-    case POSITIVE:             /* Nothing to do */
+    case POSITIVE: /* Nothing to do */
         break;
     case NEGATIVE:
         if (*a == LONG_MIN)
@@ -181,8 +179,7 @@ int lop(long *a, long b, unsigned char op)
         *a += b;
         break;
     case SUBTRACTION:
-        if ((b < 0 && *a > LONG_MAX + b)
-            || (b > 0 && *a < LONG_MIN + b))
+        if ((b < 0 && *a > LONG_MAX + b) || (b > 0 && *a < LONG_MIN + b))
             d_mreturn("User overflow", USER_OVERFLOW_ERROR);
         *a -= b;
         break;
@@ -226,8 +223,8 @@ int lop(long *a, long b, unsigned char op)
         *a = *a || b;
         break;
     default:
-        fprintf(stderr, "%s:%d: Syntax error: Invalid operator\n",
-                __FILE__, __LINE__);
+        fprintf(stderr, "%s:%d: Syntax error: Invalid operator\n", __FILE__,
+            __LINE__);
         return SYNTAX_ERROR;
     }
 
@@ -248,8 +245,8 @@ int lpow(long *a, long b)
         return 0;
     }
     if (b < 0) {
-        fprintf(stderr, "%s:%d: Syntax error: Negative exponent\n",
-                __FILE__, __LINE__);
+        fprintf(stderr, "%s:%d: Syntax error: Negative exponent\n", __FILE__,
+            __LINE__);
         return SYNTAX_ERROR;
     }
 
@@ -273,8 +270,8 @@ char *ltostr(long a, unsigned int base, unsigned int pad)
     size_t j;
 
     if (base < 2 || base > 10 + 'z' - 'a') {
-        fprintf(stderr, "%s:%d: Usage error: Base out of range\n",
-                __FILE__, __LINE__);
+        fprintf(stderr, "%s:%d: Usage error: Base out of range\n", __FILE__,
+            __LINE__);
         return NULL;
     }
 
@@ -319,10 +316,9 @@ char *ltostr(long a, unsigned int base, unsigned int pad)
         mgoto(clean_up);
 
     /* Reverse buffer */
-    for (j = 0; j < b->i; ++j)
-        res_str[j] = *(b->a + b->i - 1 - j);
+    for (j = 0; j < b->i; ++j) res_str[j] = *(b->a + b->i - 1 - j);
 
-  clean_up:
+clean_up:
     free_obuf(b);
     return res_str;
 }

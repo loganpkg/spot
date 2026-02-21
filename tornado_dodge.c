@@ -39,15 +39,14 @@
  *
  */
 
-
 #include "toucanlib.h"
 #include <curses.h>
 
 /* These can be adjusted to make the game easier or harder */
-#define INIT_DRONE_HEALTH 20
+#define INIT_DRONE_HEALTH  20
 #define INIT_ZOMBIE_HEALTH 10
-#define INIT_BIRD_HEALTH 10
-#define INIT_MAN_HEALTH 60
+#define INIT_BIRD_HEALTH   10
+#define INIT_MAN_HEALTH    60
 
 #define LAST_LEVEL 3
 
@@ -61,36 +60,34 @@
 #endif
 
 /* Spawn probabilities */
-#define CLOUD_PROB 30
+#define CLOUD_PROB        30
 #define GROUND_CLOUD_PROB 30
-#define TORNADO_PROB 10
-#define DRONE_PROB 10
-#define BIRD_PROB 10
-#define ZOMBIE_PROB 10
-#define COIN_PROB 10
+#define TORNADO_PROB      10
+#define DRONE_PROB        10
+#define BIRD_PROB         10
+#define ZOMBIE_PROB       10
+#define COIN_PROB         10
 /* Out of */
 #define PROB_MAX_INCLUSIVE 999
 
-
 /* Object dimensions */
-#define CLOUD_HEIGHT 5
-#define CLOUD_WIDTH 12
-#define TORNADO_HEIGHT 6
-#define TORNADO_WIDTH 12
-#define DRONE_HEIGHT 3
-#define DRONE_WIDTH 9
+#define CLOUD_HEIGHT         5
+#define CLOUD_WIDTH          12
+#define TORNADO_HEIGHT       6
+#define TORNADO_WIDTH        12
+#define DRONE_HEIGHT         3
+#define DRONE_WIDTH          9
 #define DRONE_TORCH_X_OFFSET 7
-#define BIRD_HEIGHT 3
-#define BIRD_WIDTH 3
-#define ZOMBIE_HEIGHT 3
-#define ZOMBIE_WIDTH 4
-#define MAN_HEIGHT 3
+#define BIRD_HEIGHT          3
+#define BIRD_WIDTH           3
+#define ZOMBIE_HEIGHT        3
+#define ZOMBIE_WIDTH         4
+#define MAN_HEIGHT           3
 /* The width of the man varies */
-#define MAN_MAX_WIDTH 3
-#define COIN_HEIGHT 1
-#define COIN_WIDTH 1
+#define MAN_MAX_WIDTH       3
+#define COIN_HEIGHT         1
+#define COIN_WIDTH          1
 #define GAME_OVER_STR_WIDTH 56
-
 
 /* Trajectories */
 
@@ -105,23 +102,22 @@ char *zombie_traj = "___i___i___iL";
 char *drone_y_traj = "___i___i___i___i___iL";
 char *drone_x_traj = "___i___i___i___i___iL";
 
-
 /* Object in game */
 struct obj {
-    unsigned int y;             /* Vertical position */
-    unsigned int x;             /* Horizontal position */
-    char *y_traj;               /* Vertical trajectory */
-    size_t y_ti;                /* Index in the vertical trajectory */
-    char *x_traj;               /* Horizontal trajectory */
-    size_t x_ti;                /* Index in the horizontal trajectory */
+    unsigned int y; /* Vertical position */
+    unsigned int x; /* Horizontal position */
+    char *y_traj;   /* Vertical trajectory */
+    size_t y_ti;    /* Index in the vertical trajectory */
+    char *x_traj;   /* Horizontal trajectory */
+    size_t x_ti;    /* Index in the horizontal trajectory */
     /*
      * 'c' = cloud, 't' = tornado, 'd' = drone, 'b' = bird, 'z' = zombie,
      * 'i' = coin, 'm' = man.
      */
     char type;
-    int health;                 /* Health level. 0 is the lowest. */
-    struct obj *prev;           /* Link to previous node */
-    struct obj *next;           /* Link to next node */
+    int health;       /* Health level. 0 is the lowest. */
+    struct obj *prev; /* Link to previous node */
+    struct obj *next; /* Link to next node */
 };
 
 struct obj *init_obj(void)
@@ -245,7 +241,6 @@ int spawn_obj(struct obj **head, int h, int w, char type)
     return 0;
 }
 
-
 int process_trajectory(char **traj, size_t *index, unsigned int *coordin)
 {
     if (*traj != NULL) {
@@ -275,15 +270,15 @@ int process_trajectory(char **traj, size_t *index, unsigned int *coordin)
             *index = 0;
             break;
         default:
-            ++*index;           /* Eat char */
+            ++*index; /* Eat char */
             break;
         }
     }
     return 0;
 }
 
-int print_object(size_t y, size_t x, const char *object, char type,
-                 int *health)
+int print_object(
+    size_t y, size_t x, const char *object, char type, int *health)
 {
     chtype z, v_hl;
     char ch, v_ch;
@@ -333,11 +328,12 @@ int print_object(size_t y, size_t x, const char *object, char type,
              * Highlighting or objects besides clouds and the health indicator
              * reduce health.
              */
-            if (*health && (v_hl || !
-                            (v_ch == ' ' || v_ch == '*' || v_ch == '.'
-                             || v_ch == '`' || v_ch == '~' || v_ch == '('
-                             || v_ch == ')')))
-                -- * health;
+            if (*health
+                && (v_hl
+                    || !(v_ch == ' ' || v_ch == '*' || v_ch == '.'
+                        || v_ch == '`' || v_ch == '~' || v_ch == '('
+                        || v_ch == ')')))
+                --*health;
 
             if (v_hl)
                 standout();
@@ -377,23 +373,41 @@ int print_object(size_t y, size_t x, const char *object, char type,
 void print_obj_list(struct obj **head, char type, int *new_screen)
 {
     char *cloud_str = "  .~~~~~~.\n"
-        " (        )\n" "(          )\n" " (        )\n" "  `~~~~~~`";
+                      " (        )\n"
+                      "(          )\n"
+                      " (        )\n"
+                      "  `~~~~~~`";
 
     char *tornado_str = "\\##########/\n"
-        " \\########/\n"
-        "  \\######/\n" "   \\####/\n" "    \\##/\n" "     \\/";
+                        " \\########/\n"
+                        "  \\######/\n"
+                        "   \\####/\n"
+                        "    \\##/\n"
+                        "     \\/";
 
-    char *drone_str = "x x   x x\n" "|_|___|_|\n" "   |_|";
+    char *drone_str = "x x   x x\n"
+                      "|_|___|_|\n"
+                      "   |_|";
 
-    char *bird_str = " /\n" "<-K\n" " \\";
+    char *bird_str = " /\n"
+                     "<-K\n"
+                     " \\";
 
-    char *zombie_str = "[:]\n" " |==\n" "/\\";
-    char *zombie_vert_str = "[:]\n" " |==\n" " |";
+    char *zombie_str = "[:]\n"
+                       " |==\n"
+                       "/\\";
+    char *zombie_vert_str = "[:]\n"
+                            " |==\n"
+                            " |";
 
     char *coin_str = "$";
 
-    char *man_str = " o\n" "<|>\n" "/\\";
-    char *man_vert_str = " o\n" " V\n" " |";
+    char *man_str = " o\n"
+                    "<|>\n"
+                    "/\\";
+    char *man_vert_str = " o\n"
+                         " V\n"
+                         " |";
 
     char *obj_str;
     struct obj *b, *t;
@@ -547,8 +561,6 @@ void print_obj_list(struct obj **head, char type, int *new_screen)
                     b->y_ti = 0;
                 }
             }
-
-
         }
 
         if (remove) {
@@ -581,7 +593,7 @@ int remove_used_coins(struct obj **coin_head)
     b = *coin_head;
 
     if (*coin_head == NULL)
-        return 0;               /* Nothing to do */
+        return 0; /* Nothing to do */
 
     while (b != NULL) {
         if (move(b->y, b->x) == ERR)
@@ -640,24 +652,22 @@ int main(void)
      * figlet -f standard 'GAME OVER' | head -n -1 \
      *     | sed -E -e 's_\\_\\\\_g' -e 's_^_"_' -e 's_$_\\n"_'
      */
-    char *game_over_str =
-        "  ____    _    __  __ _____    _____     _______ ____  \n"
-        " / ___|  / \\  |  \\/  | ____|  / _ \\ \\   / / ____|  _ \\ \n"
-        "| |  _  / _ \\ | |\\/| |  _|   | | | \\ \\ / /|  _| | |_) |\n"
-        "| |_| |/ ___ \\| |  | | |___  | |_| |\\ V / | |___|  _ < \n"
-        " \\____/_/   \\_\\_|  |_|_____|  \\___/  \\_/  |_____|_| \\_\\\n";
+    char *game_over_str
+        = "  ____    _    __  __ _____    _____     _______ ____  \n"
+          " / ___|  / \\  |  \\/  | ____|  / _ \\ \\   / / ____|  _ \\ \n"
+          "| |  _  / _ \\ | |\\/| |  _|   | | | \\ \\ / /|  _| | |_) |\n"
+          "| |_| |/ ___ \\| |  | | |___  | |_| |\\ V / | |___|  _ < \n"
+          " \\____/_/   \\_\\_|  |_|_____|  \\___/  \\_/  |_____|_| \\_\\\n";
 
     /*
      * figlet -f standard 'YOU WIN!' | head -n -1 \
      *     | sed -E -e 's_\\_\\\\_g' -e 's_^_"_' -e 's_$_\\n"_'
      */
-    char *win_str =
-        "__   _____  _   _  __        _____ _   _ _ \n"
-        "\\ \\ / / _ \\| | | | \\ \\      / /_ _| \\ | | |\n"
-        " \\ V / | | | | | |  \\ \\ /\\ / / | ||  \\| | |\n"
-        "  | || |_| | |_| |   \\ V  V /  | || |\\  |_|\n"
-        "  |_| \\___/ \\___/     \\_/\\_/  |___|_| \\_(_)\n";
-
+    char *win_str = "__   _____  _   _  __        _____ _   _ _ \n"
+                    "\\ \\ / / _ \\| | | | \\ \\      / /_ _| \\ | | |\n"
+                    " \\ V / | | | | | |  \\ \\ /\\ / / | ||  \\| | |\n"
+                    "  | || |_| | |_| |   \\ V  V /  | || |\\  |_|\n"
+                    "  |_| \\___/ \\___/     \\_/\\_/  |___|_| \\_(_)\n";
 
     if (initscr() == NULL)
         mgoto(clean_up);
@@ -690,7 +700,7 @@ int main(void)
     if (spawn_obj(&man, h, w, 'm'))
         mgoto(clean_up);
 
-  set_up_screen:
+set_up_screen:
 
     free_obj_list(cloud_head);
     cloud_head = NULL;
@@ -715,7 +725,6 @@ int main(void)
 
     cloud_head->y = h - CLOUD_HEIGHT;
 
-
     /* Minus one because already spawned one cloud */
     for (i = 0; i < init_num_clouds - 1; ++i)
         if (spawn_obj(&cloud_head, h, w, 'c'))
@@ -731,7 +740,7 @@ int main(void)
 
     while (1) {
         if (!man->health) {
-          game_over:
+        game_over:
 
             move(0, 0);
 
@@ -803,7 +812,6 @@ int main(void)
         if (milli_sleep(MILLISECONDS_PER_INTERVAL))
             mgoto(clean_up);
 
-
         move_up = 0;
         move_left = 0;
         move_right = 0;
@@ -855,7 +863,6 @@ int main(void)
             man->y_ti = 0;
         }
 
-
         /* Spawn new objects */
         if (random_num(PROB_MAX_INCLUSIVE, &roll))
             mgoto(clean_up);
@@ -904,10 +911,10 @@ int main(void)
             mgoto(clean_up);
     }
 
-
-  quit:
-
+quit:
     ret = 0;
+
+clean_up:
 
     free_obj_list(cloud_head);
     free_obj_list(tornado_head);
@@ -917,7 +924,6 @@ int main(void)
     free_obj_list(coin_head);
     free_obj_list(man);
 
-  clean_up:
     if (endwin() == ERR)
         ret = 1;
 
