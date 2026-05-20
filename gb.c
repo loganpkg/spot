@@ -216,7 +216,7 @@ struct gb *init_gb(size_t s)
     *(b->a + s - 1) = '\0';
 
     b->r = 1;
-    b->col = 1;
+    b->col = 0;
 
     if ((b->undo = init_op_buf(s)) == NULL) {
         free_gb(b);
@@ -255,7 +255,7 @@ void reset_gb(struct gb *b)
     b->m_set = 0;
     b->m = 0;
     b->r = 1;
-    b->col = 1;
+    b->col = 0;
     b->sc_set = 0;
     b->sc = 0;
     b->d = 0;
@@ -320,7 +320,7 @@ int insert_ch(struct gb *b, char ch)
     ++b->g;
     if (ch == '\n') {
         ++b->r;
-        b->col = 1;
+        b->col = 0;
     } else if (ch == '\t') {
         b->col += TAB_SIZE;
     } else {
@@ -477,7 +477,7 @@ int right_ch(struct gb *b)
     u = *(b->a + b->c);
     if (u == '\n') {
         ++b->r;
-        b->col = 1;
+        b->col = 0;
     } else if (u == '\t') {
         b->col += TAB_SIZE;
     } else {
@@ -510,7 +510,7 @@ int backspace_ch(struct gb *b)
 
 void start_of_line(struct gb *b)
 {
-    while (b->col != 1) left_ch(b);
+    while (b->col) left_ch(b);
 }
 
 void end_of_line(struct gb *b)
@@ -1058,8 +1058,7 @@ int copy_logical_line(struct gb *b, struct gb *tmp)
      */
 
     /* Move to start of logical line */
-    while (b->col != 1 || (b->g >= 2 && *(b->a + b->g - 2) == '\\'))
-        left_ch(b);
+    while (b->col || (b->g >= 2 && *(b->a + b->g - 2) == '\\')) left_ch(b);
 
     b->m_set = 1;
     b->m = b->c;
