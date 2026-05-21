@@ -441,7 +441,7 @@ int left_ch(struct gb *b)
         --b->r;
         /* Need to work out col */
         i = b->g;
-        count = 1;
+        count = 0;
         while (i) {
             --i;
             ch = *(b->a + i);
