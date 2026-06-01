@@ -877,15 +877,17 @@ error:
 int gb_insert_file(Gap_buf gb, const char *fn)
 {
     Input ip = NULL;
-    int r, ch;
+    int r, ch, bm = 0, em = 0;
+    size_t count;
 
     if ((r = init_input_fn(&ip, fn, BLOCKING, RAW, NULL)))
         return r;
 
-    if (record_multi(gb, BEGIN_MULTI)) {
-        free_input(ip);
-        debug(return -1);
-    }
+    if (record_multi(gb, BEGIN_MULTI))
+        debug(goto error);
+
+    bm = 1;
+    count = 0;
 
     while (1) {
         if (get_ch(ip, &ch))
@@ -896,23 +898,40 @@ int gb_insert_file(Gap_buf gb, const char *fn)
 
         if (gb_insert_ch(gb, (char) ch))
             debug(goto error);
+
+        ++count;
     }
-
-    if (record_multi(gb, END_MULTI)) {
-        free_input(ip);
-        debug(return -1);
-    }
-
-    return free_input(ip);
-
-error:
-    free_input(ip);
 
     if (record_multi(gb, END_MULTI))
-        debug(return -1);
+        debug(goto error);
+
+    em = 1;
+
+    if (free_input(ip)) {
+        ip = NULL; /* Do not try to free again. */
+        debug(goto error);
+    }
+
+    ip = NULL;
+
+    /* Move to the start of the inserted file. */
+    while (count--)
+        if (gb_left_ch(gb))
+            debug(goto error);
+
+    return 0;
+
+error:
+    if (ip != NULL)
+        free_input(ip);
+
+    if (bm && !em)
+        if (!record_multi(gb, END_MULTI))
+            em = 1;
 
     /* Attempt undo. */
-    gb_undo(gb);
+    if (em)
+        gb_undo(gb);
 
     debug(return -1);
 }
