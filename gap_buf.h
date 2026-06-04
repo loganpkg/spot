@@ -82,9 +82,13 @@ const char *gb_to_str(Gap_buf gb);
 
 int gb_set_fn(Gap_buf gb, const char *fn);
 
+const char *gb_get_fn(Gap_buf gb);
+
 void gb_clear_mod(Gap_buf gb);
 
-int gb_write_file(Gap_buf gb);
+int gb_is_mod_set(Gap_buf gb);
+
+int gb_write_file(Gap_buf gb, const char *fn);
 
 void gb_set_mark(Gap_buf gb);
 

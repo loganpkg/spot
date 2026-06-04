@@ -32,11 +32,21 @@ set -u
 set -x
 
 ######################################################################
-# Configuration.
+# Configuration:
+if [ "$(uname)" = Linux ]
+then
+    backup_prefix=/mnt/c/Users/"$(whoami)"
+else
+    backup_prefix="$HOME"
+fi
+suco_backup_dir="$backup_prefix"/OneDrive/Documents/SUCO_BACKUP
+install_dir="$HOME/bin"
 cc=clang
 # cc=gcc
 c_ops='-ansi -g -O0 -Wall -Wextra -pedantic -I. -DDEBUG'
 ######################################################################
+
+c_ops="$c_ops -DSUCO_BACKUP_DIR=$suco_backup_dir"
 
 if [ "$cc" = clang ]
 then
@@ -206,7 +216,8 @@ done < "$tmp"
 "$cc" $c_ops test_dll.o doubly_linked_list.o \
     -o test/test_dll
 
-"$cc" $c_ops suco.o gap_buf.o memmem.o screen.o input.o buf.o int.o -o suco
+"$cc" $c_ops suco.o gap_buf.o memmem.o screen.o input.o buf.o int.o \
+    get_time.o asprintf.o random.o -o suco
 
 
 # Move source code back.
@@ -238,3 +249,7 @@ mv test/test_screen "$wd"/test/test_screen
 mv test/test_gap_buf "$wd"/test/test_gap_buf
 mv test/test_dll "$wd"/test/test_dll
 mv suco "$wd"/suco
+
+# Install.
+mkdir -p "$install_dir"
+cp "$wd"/suco "$install_dir"

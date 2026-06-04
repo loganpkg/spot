@@ -25,17 +25,38 @@
 
 #include <ctype.h>
 #include <limits.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "asprintf.h"
 #include "buf.h"
 #include "debug.h"
 #include "doubly_linked_list.c"
 #include "gap_buf.h"
+#include "get_time.h"
 #include "input.h"
+#include "random.h"
 #include "screen.h"
 
+/* ######### Configuration: ######### */
 #define INIT_NUM_GB_ELEMENTS 512
+/* ################################## */
+
+#ifdef _WIN32
+#define lx "llx"
+#else
+#define lx "lx"
+#endif
+
+#ifdef _WIN32
+#define DIR_SEP_STR "\\"
+#else
+#define DIR_SEP_STR "/"
+#endif
+
+#define sringify(t)            #t
+#define expand_and_sringify(t) sringify(t)
 
 /* The direction when changing buffers. */
 #define LEFT_GB  0
@@ -167,19 +188,83 @@ error:
     debug(return NULL);
 }
 
+static char *get_backup_fn(Gap_buf gb)
+{
+    const char *fn;
+    char *nm, *p, ch;
+    char *fn_copy = NULL;
+    char *tm = NULL;
+    char *backup_fn = NULL;
+    uint64_t x;
+
+    fn = gb_get_fn(gb);
+
+    if (fn == NULL || *fn == '\0') {
+        nm = "NO_NAME";
+    } else {
+        if (asprintf(&fn_copy, "%s", fn) < 0)
+            debug(return NULL);
+
+        p = fn_copy;
+        while ((ch = *p)) {
+            if (ch == '/' || ch == '\\')
+                *p = '_';
+
+            ++p;
+        }
+
+        nm = fn_copy;
+    }
+
+    if (memset_random(&x, sizeof(uint64_t))) {
+        free(fn_copy);
+        debug(return NULL);
+    }
+
+    if ((tm = get_time_str()) == NULL) {
+        free(fn_copy);
+        debug(return NULL);
+    }
+
+    if (asprintf(&backup_fn, "%s%s%s_%016" lx "_%s",
+            expand_and_sringify(SUCO_BACKUP_DIR), DIR_SEP_STR, tm, x, nm)
+        < 0) {
+        free(fn_copy);
+        free(tm);
+        debug(return NULL);
+    }
+
+    free(fn_copy);
+    free(tm);
+
+    return backup_fn;
+}
+
 static int add_gap_buf(Editor ed, const char *fn)
 {
     Gap_buf gb = NULL;
+    char *backup_fn = NULL;
+    int r;
 
     if ((gb = gb_init(INIT_NUM_GB_ELEMENTS)) == NULL)
         debug(goto error);
 
     if (fn != NULL) {
-        if (gb_insert_file(gb, fn) == -1)
+        r = gb_insert_file(gb, fn);
+        if (r == -1)
             debug(goto error);
 
         if (gb_set_fn(gb, fn))
             debug(goto error);
+
+        if (!r) {
+            /* Do not backup non-existent files. */
+            if ((backup_fn = get_backup_fn(gb)) == NULL)
+                debug(goto error);
+
+            if (gb_write_file(gb, backup_fn))
+                debug(goto error);
+        }
 
         gb_clear_mod(gb);
     }
@@ -191,6 +276,10 @@ static int add_gap_buf(Editor ed, const char *fn)
 
 error:
     gb_free(gb);
+
+    if (backup_fn != NULL)
+        free(backup_fn);
+
     debug(return 1);
 }
 
@@ -384,11 +473,6 @@ static void ed_trim_clean(Editor ed)
     ed->rv = gb_trim_clean(a_gb);
 }
 
-static void ed_close(Editor ed)
-{
-    ed->running = 0;
-}
-
 static void ed_set_mark(Editor ed)
 {
     gb_set_mark(a_gb);
@@ -427,7 +511,28 @@ static void ed_centre(Editor ed)
 
 static void ed_save(Editor ed)
 {
-    ed->rv = gb_write_file(a_gb);
+    char *backup_fn = NULL;
+
+    if (!gb_is_mod_set(a_gb))
+        return; /* No changes to save. */
+
+    if (gb_write_file(a_gb, gb_get_fn(a_gb))) {
+        ed->rv = 1;
+        return;
+    }
+
+    if ((backup_fn = get_backup_fn(a_gb)) == NULL) {
+        ed->rv = 1;
+        debug(return);
+    }
+
+    if (gb_write_file(a_gb, backup_fn)) {
+        free(backup_fn);
+        ed->rv = 1;
+        return;
+    }
+
+    free(backup_fn);
 }
 
 static void ed_repeat_last_search(Editor ed)
@@ -573,7 +678,7 @@ static void ed_toggle_view(Editor ed)
         ed->view_2 = 1;
 }
 
-static void change_gb(Editor ed, int direction)
+static int change_gb(Editor ed, int direction)
 {
     Dlln t, skip;
 
@@ -592,22 +697,52 @@ static void change_gb(Editor ed, int direction)
             else
                 ed->n = t;
 
-            ed->rv = 0;
-            return;
+            return 0;
         }
 
-    ed->rv = 1;
-    return;
+    return 1;
+}
+
+static void ed_close(Editor ed)
+{
+    char *backup_fn = NULL;
+
+    ed->n_2 = NULL;
+    ed->view_2 = 0;
+    ed->split = NO_SPLIT;
+
+    /* Move to the first buffer. */
+    while (!change_gb(ed, LEFT_GB));
+
+    do {
+        /* Backup modified buffers. */
+        if (gb_is_mod_set(c_gb)) {
+            if ((backup_fn = get_backup_fn(c_gb)) == NULL) {
+                ed->rv = 1;
+            } else {
+                if (gb_write_file(c_gb, backup_fn))
+                    ed->rv = 1;
+
+                if (backup_fn != NULL)
+                    free(backup_fn);
+
+                backup_fn = NULL;
+            }
+        }
+        /* Move forward, buffer by buffer. */
+    } while (!change_gb(ed, RIGHT_GB));
+
+    ed->running = 0;
 }
 
 static void ed_left_gb(Editor ed)
 {
-    change_gb(ed, LEFT_GB);
+    ed->rv = change_gb(ed, LEFT_GB);
 }
 
 static void ed_right_gb(Editor ed)
 {
-    change_gb(ed, RIGHT_GB);
+    ed->rv = change_gb(ed, RIGHT_GB);
 }
 
 int main(int argc, char **argv)

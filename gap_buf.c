@@ -111,7 +111,7 @@ struct gap_buf {
     int sc_set;  /* Indicates that the sticky column is set. */
     size_t d;    /* Draw start. This can be compared with g. */
     int rc;      /* Request centring. */
-    size_t mod;  /* Modified indicator. */
+    int mod;     /* Modified indicator. */
     char *sb;    /* Status bar. */
     size_t sb_s; /* Status bar allocated size. */
 };
@@ -982,39 +982,32 @@ int gb_set_fn(Gap_buf gb, const char *fn)
     return 0;
 }
 
+const char *gb_get_fn(Gap_buf gb)
+{
+    return gb->fn;
+}
+
 void gb_clear_mod(Gap_buf gb)
 {
     gb->mod = 0;
 }
 
-int gb_write_file(Gap_buf gb)
+int gb_is_mod_set(Gap_buf gb)
 {
-    size_t len;
-    char *tmp_fn = NULL;
+    return gb->mod;
+}
+
+int gb_write_file(Gap_buf gb, const char *fn)
+{
     FILE *fp = NULL;
 
-    if (!gb->mod)
-        return 0; /* Nothing to do. */
-
-    if (gb->fn == NULL || *gb->fn == '\0')
-        debug(goto error);
-
-    len = strlen(gb->fn);
-
-    if (add_overflow(len, 2))
-        debug(goto error);
-
-    if ((tmp_fn = calloc(len + 2, sizeof(char))) == NULL)
-        debug(goto error);
-
-    memcpy(tmp_fn, gb->fn, len);
-    tmp_fn[len] = '~';
-    tmp_fn[len + 1] = '\0';
+    if (fn == NULL || *fn == '\0')
+        goto error;
 
 #ifdef _WIN32
-    if (fopen_s(&fp, tmp_fn, "wb"))
+    if (fopen_s(&fp, fn, "wb"))
 #else
-    if ((fp = fopen(tmp_fn, "wb")) == NULL)
+    if ((fp = fopen(fn, "wb")) == NULL)
 #endif
         debug(goto error);
 
@@ -1027,31 +1020,17 @@ int gb_write_file(Gap_buf gb)
         debug(goto error);
 
     if (fclose(fp))
-        debug(goto error_no_fclose);
+        return 1;
 
-    fp = NULL;
+    if (gb->fn != NULL && *gb->fn != '\0' && !strcmp(gb->fn, fn))
+        gb->mod = 0;
 
-#ifdef _WIN32
-    errno = 0;
-    if (_unlink(gb->fn)) {
-        if (errno != ENOENT)
-            debug(goto error);
-    }
-#endif
-
-    if (rename(tmp_fn, gb->fn))
-        debug(goto error);
-
-    free(tmp_fn);
-    gb->mod = 0;
     return 0;
 
 error:
     if (fp != NULL)
         fclose(fp);
-error_no_fclose:
-    if (tmp_fn != NULL)
-        free(tmp_fn);
+
     return 1;
 }
 

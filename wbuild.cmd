@@ -23,7 +23,17 @@
 :: SUCH DAMAGE.
 ::
 
+:: ###################################################################
+::  Configuration:
+set suco_backup_dir=%HOMEDRIVE%%HOMEPATH%\OneDrive\Documents\SUCO_BACKUP
+set install_dir=%HOMEDRIVE%%HOMEPATH%\bin
 set c_ops=/Qspectre /Wall /wd4820 /wd5045 /I. /DDEBUG
+:: ###################################################################
+
+:: Escape backslashes for C string.
+set suco_backup_dir=%suco_backup_dir:\=\\%
+
+set c_ops=%c_ops% -DSUCO_BACKUP_DIR=%suco_backup_dir%
 
 cl /c %c_ops% *.c .\test\*.c
 
@@ -42,6 +52,10 @@ cl %c_ops% test_dll.obj doubly_linked_list.obj ^
     /Fe.\test\test_dll.exe
 
 cl %c_ops% suco.obj gap_buf.obj memmem.obj screen.obj input.obj buf.obj ^
-    int.obj /Fesuco.exe
+   int.obj get_time.obj asprintf.obj random.obj /Fesuco.exe /link bcrypt.lib
 
 del *.obj
+
+:: Install.
+if not exist %install_dir% mkdir %install_dir%
+copy suco.exe %install_dir%
