@@ -41,6 +41,7 @@
 
 /* ######### Configuration: ######### */
 #define INIT_NUM_GB_ELEMENTS 512
+#define KEYS_UNTIL_AUTO_SAVE 100
 /* ################################## */
 
 #ifdef _WIN32
@@ -111,8 +112,9 @@ struct editor {
     Input ip;
     int ch; /* Read character. */
     Screen sc;
-    int rv;      /* Return value of the last command. */
-    int running; /* Text editor is on. */
+    int rv;           /* Return value of the last command. */
+    int running;      /* Text editor is on. */
+    size_t key_count; /* Used for triggering auto-save. */
 };
 
 typedef struct editor *Editor;
@@ -463,6 +465,26 @@ static void ed_down_line(Editor ed)
     ed->rv = gb_down_line(a_gb);
 }
 
+static void ed_left_word(Editor ed)
+{
+    ed->rv = gb_left_word(a_gb);
+}
+
+static void ed_right_word(Editor ed)
+{
+    ed->rv = gb_right_word(a_gb, NO_CASE_CHANGE);
+}
+
+static void ed_to_lower_word(Editor ed)
+{
+    ed->rv = gb_right_word(a_gb, TO_LOWER);
+}
+
+static void ed_to_upper_word(Editor ed)
+{
+    ed->rv = gb_right_word(a_gb, TO_UPPER);
+}
+
 static void ed_match_brace(Editor ed)
 {
     ed->rv = gb_match_brace(a_gb);
@@ -703,25 +725,28 @@ static int change_gb(Editor ed, int direction)
     return 1;
 }
 
-static void ed_close(Editor ed)
+static int backup_mod_buffers(Editor ed)
 {
+    Dlln n;
     char *backup_fn = NULL;
+    int ret = 0;
 
-    ed->n_2 = NULL;
-    ed->view_2 = 0;
-    ed->split = NO_SPLIT;
+    n = ed->n;
+
+    if (n == NULL)
+        debug(return 1);
 
     /* Move to the first buffer. */
-    while (!change_gb(ed, LEFT_GB));
+    while (n->prev != NULL) n = n->prev;
 
     do {
         /* Backup modified buffers. */
-        if (gb_is_mod_set(c_gb)) {
-            if ((backup_fn = get_backup_fn(c_gb)) == NULL) {
-                ed->rv = 1;
+        if (gb_is_mod_set(n->data)) {
+            if ((backup_fn = get_backup_fn(n->data)) == NULL) {
+                debug(ret = 1);
             } else {
-                if (gb_write_file(c_gb, backup_fn))
-                    ed->rv = 1;
+                if (gb_write_file(n->data, backup_fn))
+                    debug(ret = 1);
 
                 if (backup_fn != NULL)
                     free(backup_fn);
@@ -730,8 +755,14 @@ static void ed_close(Editor ed)
             }
         }
         /* Move forward, buffer by buffer. */
-    } while (!change_gb(ed, RIGHT_GB));
+    } while ((n = n->next) != NULL);
 
+    return ret;
+}
+
+static void ed_close(Editor ed)
+{
+    ed->rv = backup_mod_buffers(ed);
     ed->running = 0;
 }
 
@@ -784,6 +815,12 @@ int main(int argc, char **argv)
 
         if (get_ch(ed->ip, &ed->ch))
             debug(goto error);
+
+        /* Auto-save. */
+        if (++ed->key_count >= KEYS_UNTIL_AUTO_SAVE) {
+            backup_mod_buffers(ed);
+            ed->key_count = 0;
+        }
 
         if (ed->ch == '\r')
             ed->ch = '\n';

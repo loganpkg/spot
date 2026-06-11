@@ -33,6 +33,11 @@
 #define INCLUDE_STATUS_BAR 1
 #define EXCLUDE_STATUS_BAR 2
 
+/* case_change options for the gb_right_word function. */
+#define NO_CASE_CHANGE 0
+#define TO_LOWER       1
+#define TO_UPPER       2
+
 typedef struct gap_buf *Gap_buf;
 
 /* Function declarations */
@@ -70,7 +75,11 @@ int gb_forward_search(Gap_buf gb, Gap_buf search);
 
 int gb_match_brace(Gap_buf gb);
 
+int gb_left_word(Gap_buf gb);
+
 int gb_backspace_ch(Gap_buf gb);
+
+int gb_right_word(Gap_buf gb, int case_change);
 
 int gb_insert_hex_str(Gap_buf gb, const char *hex_str);
 

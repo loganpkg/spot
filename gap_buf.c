@@ -80,6 +80,7 @@
         (gb)->sc = 0;                                                         \
     } while (0)
 
+/* Navigation does not need to be recorded for undo and redo purposes. */
 struct operation {
     /* Copy of the g location. g does not change with realloc. */
     size_t g;
@@ -735,6 +736,29 @@ int gb_match_brace(Gap_buf gb)
     return 1;
 }
 
+int gb_left_word(Gap_buf gb)
+{
+    char ch;
+    int word_started = 0;
+
+    if (gb_left_ch(gb))
+        return 1;
+
+    do {
+        ch = *(gb->a + gb->c);
+        if (ispunct(ch) || ch == ' ' || ch == '\t' || ch == '\n') {
+            if (word_started) {
+                gb_right_ch(gb);
+                break;
+            }
+        } else {
+            word_started = 1;
+        }
+    } while (!gb_left_ch(gb));
+
+    return 0;
+}
+
 /* ######################################################################## */
 
 /* ######################################################################## */
@@ -747,6 +771,65 @@ int gb_backspace_ch(Gap_buf gb)
         return 1;
 
     return gb_delete_ch(gb);
+}
+
+int gb_right_word(Gap_buf gb, int case_change)
+{
+    char ch;
+    int word_started = 0, mod = 0;
+
+    if (gb->c == gb->e)
+        return 1; /* At the end of the buffer. */
+
+    if (case_change != NO_CASE_CHANGE && case_change != TO_LOWER
+        && case_change != TO_UPPER)
+        debug(return 1); /* Invalid option. */
+
+    while (1) {
+        ch = *(gb->a + gb->c);
+        if (ispunct(ch) || ch == ' ' || ch == '\t' || ch == '\n') {
+            if (word_started)
+                break;
+
+            if (gb_right_ch(gb))
+                break;
+
+        } else {
+            word_started = 1;
+
+            if ((case_change == TO_LOWER && isupper(ch))
+                || (case_change == TO_UPPER && islower(ch))) {
+                if (!mod) {
+                    if (record_multi(gb, BEGIN_MULTI))
+                        debug(return 1);
+
+                    mod = 1;
+                }
+
+                if (gb_delete_ch(gb))
+                    debug(goto error);
+
+                if (gb_insert_ch(gb, ch ^ 1 << 5))
+                    debug(goto error);
+            } else {
+                if (gb_right_ch(gb))
+                    break;
+            }
+        }
+    }
+
+    if (mod && record_multi(gb, END_MULTI))
+        debug(return 1);
+
+    return 0;
+
+error:
+    if (record_multi(gb, END_MULTI))
+        debug(return 1);
+
+    /* Attempt undo. */
+    gb_undo(gb);
+    debug(return 1);
 }
 
 int gb_insert_hex_str(Gap_buf gb, const char *hex_str)
