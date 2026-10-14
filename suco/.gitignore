@@ -1,0 +1,13 @@
+*.o
+*.obj
+*.exe
+*.core
+a.out
+suco
+test_*
+!*.c
+!*.h
+!*.sh
+!*.cmd
+!*.exp
+!*.md

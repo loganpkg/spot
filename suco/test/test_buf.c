@@ -1,0 +1,72 @@
+/*
+ * Copyright (c) 2025 Logan Ryan McLintock. All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS "AS IS" AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
+ */
+
+#include <stdio.h>
+
+#include <buf.h>
+#include <debug.h>
+
+#define INIT_NUM_ELEMENTS 1
+#define ELEMENT_SIZE      10
+
+int main(void)
+{
+    Buf b = NULL;
+    char str[ELEMENT_SIZE];
+
+    if ((b = init_buf(INIT_NUM_ELEMENTS, ELEMENT_SIZE)) == NULL)
+        debug(goto error);
+
+    if (push(b, "cool"))
+        debug(goto error);
+
+    if (push(b, "elephant!"))
+        debug(goto error);
+
+    if (push(b, "whale"))
+        debug(goto error);
+
+    if (pop(b, str))
+        debug(goto error);
+
+    printf("%s\n", str);
+
+    if (pop(b, str))
+        debug(goto error);
+
+    printf("%s\n", str);
+
+    if (pop(b, str))
+        debug(goto error);
+
+    printf("%s\n", str);
+
+    free_buf(b);
+    return 0;
+
+error:
+    free_buf(b);
+    debug(return 1);
+}

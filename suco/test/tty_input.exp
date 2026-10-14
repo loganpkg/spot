@@ -1,0 +1,64 @@
+#! /usr/bin/expect
+
+#
+# Copyright (c) 2025 Logan Ryan McLintock. All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+# 1. Redistributions of source code must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright
+#    notice, this list of conditions and the following disclaimer in the
+#    documentation and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS "AS IS" AND
+# ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+# OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+# HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+# LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+# OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+# SUCH DAMAGE.
+#
+
+spawn ./test_input
+expect "=> "
+# Starts off quickly.
+send "A\x1B\x5B\x32\x7En"
+# n enters non-blocking, cooked mode.
+expect "=> _"
+send "\x1B\x5B\x32\x7E"
+expect "=> 107"
+expect "=> _"
+send "\x1B\x5B\x36\x7E"
+expect "=> 10A"
+expect "=> _"
+send "d"
+# d enters non-blocking, double-cooked mode.
+expect "=> 64"
+expect "=> _"
+send "\x01\x02\x03\x04\x05\x06"
+expect "=> 200"
+expect "=> _"
+# Deliberately one less character.
+send "\x01\x02\x03\x04\x05"
+expect "=> 01"
+expect "=> 02"
+expect "=> 03"
+expect "=> 04"
+expect "=> 05"
+expect "=> _"
+send "\x1Bx"
+expect "=> 201"
+expect "=> _"
+send "\x1B\x4F\x50\x1B\x4F\x51\x1B\x5B\x32\x34\x7E\x1B\x5B\x33\x7E"
+    send "\x1B\x5B\x35\x7E"
+expect "=> 202"
+expect "=> _"
+send "q"
+expect "=> 71"
+expect eof

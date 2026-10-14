@@ -1,0 +1,80 @@
+#
+# Copyright (c) 2026 Logan Ryan McLintock. All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+# 1. Redistributions of source code must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright
+#    notice, this list of conditions and the following disclaimer in the
+#    documentation and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS "AS IS" AND
+# ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+# OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+# HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+# LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+# OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+# SUCH DAMAGE.
+#
+
+# Key mappings for the suco text editor.
+# Only the first pipe character is the delimiter and pipe characters can be
+# safely used as a part of the key mapping after that. Single characters will
+# be treated as char literals. See the input.h file for a list of special key
+# macros. You can map the same function multiple times by simply making
+# another entry.
+
+ed_delete_ch|CTRL_D
+ed_delete_ch|KEY_DELETE
+ed_backspace_ch|CTRL_H
+ed_backspace_ch|KEY_BACKSPACE
+ed_left_ch|CTRL_B
+ed_left_ch|KEY_LEFT
+ed_right_ch|CTRL_F
+ed_right_ch|KEY_RIGHT
+ed_up_line|CTRL_P
+ed_up_line|KEY_UP
+ed_down_line|CTRL_N
+ed_down_line|KEY_DOWN
+ed_undo|ESC -
+ed_redo|ESC =
+ed_start_of_line|CTRL_A
+ed_start_of_line|KEY_HOME
+ed_end_of_line|CTRL_E
+ed_end_of_line|KEY_END
+ed_start_of_buffer|ESC <
+ed_end_of_buffer|ESC >
+ed_left_word|ESC b
+ed_right_word|ESC f
+ed_to_lower_word|ESC l
+ed_to_upper_word|ESC u
+ed_match_brace|ESC m
+ed_forward_search|CTRL_S
+ed_repeat_last_search|ESC n
+ed_open_file|CTRL_X CTRL_F
+ed_insert_file|CTRL_X i
+ed_save|CTRL_X CTRL_S
+ed_close|CTRL_X CTRL_C
+ed_left_gb|CTRL_X KEY_LEFT
+ed_left_gb|CTRL_LEFT
+ed_right_gb|CTRL_X KEY_RIGHT
+ed_right_gb|CTRL_RIGHT
+ed_set_mark|CTRL_2
+ed_clear_mark_or_esc_cmd|CTRL_G
+ed_copy_region|ESC w
+ed_cut_region|CTRL_W
+ed_cut_to_start_of_line|ESC k
+ed_cut_to_end_of_line|CTRL_K
+ed_paste|CTRL_Y
+ed_trim_clean|CTRL_T
+ed_insert_hex|CTRL_Q
+ed_centre|CTRL_L
+ed_rename|ESC /
+ed_toggle_split|ESC s
+ed_toggle_view|ESC v
