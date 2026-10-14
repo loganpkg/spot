@@ -1,0 +1,14 @@
+*.pch
+*.gch
+*.o
+*.obj
+*.exe
+*.core
+a.out
+test_xxh64
+!*.c
+!*.h
+!*.sh
+!*.cmd
+!*.exp
+!*.md

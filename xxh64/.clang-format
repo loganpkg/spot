@@ -1,0 +1,8 @@
+BasedOnStyle: WebKit
+AllowShortFunctionsOnASingleLine: None
+AllowShortLoopsOnASingleLine: true
+PointerAlignment: Right
+SpaceAfterCStyleCast: true
+AlignConsecutiveMacros: true
+AlignTrailingComments: true
+ColumnLimit: 79
