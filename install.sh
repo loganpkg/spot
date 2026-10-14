@@ -49,7 +49,7 @@ make_executable() {
 export cflags
 
 
-find . ! -path '*.git/*' -type f -name '*.c' -exec sh -c '
+find . -maxdepth 1 ! -path '*.git/*' -type f -name '*.c' -exec sh -c '
     set -e
     set -u
     set -x

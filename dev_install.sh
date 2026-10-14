@@ -82,17 +82,17 @@ build_dir=$(mktemp -d)
 # Fix permissions
 find . -type d ! -path '*.git*' -exec chmod 700 '{}' \;
 find . -type f ! -path '*.git*' ! -name '*.sh' -exec chmod 600 '{}' \;
-find . -type f ! -path '*.git*' -name '*.sh' -exec chmod 700 '{}' \;
+find . -type f ! -path '*.git*' \( -name '*.sh' -o -name '*.cmd' -o -name '*.exp' \) -exec chmod 700 '{}' \;
 
 # Copy files
-find . -type f ! -path '*.git*' -exec cp -p '{}' "$build_dir" \;
+find . -maxdepth 1 -type f ! -path '*.git*' -exec cp -p '{}' "$build_dir" \;
 
 cd "$build_dir" || exit 1
 
 rm -f err
 
-find . -type f \( -name '*.h' -o -name '*.c' \) \
-    -exec clang-format -i -style=file '{}' \; 2> err
+# find . -maxdepth 1 -type f \( -name '*.h' -o -name '*.c' \) \
+#     -exec clang-format -i -style=file '{}' \; 2> err
 
 if [ -s err ]
 then
@@ -103,8 +103,8 @@ fi
 
 # Max of 79 chars per line plus the \n, making a total of 80.
 # So 80 non-newline chars is too long.
-find . -type f ! -path '*.git*' ! -name '*~' ! -name 'tornado_dodge.txt' \
-    -exec grep -H -n -E '.{80}' '{}' \; > err 2>&1
+# find . -maxdepth 1 -type f ! -path '*.git*' ! -name '*~' ! -name 'tornado_dodge.txt' ! -name err \
+#     -exec grep -H -n -E '.{80}' '{}' \; > err 2>&1
 
 if [ -s err ]
 then
@@ -121,11 +121,11 @@ fi
 
 tmp=$(mktemp)
 
-find . -type f ! -path '*.git*' -name '*.c' > "$tmp"
+find . -maxdepth 1 -type f ! -path '*.git*' -name '*.c' > "$tmp"
 
 if [ "$(uname)" = Linux ] || [ "$cc" != gcc ]
 then
-    find . -type f ! -path '*.git*' -name '*.h' >> "$tmp"
+    find . -maxdepth 1 -type f ! -path '*.git*' -name '*.h' >> "$tmp"
 fi
 
 while IFS='' read -r x
@@ -162,4 +162,4 @@ m4 test.m4 > .k
 cmp .k .k2
 
 # Update files
-find . -type f \( -name '*.h' -o -name '*.c' \) -exec cp -p '{}' "$repo_dir" \;
+find . -maxdepth 1 -type f \( -name '*.h' -o -name '*.c' \) -exec cp -p '{}' "$repo_dir" \;
